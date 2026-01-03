@@ -35,11 +35,15 @@ from .api import router
 # Dependencies
 from .dependencies import (
     get_supabase_client,
+    get_async_supabase_client,
     get_places_repository,
+    get_async_places_repository,
     get_name_matcher,
+    get_async_name_matcher,
     get_external_geocoder,
     get_directional_parser,
     get_geocoding_service,
+    get_async_geocoding_service,
     cleanup_services
 )
 
@@ -70,12 +74,20 @@ __all__ = [
     # API
     'router',
     
-    # Dependencies
+    # Dependencies (sync)
     'get_supabase_client',
     'get_places_repository',
     'get_name_matcher',
     'get_external_geocoder',
     'get_directional_parser',
     'get_geocoding_service',
+    
+    # Dependencies (async) - for Modal and high-concurrency scenarios
+    'get_async_supabase_client',
+    'get_async_places_repository',
+    'get_async_name_matcher',
+    'get_async_geocoding_service',
+    
+    # Cleanup
     'cleanup_services',
 ]

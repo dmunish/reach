@@ -1,7 +1,9 @@
-from typing import List, Optional, Dict, Any, cast
+from typing import List, Optional, Dict, Any, cast, Union
 from uuid import UUID
 from supabase import Client
+from supabase._async.client import AsyncClient
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -9,10 +11,30 @@ class PlacesRepository:
     """
     Repository for database operations on the places table.
     Provides abstraction over Supabase client with proper type handling.
+    
+    Supports both sync and async Supabase clients:
+    - Sync client: Used in local development and simple scripts
+    - Async client: Used in Modal.com and high-concurrency scenarios
     """
     
-    def __init__(self, supabase_client: Client):
+    def __init__(self, supabase_client: Union[Client, AsyncClient]):
         self.client = supabase_client
+        self._is_async = isinstance(supabase_client, AsyncClient)
+    
+    async def _execute_rpc(self, func_name: str, params: dict) -> Any:
+        """Execute RPC call, handling both sync and async clients."""
+        rpc_call = self.client.rpc(func_name, params)
+        if self._is_async:
+            return await rpc_call.execute()
+        else:
+            return rpc_call.execute()
+    
+    async def _execute_query(self, query) -> Any:
+        """Execute a query, handling both sync and async clients."""
+        if self._is_async:
+            return await query.execute()
+        else:
+            return query.execute()
     
     async def search_by_fuzzy_name(
         self, 
@@ -31,13 +53,13 @@ class PlacesRepository:
             List of matching places with similarity scores
         """
         try:
-            result = self.client.rpc(
+            result = await self._execute_rpc(
                 'search_places_fuzzy',
                 {
                     'search_name': name,
                     'similarity_threshold': threshold
                 }
-            ).execute()
+            )
             
             # Type guard: ensure result.data is a list
             if result.data and isinstance(result.data, list):
@@ -64,10 +86,10 @@ class PlacesRepository:
             Place dict or None if no match found
         """
         try:
-            result = self.client.rpc(
+            result = await self._execute_rpc(
                 'find_place_by_point',
                 {'lon': longitude, 'lat': latitude}
-            ).execute()
+            )
             
             # Type guard: ensure result.data is a list and return first element
             if result.data and isinstance(result.data, list) and len(result.data) > 0:
@@ -88,11 +110,12 @@ class PlacesRepository:
             Place dict or None if not found
         """
         try:
-            result = self.client.table('places')\
+            query = self.client.table('places')\
                 .select('*')\
                 .eq('id', str(place_id))\
-                .single()\
-                .execute()
+                .single()
+            
+            result = await self._execute_query(query)
             
             # Type guard for single result
             if result.data and isinstance(result.data, dict):
@@ -125,7 +148,7 @@ class PlacesRepository:
             if level is not None:
                 query = query.eq('hierarchy_level', level)
             
-            result = query.execute()
+            result = await self._execute_query(query)
             
             # Type guard: ensure result.data is a list
             if result.data and isinstance(result.data, list):
@@ -143,13 +166,13 @@ class PlacesRepository:
         try:
             logger.info(f"Calling find_places_in_direction with ids: {base_place_ids}, direction: {direction}")
             
-            result = self.client.rpc(
+            result = await self._execute_rpc(
                 'find_places_in_direction',
                 {
                     'base_place_ids': [str(pid) for pid in base_place_ids],
                     'direction': direction.lower()
                 }
-            ).execute()
+            )
             
             # Type guard: ensure result.data is a list
             if result.data and isinstance(result.data, list):
@@ -182,10 +205,11 @@ class PlacesRepository:
             Count of direct children
         """
         try:
-            result = self.client.table('places')\
+            query = self.client.table('places')\
                 .select('id')\
-                .eq('parent_id', str(parent_id))\
-                .execute()
+                .eq('parent_id', str(parent_id))
+            
+            result = await self._execute_query(query)
             
             # Count result rows
             if result.data and isinstance(result.data, list):
@@ -215,10 +239,11 @@ class PlacesRepository:
             return {}
         
         try:
-            result = self.client.table('places')\
+            query = self.client.table('places')\
                 .select('parent_id')\
-                .in_('parent_id', [str(pid) for pid in parent_ids])\
-                .execute()
+                .in_('parent_id', [str(pid) for pid in parent_ids])
+            
+            result = await self._execute_query(query)
             
             # Count occurrences of each parent_id
             counts: Dict[str, int] = {}
@@ -251,10 +276,11 @@ class PlacesRepository:
             return {}
         
         try:
-            result = self.client.table('places')\
+            query = self.client.table('places')\
                 .select('*')\
-                .in_('id', [str(pid) for pid in place_ids])\
-                .execute()
+                .in_('id', [str(pid) for pid in place_ids])
+            
+            result = await self._execute_query(query)
             
             # Build lookup dict
             places_dict: Dict[str, Dict[str, Any]] = {}

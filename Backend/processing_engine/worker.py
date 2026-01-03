@@ -100,7 +100,7 @@ class QueueWorker:
             "queue_name": "processing_queue",
             "message_id": msg_id
         }).execute()
-        if response.data and not response.error:
+        if response.data is not None:
             self.logger.info(f"Successfully removed job {msg_id} from queue")
             return True
         else:

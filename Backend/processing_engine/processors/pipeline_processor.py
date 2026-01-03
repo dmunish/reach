@@ -17,7 +17,7 @@ class PipelineProcessor():
     async def transform(self, job: QueueJob, document_id: str, alert_id: str):
         file = await url_to_b64_strings(job.message.url)
         llm_message = await messages(file)
-        response = await self.llm.call(llm_message)
+        response = self.llm.call(llm_message)
         json_response, alert, alert_areas = await self._parse(response, document_id, alert_id)
         return json_response, alert, alert_areas
     
@@ -83,7 +83,7 @@ class PipelineProcessor():
                     "Authorization": f"Bearer {auth_token}",
                     "Content-Type": "application/json"
                 },
-                json={"place_names": places}
+                json={"locations": places}
             )
             response.raise_for_status()
             data = response.json()

@@ -3,8 +3,6 @@ from uuid import uuid4
 from typing import List
 import time
 from datetime import datetime, timezone
-#from processing_engine.processors.document_processor import DocumentProcessor
-#from processing_engine.processors.json_transformer import JSONTransformer
 from processing_engine.processors.pipeline_processor import PipelineProcessor
 from processing_engine.models.schemas import QueueJob
 from processing_engine.processor_utils.pipeline_prompts import _load_examples
@@ -28,86 +26,71 @@ class QueueWorker:
                 self.logger.error(f"Failed to pre-warm cache: {e}")
                 raise
 
-    async def process_job(self, job: QueueJob):
+    async def process_job(self, job: QueueJob) -> bool:
+        """Process a single job: transform, upload, then remove from queue."""
+        msg_id = job.msg_id
+        document_id = job.message.document_id
+
         try:
             if not self._cache_initialized:
                 await self.initialize()
 
+            self.logger.info(f"Processing job {msg_id} (document: {document_id})")
             start_time = time.time()
-            document_id = job.message.document_id
+
+            # Step 1: Transform document
             alert_id = str(uuid4())
-            self.logger.info(f"Processing {job.msg_id}")
-
             json_response, alert, alert_areas = await self.processor.transform(job, document_id, alert_id)
-            if json_response and alert and alert_areas:
-                self.logger.info(f"Processed job {job.msg_id} successfully")
-            end_time = time.time()
-            json_response["processing_time"] = f"{end_time-start_time:.2f}"
+            
+            if not json_response or not alert:
+                self.logger.error(f"Job {msg_id}: Transform returned empty result")
+                return False
 
-            uploaded_success = await self._upload(json_response, alert, alert_areas)
-            if uploaded_success:
-                queue_pop_success = await self._mark_complete(job.msg_id)
-                if queue_pop_success:
-                    self.logger.info(f"Successfully uploaded job {job.msg_id}")
-                    return True
+            json_response["processing_time"] = f"{time.time() - start_time:.2f}"
+            self.logger.info(f"Job {msg_id}: Transform complete in {json_response['processing_time']}s")
 
-            # print(f"\n\n\n Processed Dicts:")
-            # print(f"\n\n\n JSON:")
-            # print(json.dumps(json_response, indent=4, sort_keys=False))
-            # print(f"\n\n\n Alert:")
-            # print(json.dumps(alert, indent=4, sort_keys=False))
-            # print(f"\n\n\n Alert_Areas:")
-            # for alert_area in alert_areas:
-            #     print(json.dumps(alert_area, indent=4, sort_keys=False))
+            # Step 2: Upload to database (atomic transaction)
+            if not await self._upload(json_response, alert, alert_areas):
+                self.logger.error(f"Job {msg_id}: Upload failed, keeping in queue for retry")
+                return False
+
+            # Step 3: Remove from queue only after successful upload
+            if not await self._mark_complete(msg_id):
+                # Data is uploaded but queue removal failed - log but don't fail
+                # Job will be reprocessed but upsert will handle idempotency
+                self.logger.warning(f"Job {msg_id}: Upload succeeded but queue removal failed")
+                return True
+
+            self.logger.info(f"Job {msg_id}: Completed successfully")
+            return True
+
         except Exception as e:
-            self.logger.error(f"Job {job.msg_id} failed: {e}")
+            self.logger.error(f"Job {msg_id} failed: {e}", exc_info=True)
             return False
 
-    async def _upload(self,json_response: dict, alert: dict, alert_areas: List[dict]):
-        """Upsert new alerts to table"""
+    async def _upload(self, json_response: dict, alert: dict, alert_areas: List[dict]):
+        """Atomically upsert document, alert, and alert_areas via stored procedure"""
+        document_id = alert["document_id"]
         try:
-            document_id = alert["document_id"]
-            
-            # Upload the Markdown and JSON
-            document_response = await self.db.table("documents").update({
-                "processed_at": datetime.now(timezone.utc).isoformat(),
-                "structured_text": json_response
-            }).eq("id", document_id).execute()
-            if document_response.error or not document_response.data:
-                self.logger.error(f"JSON upload failed for document {document_id}: {document_response.error}")
-                raise Exception(document_response.error)
-                        
-            # Upsert the alert row (ensures only one alert per document)
-            alert_response = await self.db.table("alerts").upsert(
-                alert, 
-                on_conflict="document_id"
-            ).execute()
-            if alert_response.error or not alert_response.data:
-                self.logger.error(f"Alert upload failed for alert {document_id}: {alert_response.error}")
-                raise Exception(alert_response.error)
-            
-            # Get the actual alert_id from the upserted row (may differ if updating existing)
-            actual_alert_id = alert_response.data[0]["id"]
-            
-            # Delete any existing alert_areas for this alert (in case of re-processing)
-            await self.db.table("alert_areas").delete().eq("alert_id", actual_alert_id).execute()
-            
-            # Insert the alert_areas rows (only if there are any)
-            if alert_areas:
-                # Update alert_id in case it changed due to upsert
-                for area in alert_areas:
-                    area["alert_id"] = actual_alert_id
-                    
-                alert_areas_response = await self.db.table("alert_areas").insert(alert_areas).execute()
-                if alert_areas_response.error or not alert_areas_response.data:
-                    self.logger.error(f"Alert_Areas upload failed for document {document_id}: {alert_areas_response.error}")
-                    raise Exception(alert_areas_response.error)
-            else:
-                self.logger.warning(f"No valid alert_areas to upload for document {document_id}")
-                        
+            # Call the stored procedure for atomic transaction
+            response = await self.db.rpc("upload_processed_alert", {
+                "p_document_id": document_id,
+                "p_processed_at": datetime.now(timezone.utc).isoformat(),
+                "p_structured_text": json_response,
+                "p_alert": alert,
+                "p_alert_areas": alert_areas if alert_areas else []
+            }).execute()
+
+            if response.data is None:
+                self.logger.error(f"Transaction failed for document {document_id}: {response}")
+                return False
+
+            if not alert_areas:
+                self.logger.warning(f"No valid alert_areas uploaded for document {document_id}")
+
             self.logger.info(f"Successfully uploaded data for document {document_id}")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Upload failed for document {document_id}: {e}")
             return False
@@ -123,85 +106,3 @@ class QueueWorker:
         else:
             self.logger.error(f"Error removing job {msg_id}: {response.error}")
             return False
-
-
-# class QueueWorker:
-#     def __init__(self, supabase):
-#         self.logger = logging.getLogger(__name__)
-#         self.db = supabase
-#         self.doc_processor = DocumentProcessor("ernie-4.5-vl:baidu")
-#         self.alert_processor = JSONTransformer("ernie-4.5-vl:baidu")
-
-#     async def process_job(self, job: QueueJob):
-#         try:
-#             start_time = time.time()
-#             document_id = job.message.document_id
-#             alert_id = str(uuid4())
-#             self.logger.info(f"Processing {job.msg_id}")
-
-#             extracted = await self.doc_processor.extract(job)
-#             markdown = extracted.markdown
-#             print(markdown)
-
-#             json_response, alert, alert_areas = await self.alert_processor.transform(extracted, document_id, alert_id)
-#             end_time = time.time()
-#             json_response["processing_time"] = f"{end_time-start_time:.2f}"
-#             # uploaded_success = await self._upload(markdown, json_response, alert, alert_areas)
-#             # if uploaded_success:
-#             #     await self._mark_complete(job.msg_id)
-#             print(f"\n\n\n Processed Dicts:")
-#             print(f"\n\n\n JSON:")
-#             print(json.dumps(json_response, indent=4, sort_keys=False))
-#             print(f"\n\n\n Alert:")
-#             print(json.dumps(alert, indent=4, sort_keys=False))
-#             print(f"\n\n\n Alert_Areas:")
-#             for alert_area in alert_areas:
-#                 print(json.dumps(alert_area, indent=4, sort_keys=False))
-#             return True
-#         except Exception as e:
-#             self.logger.error(f"Job {job.msg_id} failed: {e}")
-#             return False
-
-#     async def _upload(self, markdown: str, json_response: dict, alert: dict, alert_areas: List[dict]):
-#         """Upsert new alerts to table"""
-#         try:
-#             document_id = alert["document_id"]
-            
-#             # Upload the Markdown and JSON
-#             document_response = self.db.table("documents").update({
-#                 "processed_at": datetime.now(timezone.utc).isoformat(),
-#                 "raw_text": markdown,
-#                 "structured_text": json_response
-#             }).eq("id", document_id).execute()
-#             if document_response.error or not document_response.data:
-#                 self.logger.error(f"Text upload failed for document {document_id}: {e}")
-#                 raise Exception(document_response.error)
-                        
-#             # Upsert the single alert row
-#             alert_response = self.db.table("alerts").upsert(alert, on_conflict='document_id').execute()
-#             if alert_response.error or not alert_response.data:
-#                 self.logger.error(f"Alert upload failed for alert {document_id}: {e}")
-#                 raise Exception(alert_response.error)
-            
-#             # Upsert the alert_areas rows
-#             alert_areas_response = self.db.table("alert_areas").upsert(alert_areas, on_conflict='alert_id').execute()
-#             if alert_areas_response.error or not alert_areas_response.data:
-#                 self.logger.error(f"Alert_Areas upload failed for document {document_id}: {e}")
-#                 raise Exception(alert_areas_response.error)
-                        
-#             self.logger.info(f"Successfully uploaded data for document {document_id}")
-#             return True
-            
-#         except Exception as e:
-#             self.logger.error(f"Upload failed for document {document_id}: {e}")
-#             return False
-    
-#     async def _mark_complete(self, msg_id: int):
-#         response = self.db.schema("pgmq_public").rpc("delete", {
-#             "queue_name": "processing_queue",
-#             "message_id": msg_id
-#         }).execute()
-#         if not response.error:
-#             self.logger.info(f"Successfully removed job {msg_id} from queue")
-#         else:
-#             self.logger.error(f"Error removing job {msg_id}: {response.error}")

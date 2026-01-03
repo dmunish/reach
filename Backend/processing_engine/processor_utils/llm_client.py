@@ -4,16 +4,13 @@ from pathlib import Path
 from utils import load_env
 import json
 
-# Load env into the system
 load_env()
 
-# Load config file
 CURRENT_DIR = Path(__file__).parent
 config_path = CURRENT_DIR / "llm_configs.json"
 with open(config_path, 'r') as f:
     configs = json.load(f)
 
-# Unified LLM client with abstraction, based on Openai
 class LLMClient:
     def __init__(self, model: str):
         if model not in configs:
@@ -30,16 +27,14 @@ class LLMClient:
             raise ValueError(f"API key not found for {self.config.get('api_key_name')}")
         
         url = self.config.get("base_url")
-
         return OpenAI(api_key=key, base_url=url)
     
-    async def call(self, messages, **kwargs):
-        """Make a call to the LLM"""
-        #Merge default and custom params
+    def call(self, messages, **kwargs):
+        """Make a sync call to the LLM"""
         params = {**self.config["default_params"], **kwargs}
         
         response = self._client.chat.completions.create(
-            model = self.config["model"],
+            model=self.config["model"],
             messages=messages,
             **params
         )

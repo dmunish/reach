@@ -234,14 +234,9 @@ export const DetailCard: React.FC<DetailCardProps> = ({
               </svg>
               Affected Areas
             </h3>
-            <ul className="space-y-1">
-              {data.additionalInfo.places.map((place: string, index: number) => (
-                <li key={index} className="text-sm text-gray-300 flex items-start gap-2">
-                  <span className="text-gray-500 mt-1">•</span>
-                  <span>{place}</span>
-                </li>
-              ))}
-            </ul>
+            <p className="text-sm text-gray-300">
+              {data.additionalInfo.places.join(", ")}
+            </p>
           </div>
         )}
 

@@ -25,6 +25,19 @@ export interface AlertsServiceResult<T> {
 }
 
 class AlertsService {
+  private get baseQuery() {
+    return supabase.from("alerts").select(
+      `
+        *,
+        document:documents!document_id(*),
+        alert_areas(
+          *,
+          place:places(*)
+        )
+      `
+    );
+  }
+
   /**
    * Fetch all alerts with optional filtering and pagination
    */
@@ -34,18 +47,7 @@ class AlertsService {
     offset = 0
   ): Promise<AlertsServiceResult<AlertWithLocation[]>> {
     try {
-      let query = supabase
-        .from("alerts")
-        .select(
-          `
-          *,
-          document:documents(*),
-          alert_areas(
-            *,
-            place:places(*)
-          )
-        `
-        )
+      let query = this.baseQuery
         .order("effective_from", { ascending: false })
         .range(offset, offset + limit - 1);
 
@@ -113,20 +115,7 @@ class AlertsService {
     id: string
   ): Promise<AlertsServiceResult<AlertWithLocation>> {
     try {
-      const { data, error } = await supabase
-        .from("alerts")
-        .select(
-          `
-          *,
-          document:documents(*),
-          alert_areas(
-            *,
-            place:places(*)
-          )
-        `
-        )
-        .eq("id", id)
-        .single();
+      const { data, error } = await this.baseQuery.eq("id", id).single();
 
       if (error) {
         console.error("Error fetching alert by ID:", error);
@@ -157,19 +146,9 @@ class AlertsService {
     try {
       // This would require a PostGIS function to check if alert areas intersect with bounds
       // For now, we'll fetch all alerts and let the frontend filter
-      const { data, error } = await supabase
-        .from("alerts")
-        .select(
-          `
-          *,
-          document:documents(*),
-          alert_areas(
-            *,
-            place:places(*)
-          )
-        `
-        )
-        .order("effective_from", { ascending: false });
+      const { data, error } = await this.baseQuery.order("effective_from", {
+        ascending: false,
+      });
 
       if (error) {
         console.error("Error fetching alerts by bounds:", error);
@@ -195,18 +174,7 @@ class AlertsService {
     try {
       const now = new Date().toISOString();
 
-      const { data, error } = await supabase
-        .from("alerts")
-        .select(
-          `
-          *,
-          document:documents(*),
-          alert_areas(
-            *,
-            place:places(*)
-          )
-        `
-        )
+      const { data, error } = await this.baseQuery
         .lte("effective_from", now)
         .gte("effective_until", now)
         .order("effective_from", { ascending: false });

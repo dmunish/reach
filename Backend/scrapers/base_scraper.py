@@ -21,7 +21,7 @@ class BaseScraper:
                 upserted = self.upsert(new_entries)
                 return upserted
         except Exception as e:
-            print("Error filtering new entries")
+            print(f"Error filtering new entries: {e}")
         return 0
     
     def filter_new(self, entries):

@@ -335,6 +335,32 @@ curl -X GET "http://localhost:8000/api/v1/suggest/Islmabad?limit=5" | jq
 curl -X GET http://localhost:8000/api/v1/health | jq
 ```
 
+#### Using jq Filters for Quick Analysis
+
+Get count of matched places:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/geocode \
+  -H "Content-Type: application/json" \
+  -d '{"locations": ["North Punjab"]}' | jq '.results[0].matched_places | length'
+```
+
+Get compact list of place names:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/geocode \
+  -H "Content-Type: application/json" \
+  -d '{"locations": ["North Punjab"]}' | jq -r '.results[0].matched_places[].name' | tr '\n' ', '
+```
+
+Get names with hierarchy levels:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/geocode \
+  -H "Content-Type: application/json" \
+  -d '{"locations": ["North Punjab"]}' | jq '.results[0].matched_places[] | "\(.name) (Level \(.hierarchy_level))"'
+```
+
 ---
 
 ## Key Features Explained

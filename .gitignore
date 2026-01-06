@@ -1,11 +1,21 @@
+./scraped_files
 ./venv
 venv/
 *.csv
 *.xlsx
 *.zip
+Prototype/Shapefiles
+Prototype/REACH Prototype.sql
 .env
 *.env
+*.envrc
+Prototype/fake_data
+Frontend/env
+__pycache__/
+Prototype/
 .vscode/
 .vscode
-*.pyc
-*.ipynb
+claude.md
+results*.txt
+Prompts.md
+/Backend/processing_engine/examples

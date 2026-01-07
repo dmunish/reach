@@ -1,0 +1,88 @@
+// Enums
+Enum alert_category {
+  Geo
+  Met
+  Safety
+  Security
+  Rescue
+  Fire
+  Health
+  Env
+  Transport
+  Infra
+  CBRNE
+  Other
+}
+
+Enum alert_urgency {
+  Immediate
+  Expected
+  Future
+  Past
+  Unknown
+}
+
+Enum alert_severity {
+  Extreme
+  Severe
+  Moderate
+  Minor
+  Unknown
+}
+
+// Tables
+Table alerts {
+  id uuid @pk @default(gen_random_uuid())
+  document_id uuid? @fk(documents.id)
+  category alert_category?
+  event text?
+  urgency alert_urgency?
+  severity alert_severity?
+  description text?
+  instruction text?
+  effective_from timestamptz
+  effective_until timestamptz
+}
+
+Table alert_areas {
+  id uuid @pk @default(gen_random_uuid())
+  alert_id uuid @fk(alerts.id)
+  place_id uuid? @fk(places.id)
+  specific_effective_from timestamptz?
+  specific_effective_until timestamptz?
+  specific_urgency alert_urgency?
+  specific_severity alert_severity?
+  specific_instruction text?
+}
+
+Table documents {
+  id uuid @pk @default(gen_random_uuid())
+  source text
+  posted_date date?
+  title text?
+  url text
+  filename text? @unique
+  filetype text?
+  processed_at timestamptz?
+  structured_text jsonb?
+  raw_text text?
+  scraped_at timestamptz? @default(CURRENT_TIMESTAMP)
+}
+
+Table places {
+  id uuid @pk @default(gen_random_uuid())
+  name text
+  parent_id uuid? @fk(places.id) @ondelete(set null)
+  parent_name text?
+  hierarchy_level int?
+  polygon geometry?
+}
+
+// Foreign Keys
+Ref: alerts.document_id > documents.id
+
+Ref: alert_areas.alert_id > alerts.id
+
+Ref: alert_areas.place_id > places.id
+
+Ref: places.parent_id > places.id [delete: set null]

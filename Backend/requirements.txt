@@ -8,3 +8,7 @@ pandas
 openai
 PyMuPDF
 pillow
+rapidfuzz
+geopy
+redis
+pydantic-settings

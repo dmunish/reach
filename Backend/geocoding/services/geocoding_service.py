@@ -56,8 +56,12 @@ class GeocodingService:
             GeocodeResult with matched places or error
         """
         try:
+            logger.info(f"Geocoding: '{location}'")
+            
             # Parse for directional indicators
             direction, place_names = self.parser.parse(location)
+            
+            logger.debug(f"Parsed: direction={direction}, places={place_names}")
             
             if direction:
                 # Directional description processing
@@ -105,21 +109,11 @@ class GeocodingService:
             return []
         
         results = []
-        context_coords = []
         
-        # First pass: Try matching all locations
+        # Process each location
         for location in locations:
             result = await self.geocode_location(location, options, None)
             results.append(result)
-            
-            # Collect coordinates for context
-            if result.matched_places:
-                # Use first matched place's approximate center (we'd need coords from DB)
-                # For now, we'll do second pass with whatever context we have
-                pass
-        
-        # TODO: Second pass for failed matches with centroid context
-        # This requires storing coordinates in places table or calculating from polygons
         
         return results
     
@@ -152,6 +146,7 @@ class GeocodingService:
         match = await self.matcher.match(place_name)
         
         if match:
+            logger.info(f"Fuzzy match success: '{place_name}' -> {match['name']}")
             matched_place = MatchedPlace(
                 id=match['id'],
                 name=match['name'],
@@ -171,10 +166,19 @@ class GeocodingService:
         
         if not coords:
             logger.warning(f"No geocoding results for '{place_name}'")
+            
+            # Try to get suggestions
+            suggestions = await self.suggest_alternatives(place_name, limit=3)
+            if suggestions:
+                suggestion_names = [s['name'] for s in suggestions]
+                error_msg = f"No match found. Did you mean: {', '.join(suggestion_names)}?"
+            else:
+                error_msg = "No match found in database or external geocoding service"
+            
             return GeocodeResult(
                 input=original_input,
                 matched_places=[],
-                error="No match found in database or external geocoding service"
+                error=error_msg
             )
         
         # Step 3: Disambiguate if multiple results
@@ -185,6 +189,7 @@ class GeocodingService:
         
         # Step 4: Point-in-polygon lookup
         lon, lat = selected_coord
+        logger.info(f"Point-in-polygon lookup for ({lon:.4f}, {lat:.4f})")
         place = await self.repo.find_by_coordinates(lon, lat)
         
         if not place:
@@ -239,6 +244,7 @@ class GeocodingService:
             GeocodeResult with matched places in directional region
         """
         if not place_names:
+            logger.error("No place names found after parsing direction")
             return GeocodeResult(
                 input=original_input,
                 matched_places=[],
@@ -248,51 +254,109 @@ class GeocodingService:
         # Step 1: Match all base places
         base_place_ids = []
         matched_base_names = []
+        failed_matches = []
+        
+        logger.info(f"Matching base places: {place_names}")
         
         for place_name in place_names:
             match = await self.matcher.match(place_name)
             if match:
-                base_place_ids.append(UUID(match['id']))
+                # FIX: Handle both string and UUID types
+                place_id = match['id']
+                if isinstance(place_id, str):
+                    place_id = UUID(place_id)
+                elif not isinstance(place_id, UUID):
+                    place_id = UUID(str(place_id))
+                
+                base_place_ids.append(place_id)
                 matched_base_names.append(match['name'])
+                logger.debug(f"  Matched '{place_name}' -> {match['name']} ({place_id})")
             else:
-                logger.warning(f"Could not match base place: {place_name}")
+                logger.warning(f"  Could not match base place: '{place_name}'")
+                failed_matches.append(place_name)
         
         if not base_place_ids:
+            error_msg = f"Could not match any base places: {', '.join(place_names)}"
+            logger.error(error_msg)
             return GeocodeResult(
                 input=original_input,
                 matched_places=[],
-                error=f"Could not match any base places: {', '.join(place_names)}"
+                error=error_msg
             )
         
+        if failed_matches:
+            logger.warning(f"Some base places not matched: {', '.join(failed_matches)}")
+        
         # Step 2: Query for places in directional region
+        logger.info(f"Querying directional region: {direction.value} of {matched_base_names}")
         directional_places = await self.repo.find_places_in_direction(
             base_place_ids,
             direction.value
         )
         
+        logger.info(f"Found {len(directional_places)} places in directional region")
+        
         if not directional_places:
+            error_msg = f"No places found in {direction.value} region of {', '.join(matched_base_names)}"
+            logger.warning(error_msg)
             return GeocodeResult(
                 input=original_input,
                 matched_places=[],
                 regions_processed=list(matched_base_names),
                 direction=direction.value,
-                error=f"No places found in {direction.value} region"
+                error=error_msg
             )
+        
+        # FIX: Validate that results have required fields
+        valid_places = []
+        for place in directional_places:
+            if not isinstance(place, dict):
+                logger.error(f"Invalid place object: {place}")
+                continue
+            if 'id' not in place or 'name' not in place or 'hierarchy_level' not in place:
+                logger.error(f"Place missing required fields: {place}")
+                continue
+            valid_places.append(place)
+        
+        if not valid_places:
+            logger.error("No valid places after filtering")
+            return GeocodeResult(
+                input=original_input,
+                matched_places=[],
+                regions_processed=list(matched_base_names),
+                direction=direction.value,
+                error="Internal error: invalid results from database"
+            )
+        
+        logger.debug(f"Valid places after filtering: {len(valid_places)}")
         
         # Step 3: Apply hierarchical aggregation
-        aggregated_places = self._aggregate_hierarchy(directional_places)
+        aggregated_places = self._aggregate_hierarchy(valid_places)
+        
+        logger.info(f"After aggregation: {len(aggregated_places)} places")
         
         # Step 4: Convert to MatchedPlace objects
-        matched_places = [
-            MatchedPlace(
-                id=place['id'],
-                name=place['name'],
-                hierarchy_level=place['hierarchy_level'],
-                match_method='directional_intersection',
-                confidence=None
-            )
-            for place in aggregated_places
-        ]
+        matched_places = []
+        for place in aggregated_places:
+            try:
+                # FIX: Handle UUID conversion safely
+                place_id = place['id']
+                if isinstance(place_id, str):
+                    place_id = UUID(place_id)
+                elif not isinstance(place_id, UUID):
+                    place_id = UUID(str(place_id))
+                
+                matched_place = MatchedPlace(
+                    id=place_id,
+                    name=place['name'],
+                    hierarchy_level=place['hierarchy_level'],
+                    match_method='directional_intersection',
+                    confidence=None
+                )
+                matched_places.append(matched_place)
+            except Exception as e:
+                logger.error(f"Error creating MatchedPlace from {place}: {e}")
+                continue
         
         return GeocodeResult(
             input=original_input,
@@ -325,18 +389,33 @@ class GeocodingService:
         if not places:
             return []
         
+        # FIX: Validate all places have required fields before processing
+        valid_places = []
+        for place in places:
+            if not isinstance(place, dict):
+                logger.warning(f"Skipping non-dict place: {place}")
+                continue
+            if 'id' not in place:
+                logger.warning(f"Skipping place without id: {place}")
+                continue
+            valid_places.append(place)
+        
+        if not valid_places:
+            logger.error("No valid places to aggregate")
+            return []
+        
         # Group places by parent
         by_parent: Dict[Optional[str], List[Dict[str, Any]]] = defaultdict(list)
-        for place in places:
-            parent_id = place.get('parent_id')
+        for place in valid_places:
+            parent_id = place.get('parent_id')  # Safe - uses .get()
             by_parent[parent_id].append(place)
         
         # Build parent lookup for efficiency
-        place_lookup = {p['id']: p for p in places}
+        # FIX: Use .get() to safely access 'id'
+        place_lookup = {p.get('id'): p for p in valid_places if p.get('id') is not None}
         
         # For each parent, check if all children are present
         aggregated = []
-        processed_children = set()
         
         for parent_id, children in by_parent.items():
             if parent_id is None:
@@ -349,8 +428,6 @@ class GeocodingService:
                 # Parent not in results, keep children
                 aggregated.extend(children)
                 continue
-            
-            parent = place_lookup[parent_id]
             
             # This is a simplified version - full implementation would need to:
             # 1. Query total children count for parent from DB

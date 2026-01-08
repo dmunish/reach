@@ -136,22 +136,13 @@ class PlacesRepository:
             return []
     
     async def find_places_in_direction(
-        self,
-        base_place_ids: List[UUID],
-        direction: str
+    self,
+    base_place_ids: List[UUID],
+    direction: str
     ) -> List[Dict[str, Any]]:
-        """
-        Find places in a directional region relative to base places.
-        Uses the PostGIS find_places_in_direction function.
-        
-        Args:
-            base_place_ids: UUIDs of base places to define region
-            direction: Directional indicator (e.g., 'northern', 'central')
-            
-        Returns:
-            List of places intersecting the directional grid
-        """
         try:
+            logger.info(f"Calling find_places_in_direction with ids: {base_place_ids}, direction: {direction}")
+            
             result = self.client.rpc(
                 'find_places_in_direction',
                 {
@@ -160,10 +151,22 @@ class PlacesRepository:
                 }
             ).execute()
             
-            # Type guard: ensure result.data is a list
+            # DEBUG LOGGING
+            logger.info(f"RPC result.data type: {type(result.data)}")
+            if result.data:
+                logger.info(f"First 3 items: {result.data[:3]}")
+                if len(result.data) > 0:
+                    first_item = result.data[0]
+                    logger.info(f"First item type: {type(first_item)}")
+                    logger.info(f"First item: {first_item}")
+                    if isinstance(first_item, dict):
+                        logger.info(f"First item keys: {first_item.keys()}")
+            
             if result.data and isinstance(result.data, list):
                 return cast(List[Dict[str, Any]], result.data)
             return []
         except Exception as e:
             logger.error(f"Directional search failed for {direction}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return []

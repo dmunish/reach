@@ -10,10 +10,14 @@ Usage:
 
 import sys
 import asyncio
+import json
 from pathlib import Path
+from datetime import datetime
 
 # Add parent directory to path to import from Backend
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+SETUP_RESULTS_FILE = Path(__file__).parent / "test_setup_results.json"
 
 def print_phase_header(phase_num: int, title: str):
     """Print a nice header for each test phase"""
@@ -433,6 +437,16 @@ def test_phase_4():
 # Main Test Runner
 # ============================================================================
 
+def save_setup_results(results: dict):
+    """Save setup test results to JSON file."""
+    try:
+        with open(SETUP_RESULTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(results, f, indent=2, ensure_ascii=False)
+        print(f"\n📝 Setup results saved to: {SETUP_RESULTS_FILE}")
+    except Exception as e:
+        print(f"\n⚠️  Failed to save results: {e}")
+
+
 def main():
     """Main test runner"""
     import argparse
@@ -445,23 +459,73 @@ def main():
     
     args = parser.parse_args()
     
+    # Store results
+    results = {
+        "test_run": {
+            "timestamp": datetime.now().isoformat(),
+            "command": f"--phase {args.phase}" if args.phase else "--all"
+        },
+        "phases": {}
+    }
+    
     if args.all:
         print("\n🚀 Running all test phases...\n")
-        phases = [test_phase_1, test_phase_2, test_phase_3, test_phase_4]
-        for i, phase_func in enumerate(phases, 1):
+        phases = [
+            ("Phase 1: Configuration & Connectivity", test_phase_1),
+            ("Phase 2: Database Layer", test_phase_2),
+            ("Phase 3: Service Layer", test_phase_3),
+            ("Phase 4: End-to-End Test", test_phase_4)
+        ]
+        
+        all_passed = True
+        for i, (name, phase_func) in enumerate(phases, 1):
             success = phase_func()
+            results["phases"][f"phase_{i}"] = {
+                "name": name,
+                "status": "passed" if success else "failed"
+            }
+            
             if not success:
+                all_passed = False
                 print(f"\n❌ Phase {i} failed. Fix errors before continuing.\n")
-                return
-        print("\n🎉 All phases passed! Your geocoding service is ready.\n")
+                break
+        
+        if all_passed:
+            print("\n🎉 All phases passed! Your geocoding service is ready.\n")
+            results["summary"] = {
+                "status": "success",
+                "message": "All setup phases completed successfully"
+            }
+        else:
+            results["summary"] = {
+                "status": "failed",
+                "message": "Setup failed - see phase details"
+            }
+        
+        save_setup_results(results)
+        
     elif args.phase:
         phases = {
-            1: test_phase_1,
-            2: test_phase_2,
-            3: test_phase_3,
-            4: test_phase_4
+            1: ("Configuration & Connectivity", test_phase_1),
+            2: ("Database Layer", test_phase_2),
+            3: ("Service Layer", test_phase_3),
+            4: ("End-to-End Test", test_phase_4)
         }
-        phases[args.phase]()
+        
+        name, phase_func = phases[args.phase]
+        success = phase_func()
+        
+        results["phases"][f"phase_{args.phase}"] = {
+            "name": name,
+            "status": "passed" if success else "failed"
+        }
+        results["summary"] = {
+            "status": "success" if success else "failed",
+            "message": f"Phase {args.phase} completed"
+        }
+        
+        save_setup_results(results)
+        
     else:
         parser.print_help()
         print("\nExample usage:")

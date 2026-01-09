@@ -6,10 +6,14 @@ Run this script to test the service manually or as integration tests.
 
 import asyncio
 import httpx
-from typing import Dict, Any
+import json
+from typing import Dict, Any, List
+from datetime import datetime
+from pathlib import Path
 
 
 BASE_URL = "http://localhost:8000"
+RESULTS_FILE = Path(__file__).parent / "test_results.json"
 
 
 async def test_simple_place():
@@ -143,27 +147,66 @@ async def test_health():
         return result
 
 
+def save_results_to_file(all_results: Dict[str, Any]):
+    """
+    Save test results to a JSON file with proper formatting.
+    
+    Args:
+        all_results: Dictionary containing all test results
+    """
+    try:
+        with open(RESULTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(all_results, f, indent=2, ensure_ascii=False)
+        print(f"\n📝 Results saved to: {RESULTS_FILE}")
+    except Exception as e:
+        print(f"\n⚠️  Failed to save results: {e}")
+
+
 async def run_all_tests():
-    """Run all tests sequentially."""
+    """Run all tests sequentially and save results."""
     print("Starting integration tests...")
     print("Make sure the service is running: python -m geocoding.main")
     
+    # Store all results
+    all_results = {
+        "test_run": {
+            "timestamp": datetime.now().isoformat(),
+            "base_url": BASE_URL
+        },
+        "tests": {}
+    }
+    
     try:
-        await test_health()
-        await test_simple_place()
-        await test_directional()
-        await test_batch()
-        await test_get_endpoint()
-        await test_suggestions()
+        # Run each test and collect results
+        all_results["tests"]["health"] = await test_health()
+        all_results["tests"]["simple_place"] = await test_simple_place()
+        all_results["tests"]["directional"] = await test_directional()
+        all_results["tests"]["batch"] = await test_batch()
+        all_results["tests"]["get_endpoint"] = await test_get_endpoint()
+        all_results["tests"]["suggestions"] = await test_suggestions()
+        
+        all_results["summary"] = {
+            "status": "success",
+            "total_tests": len(all_results["tests"]),
+            "message": "All tests completed successfully"
+        }
         
         print("\n" + "="*70)
         print("✓ All tests completed!")
         print("="*70)
         
     except Exception as e:
+        all_results["summary"] = {
+            "status": "failed",
+            "error": str(e),
+            "message": "Test execution failed"
+        }
         print(f"\n✗ Test failed: {e}")
         import traceback
         traceback.print_exc()
+    
+    # Save results to file
+    save_results_to_file(all_results)
 
 
 if __name__ == "__main__":

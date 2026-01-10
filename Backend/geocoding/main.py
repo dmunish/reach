@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import logging
 
@@ -108,23 +109,29 @@ async def root():
 
 # Error handlers (optional but recommended)
 @app.exception_handler(404)
-async def not_found_handler(request, exc):
+async def not_found_handler(request: Request, exc):
     """Custom 404 handler"""
-    return {
-        "error": "Not Found",
-        "message": "The requested endpoint does not exist",
-        "docs": "/docs"
-    }
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "Not Found",
+            "message": "The requested endpoint does not exist",
+            "docs": "/docs"
+        }
+    )
 
 
 @app.exception_handler(500)
-async def internal_error_handler(request, exc):
+async def internal_error_handler(request: Request, exc):
     """Custom 500 handler"""
     logger.error(f"Internal error: {exc}", exc_info=True)
-    return {
-        "error": "Internal Server Error",
-        "message": "An unexpected error occurred. Please try again later."
-    }
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal Server Error",
+            "message": "An unexpected error occurred. Please try again later."
+        }
+    )
 
 
 if __name__ == "__main__":

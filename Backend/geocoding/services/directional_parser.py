@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple, Optional
+from typing import Tuple, Optional
 from enum import Enum
 from functools import lru_cache
 
@@ -24,6 +24,11 @@ class DirectionalParser:
     """
     Parser for extracting directional indicators and place names from location strings.
     
+    Design Note:
+    - This parser handles SINGLE place names only (e.g., "Central Sindh")
+    - For multiple regions, send separate queries: ["Central Sindh", "Central Balochistan"]
+    - No conjunction splitting (user will not send "Sindh and Balochistan")
+    
     Optimizations:
     - Pre-compiled regex patterns for O(1) pattern lookup
     - LRU cache for repeated parse operations
@@ -45,26 +50,23 @@ class DirectionalParser:
         (Direction.CENTRAL, re.compile(r'\b(central|middle)\b', re.IGNORECASE)),
     ]
     
-    # Pre-compile conjunction splitter for efficiency
-    _CONJUNCTION_PATTERN = re.compile(r'\s+and\s+|\s+or\s+|,\s*', re.IGNORECASE)
-    
     @lru_cache(maxsize=256)
     def parse(self, location_string: str) -> Tuple[Optional[Direction], Tuple[str, ...]]:
         """
-        Parse directional description into direction and place names.
+        Parse directional description into direction and single place name.
         
         Time Complexity: O(n) where n is string length (single-pass regex)
-        Space Complexity: O(m) where m is number of place names
+        Space Complexity: O(1) - returns single place name
         
         Args:
-            location_string: Raw location text (e.g., "Central Sindh and Balochistan")
+            location_string: Raw location text (e.g., "Central Sindh")
             
         Returns:
-            (direction, place_names_tuple) or (None, (location_string,)) if no direction found
-            Returns tuple instead of list for caching compatibility
+            (direction, (place_name,)) or (None, (location_string,)) if no direction found
+            Returns tuple for caching compatibility
         
         Examples:
-            "Central Sindh and Balochistan" -> (Direction.CENTRAL, ("Sindh", "Balochistan"))
+            "Central Sindh" -> (Direction.CENTRAL, ("Sindh",))
             "North-Eastern KPK" -> (Direction.NORTHEAST, ("KPK",))
             "Islamabad" -> (None, ("Islamabad",))
         """
@@ -88,32 +90,12 @@ class DirectionalParser:
         if not detected_direction:
             return None, (location_string,)
         
-        # Split on conjunctions to get place names
-        place_names = self._split_places(cleaned_string)
+        # Return single place name (no conjunction splitting)
+        cleaned_place = cleaned_string.strip()
+        if not cleaned_place:
+            return detected_direction, ()
         
-        # Return tuple for caching compatibility
-        return detected_direction, tuple(place_names)
-    
-    def _split_places(self, text: str) -> List[str]:
-        """
-        Split text on conjunctions and commas to extract place names.
-        
-        Time Complexity: O(n) single regex split
-        
-        Args:
-            text: Cleaned text with direction removed
-            
-        Returns:
-            List of place name strings
-        """
-        if not text or not text.strip():
-            return []
-        
-        # Split on 'and', 'or', commas using pre-compiled pattern
-        parts = self._CONJUNCTION_PATTERN.split(text)
-        
-        # Clean and filter empty strings in single pass
-        return [p.strip() for p in parts if p and p.strip()]
+        return detected_direction, (cleaned_place,)
     
     def clear_cache(self):
         """Clear the LRU cache (useful for testing or memory management)"""

@@ -151,22 +151,85 @@ class PlacesRepository:
                 }
             ).execute()
             
-            # DEBUG LOGGING
-            logger.info(f"RPC result.data type: {type(result.data)}")
-            if result.data:
-                logger.info(f"First 3 items: {result.data[:3]}")
-                if len(result.data) > 0:
-                    first_item = result.data[0]
+            # Type guard: ensure result.data is a list
+            if result.data and isinstance(result.data, list):
+                # DEBUG LOGGING (safe after type check)
+                logger.info(f"RPC result.data type: {type(result.data)}")
+                data_list = cast(List[Any], result.data)
+                logger.info(f"First 3 items: {data_list[:3]}")
+                if len(data_list) > 0:
+                    first_item = data_list[0]
                     logger.info(f"First item type: {type(first_item)}")
                     logger.info(f"First item: {first_item}")
                     if isinstance(first_item, dict):
                         logger.info(f"First item keys: {first_item.keys()}")
-            
-            if result.data and isinstance(result.data, list):
-                return cast(List[Dict[str, Any]], result.data)
+                return cast(List[Dict[str, Any]], data_list)
             return []
         except Exception as e:
             logger.error(f"Directional search failed for {direction}: {e}")
             import traceback
             logger.error(traceback.format_exc())
             return []
+    
+    async def get_children_count(self, parent_id: UUID) -> int:
+        """
+        Get the total number of direct children for a parent place.
+        
+        Args:
+            parent_id: UUID of parent place
+            
+        Returns:
+            Count of direct children
+        """
+        try:
+            result = self.client.table('places')\
+                .select('id')\
+                .eq('parent_id', str(parent_id))\
+                .execute()
+            
+            # Count result rows
+            if result.data and isinstance(result.data, list):
+                return len(result.data)
+            return 0
+        except Exception as e:
+            logger.error(f"Get children count failed for {parent_id}: {e}")
+            return 0
+    
+    async def get_children_counts_batch(
+        self, 
+        parent_ids: List[UUID]
+    ) -> Dict[str, int]:
+        """
+        Batch get children counts for multiple parents.
+        
+        More efficient than calling get_children_count multiple times.
+        Uses a single query.
+        
+        Args:
+            parent_ids: List of parent UUIDs
+            
+        Returns:
+            Dict mapping parent_id (as string) to child count
+        """
+        if not parent_ids:
+            return {}
+        
+        try:
+            result = self.client.table('places')\
+                .select('parent_id')\
+                .in_('parent_id', [str(pid) for pid in parent_ids])\
+                .execute()
+            
+            # Count occurrences of each parent_id
+            counts: Dict[str, int] = {}
+            if result.data and isinstance(result.data, list):
+                for row in result.data:
+                    if isinstance(row, dict):
+                        parent = row.get('parent_id')
+                        if parent and isinstance(parent, str):
+                            counts[parent] = counts.get(parent, 0) + 1
+            
+            return counts
+        except Exception as e:
+            logger.error(f"Batch children count failed: {e}")
+            return {}

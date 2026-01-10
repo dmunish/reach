@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Set
 from uuid import UUID
 import logging
 from collections import defaultdict
@@ -331,7 +331,7 @@ class GeocodingService:
         logger.debug(f"Valid places after filtering: {len(valid_places)}")
         
         # Step 3: Apply hierarchical aggregation
-        aggregated_places = self._aggregate_hierarchy(valid_places)
+        aggregated_places = await self._aggregate_hierarchy(valid_places)
         
         logger.info(f"After aggregation: {len(aggregated_places)} places")
         
@@ -365,7 +365,7 @@ class GeocodingService:
             direction=direction.value
         )
     
-    def _aggregate_hierarchy(
+    async def _aggregate_hierarchy(
         self,
         places: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -374,11 +374,14 @@ class GeocodingService:
         
         Logic:
         - If all children of a parent are present, return only the parent
-        - Apply recursively up the hierarchy
+        - Apply recursively up the hierarchy (bottom-up aggregation)
         
         Example: If all 5 tehsils of a district are matched, return only the district.
         
-        Time Complexity: O(n) where n = number of places
+        Time Complexity: O(n + k*d) where:
+            n = number of places
+            k = number of unique parents to check
+            d = database query time (typically O(1) with index)
         
         Args:
             places: List of matched places with hierarchy info
@@ -389,14 +392,14 @@ class GeocodingService:
         if not places:
             return []
         
-        # FIX: Validate all places have required fields before processing
+        # Validate places have required fields
         valid_places = []
         for place in places:
             if not isinstance(place, dict):
                 logger.warning(f"Skipping non-dict place: {place}")
                 continue
-            if 'id' not in place:
-                logger.warning(f"Skipping place without id: {place}")
+            if 'id' not in place or 'hierarchy_level' not in place:
+                logger.warning(f"Skipping place without required fields: {place}")
                 continue
             valid_places.append(place)
         
@@ -404,39 +407,68 @@ class GeocodingService:
             logger.error("No valid places to aggregate")
             return []
         
-        # Group places by parent
+        # Build lookup structures
+        place_by_id: Dict[str, Dict[str, Any]] = {}
+        for p in valid_places:
+            place_id = str(p['id'])
+            place_by_id[place_id] = p
+        
+        # Group places by parent_id
         by_parent: Dict[Optional[str], List[Dict[str, Any]]] = defaultdict(list)
         for place in valid_places:
-            parent_id = place.get('parent_id')  # Safe - uses .get()
-            by_parent[parent_id].append(place)
+            parent_id = place.get('parent_id')
+            parent_key = str(parent_id) if parent_id else None
+            by_parent[parent_key].append(place)
         
-        # Build parent lookup for efficiency
-        # FIX: Use .get() to safely access 'id'
-        place_lookup = {p.get('id'): p for p in valid_places if p.get('id') is not None}
+        # Get unique parent IDs that exist in our results (potential aggregation targets)
+        parents_in_results = set()
+        for place in valid_places:
+            parent_id = place.get('parent_id')
+            if parent_id and str(parent_id) in place_by_id:
+                parents_in_results.add(str(parent_id))
         
-        # For each parent, check if all children are present
+        logger.debug(f"Parents in results that may aggregate children: {len(parents_in_results)}")
+        
+        # Get actual child counts from database for all parents in results
+        parent_uuids = [UUID(pid) for pid in parents_in_results]
+        actual_child_counts = await self.repo.get_children_counts_batch(parent_uuids)
+        
+        logger.debug(f"Actual child counts from DB: {actual_child_counts}")
+        
+        # Determine which children to remove (their parent has ALL children present)
+        children_to_remove: Set[str] = set()
+        
+        for parent_id in parents_in_results:
+            # How many children does this parent have in our results?
+            children_in_results = by_parent.get(parent_id, [])
+            matched_count = len(children_in_results)
+            
+            # How many children does this parent have in total?
+            total_count = actual_child_counts.get(parent_id, 0)
+            
+            logger.debug(f"Parent {parent_id}: {matched_count}/{total_count} children matched")
+            
+            # If ALL children are present, mark children for removal
+            if total_count > 0 and matched_count >= total_count:
+                logger.info(f"Aggregating: Parent {parent_id} has all {total_count} children - removing children")
+                for child in children_in_results:
+                    children_to_remove.add(str(child['id']))
+        
+        # Build final result excluding aggregated children
         aggregated = []
+        for place in valid_places:
+            place_id = str(place['id'])
+            if place_id not in children_to_remove:
+                aggregated.append(place)
         
-        for parent_id, children in by_parent.items():
-            if parent_id is None:
-                # Top-level places (no parent)
-                aggregated.extend(children)
-                continue
-            
-            # Check if parent exists in our results
-            if parent_id not in place_lookup:
-                # Parent not in results, keep children
-                aggregated.extend(children)
-                continue
-            
-            # This is a simplified version - full implementation would need to:
-            # 1. Query total children count for parent from DB
-            # 2. Compare with children in results
-            # 3. Aggregate if all children present
-            
-            # For now, just return all places (no aggregation)
-            # TODO: Implement full aggregation with DB query
-            aggregated.extend(children)
+        logger.info(f"Aggregation: {len(valid_places)} -> {len(aggregated)} places "
+                    f"(removed {len(children_to_remove)} redundant children)")
+        
+        # Recursive aggregation: if we removed children, check if parents can now be aggregated
+        # This handles cases like: all tehsils removed -> check if all districts can be removed
+        if children_to_remove and len(aggregated) > 1:
+            # Re-run aggregation on the reduced set (max depth = hierarchy levels = 4)
+            return await self._aggregate_hierarchy(aggregated)
         
         return aggregated
     

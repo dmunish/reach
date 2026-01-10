@@ -1,6 +1,6 @@
 import asyncio
 from httpx import AsyncClient
-from scrapers.parsers import NdmaParser
+from scrapers.parsers import NdmaParser, NeocParser
 from scrapers.base_scraper import BaseScraper
 from utils import supabase_client
 
@@ -9,10 +9,16 @@ SCRAPER_CONFIGS = [
         'name': 'ndma',
         'url': 'https://www.ndma.gov.pk/advisories',
         'parser': NdmaParser(),
+    },
+    {
+        'name': 'neoc',
+        'url': 'https://www.ndma.gov.pk/projection-impact-list_new',
+        'parser': NeocParser(),
     }
 ]
 
 async def main():
+    # Initialize shared clients
     http_client = AsyncClient(timeout=30.0)
     db_client = supabase_client()
     

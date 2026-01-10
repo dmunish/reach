@@ -1,0 +1,5 @@
+httpx
+supabase
+python-dotenv
+beautifulsoup4
+pandas

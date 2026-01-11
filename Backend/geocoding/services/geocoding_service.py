@@ -372,11 +372,14 @@ class GeocodingService:
         """
         Apply hierarchical aggregation to minimize redundant place IDs.
         
-        Logic:
-        - If all children of a parent are present, return only the parent
-        - Apply recursively up the hierarchy (bottom-up aggregation)
+        Two-way aggregation logic:
+        1. Remove children when ALL children of a parent are present → keep only parent
+        2. Remove parents when ANY children are present → keep only the more specific children
+        
+        This ensures we return the most specific level without redundancy.
         
         Example: If all 5 tehsils of a district are matched, return only the district.
+                 If only 3 of 5 tehsils are matched, return those 3 tehsils (not the district).
         
         Time Complexity: O(n + k*d) where:
             n = number of places
@@ -387,7 +390,7 @@ class GeocodingService:
             places: List of matched places with hierarchy info
             
         Returns:
-            Aggregated list of places (redundant children removed)
+            Aggregated list of places (redundant places removed)
         """
         if not places:
             return []
@@ -420,45 +423,65 @@ class GeocodingService:
             parent_key = str(parent_id) if parent_id else None
             by_parent[parent_key].append(place)
         
-        # Get unique parent IDs that exist in our results (potential aggregation targets)
-        parents_in_results = set()
+        # Track which places to remove (either children or parents)
+        places_to_remove: Set[str] = set()
+        
+        # STEP 1: Remove redundant parents (when ANY of their children are present)
         for place in valid_places:
             parent_id = place.get('parent_id')
             if parent_id and str(parent_id) in place_by_id:
-                parents_in_results.add(str(parent_id))
+                # This place has a parent in the results - mark parent for removal
+                places_to_remove.add(str(parent_id))
+                logger.debug(f"Removing parent {parent_id} because child {place['id']} is present")
         
-        logger.debug(f"Parents in results that may aggregate children: {len(parents_in_results)}")
+        # STEP 2: Check if we should aggregate children UP to parent
+        # Get unique parent IDs from all matched places (parents don't need to be in results already)
+        unique_parent_ids = set()
+        for place in valid_places:
+            parent_id = place.get('parent_id')
+            if parent_id:
+                unique_parent_ids.add(str(parent_id))
         
-        # Get actual child counts from database for all parents in results
-        parent_uuids = [UUID(pid) for pid in parents_in_results]
-        actual_child_counts = await self.repo.get_children_counts_batch(parent_uuids)
-        
-        logger.debug(f"Actual child counts from DB: {actual_child_counts}")
-        
-        # Determine which children to remove (their parent has ALL children present)
-        children_to_remove: Set[str] = set()
-        
-        for parent_id in parents_in_results:
-            # How many children does this parent have in our results?
-            children_in_results = by_parent.get(parent_id, [])
-            matched_count = len(children_in_results)
+        # Get actual child counts from database for all parent IDs
+        if unique_parent_ids:
+            parent_uuids = [UUID(pid) for pid in unique_parent_ids]
             
             # How many children does this parent have in total?
             total_count = actual_child_counts.get(parent_id, 0)
             
-            logger.debug(f"Parent {parent_id}: {matched_count}/{total_count} children matched")
+            logger.debug(f"Checking aggregation for {len(unique_parent_ids)} parents")
             
-            # If ALL children are present, mark children for removal
-            if total_count > 0 and matched_count >= total_count:
-                logger.info(f"Aggregating: Parent {parent_id} has all {total_count} children - removing children")
-                for child in children_in_results:
-                    children_to_remove.add(str(child['id']))
+            for parent_id in unique_parent_ids:
+                # How many children does this parent have in our results?
+                children_in_results = by_parent.get(parent_id, [])
+                matched_count = len(children_in_results)
+                
+                # How many children does this parent have in total?
+                total_count = actual_child_counts.get(parent_id, 0)
+                
+                logger.debug(f"Parent {parent_id}: {matched_count}/{total_count} children matched")
+                
+                # If ALL children are present, aggregate to parent
+                if total_count > 0 and matched_count >= total_count:
+                    logger.info(f"Aggregating UP: Parent {parent_id} has all {total_count} children - replacing with parent")
+                    
+                    # Add parent to results if not already there
+                    if parent_id not in place_by_id and parent_id in parent_details:
+                        place_by_id[parent_id] = parent_details[parent_id]
+                        valid_places.append(parent_details[parent_id])
+                    
+                    # Remove the parent from removal set (we want to keep it)
+                    places_to_remove.discard(parent_id)
+                    
+                    # Mark all children for removal
+                    for child in children_in_results:
+                        places_to_remove.add(str(child['id']))
         
-        # Build final result excluding aggregated children
+        # Build final result excluding marked places
         aggregated = []
         for place in valid_places:
             place_id = str(place['id'])
-            if place_id not in children_to_remove:
+            if place_id not in places_to_remove:
                 aggregated.append(place)
         
         logger.info(f"Aggregation: {len(valid_places)} -> {len(aggregated)} places "

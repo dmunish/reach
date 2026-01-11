@@ -1,0 +1,395 @@
+@import url("https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,100..700;1,100..700&family=Teachers:ital,wght@0,400..800;1,400..800&display=swap");
+@import "tailwindcss";
+@import "mapbox-gl/dist/mapbox-gl.css";
+
+:root {
+  /* Primary Colors */
+  --rich-black: rgb(2, 27, 26);
+  --dark-green: #032221;
+  --bangladesh-green: #006240;
+  --mountain-meadow: #2cc295;
+  --caribbean-green: rgb(0, 123, 129);
+  --anti-flash-white: #f1f7f6;
+
+  /* Secondary Colors */
+  --pine: #06302b;
+  --basil: #0b453a;
+  --forest: #095544;
+  --frog: #17876d;
+  --mint: #2fa98c;
+  --stone: #707d7d;
+  --pistachio: #aacbc4;
+}
+
+body {
+  margin: 0;
+  font-family: "Josefin Sans", system-ui, Avenir, Helvetica, Arial, sans-serif;
+  background: var(--basil);
+}
+
+#app {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* Custom map container styles */
+.map-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* Custom Tailwind Classes */
+.bg-rich-black {
+  background-color: var(--rich-black);
+}
+
+.bg-dark-green {
+  background-color: var(--dark-green);
+}
+
+.bg-bangladesh-green {
+  background-color: var(--bangladesh-green);
+}
+
+.bg-mountain-meadow {
+  background-color: var(--mountain-meadow);
+}
+
+.bg-caribbean-green {
+  background-color: var(--caribbean-green);
+}
+
+.bg-anti-flash-white {
+  background-color: var(--anti-flash-white);
+}
+
+.bg-pine {
+  background-color: var(--pine);
+}
+
+.bg-basil {
+  background-color: var(--basil);
+}
+
+.bg-forest {
+  background-color: var(--forest);
+}
+
+.bg-frog {
+  background-color: var(--frog);
+}
+
+.bg-mint {
+  background-color: var(--mint);
+}
+
+.bg-stone {
+  background-color: var(--stone);
+}
+
+.bg-pistachio {
+  background-color: var(--pistachio);
+}
+
+.text-rich-black {
+  color: var(--rich-black);
+}
+
+.text-dark-green {
+  color: var(--dark-green);
+}
+
+.text-bangladesh-green {
+  color: var(--bangladesh-green);
+}
+
+.text-mountain-meadow {
+  color: var(--mountain-meadow);
+}
+
+.text-caribbean-green {
+  color: var(--caribbean-green);
+}
+
+.text-stone {
+  color: var(--stone);
+}
+
+.text-anti-flash-white {
+  color: var(--anti-flash-white);
+}
+
+.border-bangladesh-green {
+  border-color: var(--bangladesh-green);
+}
+
+.border-mountain-meadow {
+  border-color: var(--mountain-meadow);
+}
+
+.border-dark-green {
+  border-color: var(--dark-green);
+}
+
+.border-stone {
+  border-color: var(--stone);
+}
+
+/* Custom scrollbar styles for dark panels */
+.dark-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-track {
+  background: var(--dark-green);
+  border-radius: 3px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--bangladesh-green);
+  border-radius: 3px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--mountain-meadow);
+}
+
+/* Mapbox controls dark theme styling */
+.mapboxgl-ctrl-group {
+  background: var(--rich-black) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 15, 49, 0.3) !important;
+}
+
+.mapboxgl-ctrl-group button {
+  background: var(--rich-black) !important;
+  color: var(--anti-flash-white) !important;
+  border: none !important;
+}
+
+.mapboxgl-ctrl-group button:hover {
+  background: var(--bangladesh-green) !important;
+}
+
+.mapboxgl-ctrl-group button.mapboxgl-ctrl-zoom-in,
+.mapboxgl-ctrl-group button.mapboxgl-ctrl-zoom-out {
+  border-radius: 0 !important;
+}
+
+.mapboxgl-ctrl-compass .mapboxgl-ctrl-compass-arrow {
+  fill: var(--mountain-meadow) !important;
+}
+
+/* Attribution control styling */
+.mapboxgl-ctrl-attrib {
+  background: var(--rich-black) !important;
+  border: none !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 8px rgba(0, 15, 49, 0.2) !important;
+}
+
+.mapboxgl-ctrl-attrib a {
+  color: var(--bangladesh-green) !important;
+}
+
+/* Scale control styling */
+.mapboxgl-ctrl-scale {
+  background: var(--rich-black) !important;
+  color: var(--anti-flash-white) !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: 2px 4px !important;
+  box-shadow: 0 2px 8px rgba(0, 15, 49, 0.2) !important;
+}
+
+/* Popup styling for dark theme */
+.mapboxgl-popup-content {
+  background: var(--rich-black) !important;
+  color: var(--anti-flash-white) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 32px rgba(0, 15, 49, 0.6) !important;
+}
+
+.mapboxgl-popup-anchor-top .mapboxgl-popup-tip,
+.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip,
+.mapboxgl-popup-anchor-left .mapboxgl-popup-tip,
+.mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
+  border-color: var(--rich-black) transparent !important;
+}
+
+/* Fullscreen control styling */
+.mapboxgl-ctrl-fullscreen {
+  background: var(--rich-black) !important;
+}
+
+/* Enhanced frosted glass effect for panels */
+.frosted-glass {
+  background: rgba(2, 27, 26, 0.6) !important;
+  backdrop-filter: blur(10px) saturate(1.5);
+  -webkit-backdrop-filter: blur(10px) saturate(1.5);
+  -moz-backdrop-filter: blur(10px) saturate(1.5);
+  -ms-backdrop-filter: blur(10px) saturate(1.5);
+  -o-backdrop-filter: blur(10px) saturate(1.5);
+  border: 1px solid rgba(0, 98, 64, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 15, 49, 0.37);
+}
+
+/* Fallback for browsers without backdrop-filter support */
+@supports not (backdrop-filter: blur(10px)) {
+  .frosted-glass {
+    background: rgba(2, 27, 26, 0.85) !important;
+  }
+}
+
+/* Force backdrop filter in production builds */
+@media screen {
+  .frosted-glass {
+    -webkit-backdrop-filter: blur(10px) saturate(1.5) !important;
+    backdrop-filter: blur(10px) saturate(1.5) !important;
+  }
+}
+
+/* Line clamp utility for text truncation */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Navigation button animated bars */
+.nav-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-button::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--mountain-meadow);
+  transform: translateY(-100%);
+  transition: transform 0.3s ease-out;
+  border-radius: 0 2px 2px 0;
+}
+
+.nav-button:hover::before {
+  background: var(--caribbean-green);
+  transform: translateY(0);
+}
+
+.nav-button-active::before {
+  background: var(--bangladesh-green);
+  transform: translateY(0);
+}
+
+/* Search input frosted glass styling */
+.search-input {
+  background: rgba(112, 121, 125, 0.15) !important;
+  border: 1px solid rgba(112, 121, 125, 0.2);
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  background: rgba(112, 121, 125, 0.25) !important;
+  border-color: rgba(32, 193, 105, 0.3);
+  box-shadow: 0 0 0 2px rgba(32, 193, 105, 0.1);
+}
+
+/* Filter input frosted glass styling */
+.filter-input {
+  background: rgba(112, 121, 125, 0.15) !important;
+  border: 1px solid rgba(112, 121, 125, 0.2);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.filter-input:focus {
+  background: rgba(112, 121, 125, 0.25) !important;
+  border-color: rgba(32, 193, 105, 0.3);
+  box-shadow: 0 0 0 2px rgba(32, 193, 105, 0.1);
+}
+
+/* Custom checkbox styling for filters */
+.filter-checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: rgba(112, 121, 125, 0.15);
+  border: 1px solid rgba(112, 121, 125, 0.3);
+  border-radius: 4px;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-checkbox:checked {
+  background: var(--bangladesh-green);
+  border-color: var(--bangladesh-green);
+}
+
+.filter-checkbox:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.filter-checkbox:hover {
+  border-color: var(--mountain-meadow);
+  background: rgba(112, 121, 125, 0.25);
+}
+
+/* Mobile responsive utilities */
+@media (max-width: 640px) {
+  /* Ensure panels don't exceed screen width */
+  .frosted-glass {
+    max-width: calc(100vw - 2rem);
+  }
+
+  /* Adjust navbar on mobile */
+  .nav-button {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Mobile panel stacking - prevent overlap */
+  .mobile-filter-panel {
+    top: 5rem !important; /* Account for 64px navbar + margin */
+    height: calc(50vh - 5rem) !important;
+  }
+
+  .mobile-alerts-panel {
+    bottom: 21rem !important; /* Above detail panel (320px + margin) */
+  }
+
+  .mobile-detail-panel {
+    bottom: 1rem !important;
+    height: 20rem !important; /* 320px */
+  }
+
+  /* Ensure text remains readable on mobile */
+  .mobile-text-adjust {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .tablet-adjust {
+    max-width: calc(100vw - 4rem);
+  }
+}

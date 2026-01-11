@@ -1,0 +1,58 @@
+{
+  "version": 8,
+  "name": "Dark",
+  "metadata": {
+    "mapbox:autocomposite": true,
+    "mapbox:thumb": "data:image/webp;base64,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",
+    "mapbox:uiParadigm": "global",
+    "mapbox:sdk-support": {
+      "js": "3.17.0",
+      "android": "11.17.0",
+      "ios": "11.17.0"
+    },
+    "mapbox:groups": {}
+  },
+  "center": [-34, 38],
+  "zoom": 2,
+  "terrain": {
+    "source": "mapbox-dem",
+    "exaggeration": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      6,
+      0,
+      7,
+      1,
+      12,
+      1,
+      13.7,
+      0
+    ]
+  },
+  "imports": [
+    {
+      "id": "basemap",
+      "url": "mapbox://styles/mapbox/standard",
+      "config": { "theme": "monochrome", "lightPreset": "night" }
+    }
+  ],
+  "sources": {
+    "mapbox-dem": {
+      "url": "mapbox://mapbox.mapbox-terrain-dem-v1",
+      "type": "raster-dem",
+      "tileSize": 512
+    }
+  },
+  "sprite": "mapbox://sprites/thenish/cmil2ro2d00zh01s6ht304c3t/b8fjw435hx85pp7j172f016pl",
+  "glyphs": "mapbox://fonts/mapbox/{fontstack}/{range}.pbf",
+  "projection": { "name": "globe" },
+  "layers": [],
+  "created": "2025-11-30T02:02:11.990Z",
+  "modified": "2025-11-30T02:03:41.940Z",
+  "id": "cmil2ro2d00zh01s6ht304c3t",
+  "owner": "thenish",
+  "visibility": "private",
+  "protected": false,
+  "draft": false
+}

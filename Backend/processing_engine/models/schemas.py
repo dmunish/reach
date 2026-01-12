@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 from enum import Enum
 
@@ -79,3 +79,22 @@ class Alert(BaseModel):
     instruction: str
     effective_from: datetime
     effective_until: datetime
+
+class DocumentPayload(BaseModel):
+    """Schema for the message payload/content"""
+    url: str
+    title: str
+    source: Literal["NDMA", "NEOC", "PMD"]
+    filename: Optional[str]
+    filetype: Literal["pdf", "pptx", "txt", "gif", "png", "jpeg", "jpg"]
+    raw_text: Optional[str] = None
+    document_id: str
+    posted_date: str
+
+class QueueJob(BaseModel):
+    """Complete schema for a PGMQ queue job"""
+    msg_id: int
+    read_ct: int
+    enqueued_at: datetime
+    vt: datetime
+    message: DocumentPayload

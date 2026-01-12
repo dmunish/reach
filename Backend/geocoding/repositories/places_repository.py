@@ -233,3 +233,37 @@ class PlacesRepository:
         except Exception as e:
             logger.error(f"Batch children count failed: {e}")
             return {}
+    
+    async def get_by_ids_batch(self, place_ids: List[UUID]) -> Dict[str, Dict[str, Any]]:
+        """
+        Batch get places by IDs.
+        
+        Much more efficient than calling get_by_id multiple times.
+        Uses a single query with .in_() filter.
+        
+        Args:
+            place_ids: List of place UUIDs to fetch
+            
+        Returns:
+            Dict mapping place_id (as string) to place data
+        """
+        if not place_ids:
+            return {}
+        
+        try:
+            result = self.client.table('places')\
+                .select('*')\
+                .in_('id', [str(pid) for pid in place_ids])\
+                .execute()
+            
+            # Build lookup dict
+            places_dict: Dict[str, Dict[str, Any]] = {}
+            if result.data and isinstance(result.data, list):
+                for place in result.data:
+                    if isinstance(place, dict) and 'id' in place:
+                        places_dict[str(place['id'])] = place
+            
+            return places_dict
+        except Exception as e:
+            logger.error(f"Batch get by IDs failed: {e}")
+            return {}

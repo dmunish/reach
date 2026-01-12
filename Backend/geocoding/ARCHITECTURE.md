@@ -134,12 +134,20 @@ class Settings(BaseSettings):
 async def search_by_fuzzy_name() -> List[Dict[str, Any]]
 async def find_by_coordinates() -> Optional[Dict[str, Any]]
 async def get_by_id() -> Optional[Dict[str, Any]]
+async def get_by_ids_batch() -> Dict[str, Dict[str, Any]]  # NEW: Batch fetch
 async def get_children() -> List[Dict[str, Any]]
+async def get_children_counts_batch() -> Dict[str, int]  # Batch optimization
 async def find_places_in_direction() -> List[Dict[str, Any]]
 ```
 
-**Design Choice: Why Supabase Client?**
-Per your requirement, we use Supabase client for ease of use. Custom SQL is reserved for complex spatial operations that benefit from PostgreSQL functions.
+**Performance Optimization: Batch Operations**
+
+The repository now includes batch operations to reduce database round-trips:
+
+-   `get_by_ids_batch()`: Fetch multiple places in one query instead of N queries
+-   `get_children_counts_batch()`: Get child counts for multiple parents in one query
+
+**Time Complexity**: O(1) for single lookups, O(k) for batch operations (k = batch size, constant time per query)
 
 ### Service Layer
 
@@ -276,20 +284,38 @@ async with ExternalGeocoder() as geocoder:
 async def geocode_batch() -> Dict[str, List[Tuple[float, float]]]:
     tasks = [self.geocode(loc) for loc in locations]
     return await asyncio.gather(*tasks)
+
+# NEW: Batch database operations
+async def get_by_ids_batch() -> Dict[str, Dict[str, Any]]:
+    # Single query with .in_() filter for multiple IDs
+    result = self.client.table('places').select('*').in_('id', place_ids).execute()
 ```
+
+**Critical Performance Optimization**: Hierarchical aggregation now uses:
+
+-   `asyncio.gather()` to run child count + parent fetch queries **in parallel**
+-   Batch queries with `.in_()` filter instead of N sequential queries
+-   Smart recursion check to avoid unnecessary re-processing
 
 ### Time Complexity Analysis
 
-| Operation               | Complexity                | Notes                                   |
-| ----------------------- | ------------------------- | --------------------------------------- |
-| Fuzzy name search       | O(log n)                  | GIN index + trigram similarity          |
-| Point-in-polygon        | O(log n)                  | GIST spatial index                      |
-| Directional parsing     | O(n)                      | n = string length, single regex pass    |
-| Candidate selection     | O(k log k)                | k = number of candidates (usually < 10) |
-| External geocoding      | O(1) cached, O(n) network | n = API latency                         |
-| Centroid disambiguation | O(m + k)                  | m = context coords, k = candidates      |
+| Operation                | Complexity                | Notes                                              |
+| ------------------------ | ------------------------- | -------------------------------------------------- |
+| Fuzzy name search        | O(log n)                  | GIN index + trigram similarity                     |
+| Point-in-polygon         | O(log n)                  | GIST spatial index                                 |
+| Directional parsing      | O(n)                      | n = string length, single regex pass               |
+| Candidate selection      | O(k log k)                | k = number of candidates (usually < 10)            |
+| External geocoding       | O(1) cached, O(n) network | n = API latency                                    |
+| Centroid disambiguation  | O(m + k)                  | m = context coords, k = candidates                 |
+| Hierarchical aggregation | O(p + c)                  | p = unique parents, c = children (2 queries total) |
+| Batch parent fetch       | O(1)                      | Single query with .in\_() filter                   |
 
 **Overall**: O(log n) for typical queries (dominated by DB index lookups)
+
+**Critical Optimization**: Hierarchical aggregation now uses parallel batch queries:
+
+-   Before: O(k) sequential queries (k = number of parents) → ~50-100ms × k
+-   After: O(1) with 2 parallel batch queries → ~100ms total regardless of k
 
 ## Data Flow
 

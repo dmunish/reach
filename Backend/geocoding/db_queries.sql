@@ -124,6 +124,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
+DROP FUNCTION IF EXISTS find_places_in_direction(uuid[], text);
+
 CREATE OR REPLACE FUNCTION find_places_in_direction(
     base_place_ids UUID[],
     direction TEXT
@@ -131,17 +133,17 @@ CREATE OR REPLACE FUNCTION find_places_in_direction(
 RETURNS TABLE (
     id UUID,
     name TEXT,
-    hierarchy_level INT
+    hierarchy_level INT,
+    parent_id UUID
 ) AS $$
 DECLARE
     combined_geom GEOMETRY;
     bbox GEOMETRY;
     grid_cell GEOMETRY;
 BEGIN
-    -- Use explicit table prefix to avoid ambiguity
     SELECT ST_Union(p.polygon) INTO combined_geom
     FROM places p
-    WHERE p.id = ANY(base_place_ids);  -- Changed: added "p." prefix
+    WHERE p.id = ANY(base_place_ids);
     
     IF combined_geom IS NULL THEN
         RETURN;
@@ -152,12 +154,13 @@ BEGIN
     
     RETURN QUERY
     SELECT 
-        p.id,                    
-        p.name,                  
-        p.hierarchy_level        
+        p.id,
+        p.name,
+        p.hierarchy_level,
+        p.parent_id
     FROM places p
     WHERE ST_Intersects(p.polygon, grid_cell)
         AND p.polygon IS NOT NULL
-    ORDER BY p.hierarchy_level DESC;  -- Changed: added "p." prefix for consistency
+    ORDER BY p.hierarchy_level DESC;
 END;
 $$ LANGUAGE plpgsql;

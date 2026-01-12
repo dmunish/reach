@@ -28,6 +28,83 @@ function calculatePolygonCentroid(coordinates: number[][]): [number, number] {
   return [totalLng / pointCount, totalLat / pointCount];
 }
 
+// Function to extract all coordinates from a polygon geometry
+function extractAllCoordinatesFromGeometry(polygon: any): number[][] | null {
+  if (!polygon) return null;
+
+  try {
+    if (typeof polygon === "string") {
+      const polygonMatch = polygon.match(
+        /POLYGON\s*\(\s*\(\s*([\d.-\s,]+)\s*\)\s*\)/i
+      );
+      if (polygonMatch) {
+        const coordString = polygonMatch[1];
+        const coordinates: number[][] = [];
+        const coordPairs = coordString.split(",");
+        coordPairs.forEach((pair) => {
+          const coords = pair.trim().split(/\s+/);
+          if (coords.length >= 2) {
+            const lng = parseFloat(coords[0]);
+            const lat = parseFloat(coords[1]);
+            if (!isNaN(lng) && !isNaN(lat)) {
+              coordinates.push([lng, lat]);
+            }
+          }
+        });
+        return coordinates.length > 0 ? coordinates : null;
+      }
+    } else if (polygon && typeof polygon === "object") {
+      if (polygon.type === "Polygon" && polygon.coordinates?.[0]) {
+        return polygon.coordinates[0];
+      }
+      if (polygon.type === "Point" && polygon.coordinates) {
+        return [polygon.coordinates];
+      }
+      if (polygon.coordinates && Array.isArray(polygon.coordinates)) {
+        if (Array.isArray(polygon.coordinates[0])) {
+          return polygon.coordinates;
+        } else {
+          return [polygon.coordinates];
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to extract coordinates from geometry:", error);
+  }
+  return null;
+}
+
+// Function to calculate the center of the bounding box for multiple polygons
+function calculateBBoxCenter(polygons: any[]): [number, number] | null {
+  if (!polygons || polygons.length === 0) return null;
+
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let hasValidCoords = false;
+
+  polygons.forEach((polygon) => {
+    const coords = extractAllCoordinatesFromGeometry(polygon);
+    if (coords) {
+      coords.forEach(([lng, lat]) => {
+        if (!isNaN(lng) && !isNaN(lat)) {
+          minLng = Math.min(minLng, lng);
+          maxLng = Math.max(maxLng, lng);
+          minLat = Math.min(minLat, lat);
+          maxLat = Math.max(maxLat, lat);
+          hasValidCoords = true;
+        }
+      });
+    }
+  });
+
+  if (!hasValidCoords) return null;
+
+  // Return the center of the bounding box
+  return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
+}
+
 // Function to extract centroid coordinates from PostGIS geometry data
 function extractCoordinatesFromGeometry(polygon: any): [number, number] | null {
   if (!polygon) return null;
@@ -96,15 +173,16 @@ function extractCoordinatesFromGeometry(polygon: any): [number, number] | null {
 function transformAlertToDetailData(alert: AlertWithLocation): DetailData {
   const firstLocation = alert.alert_areas?.[0]?.place;
 
-  // Extract coordinates from PostGIS geometry data
+  // Collect all polygons from all alert_areas
+  const allPolygons = alert.alert_areas?.map((area) => area.place?.polygon).filter(Boolean) || [];
+
+  // Calculate center of bounding box surrounding all polygons
   let coordinates: [number, number];
 
-  if (firstLocation?.polygon) {
-    const extractedCoords = extractCoordinatesFromGeometry(
-      firstLocation.polygon
-    );
-    if (extractedCoords) {
-      coordinates = extractedCoords;
+  if (allPolygons.length > 0) {
+    const bboxCenter = calculateBBoxCenter(allPolygons);
+    if (bboxCenter) {
+      coordinates = bboxCenter;
     } else {
       // Fallback to Pakistan center if geometry parsing fails
       coordinates = [69.3451, 30.3753]; // Pakistan center
@@ -125,13 +203,14 @@ function transformAlertToDetailData(alert: AlertWithLocation): DetailData {
     urgency: alert.urgency,
     instruction: alert.instruction,
     source: alert.document?.source || "Unknown",
+    documentUrl: alert.document?.url || undefined,
     additionalInfo: {
       coordinates,
       effectiveUntil: new Date(alert.effective_until),
       places:
         alert.alert_areas?.map((area) => area.place?.name).filter(Boolean) ||
         [],
-      polygon: firstLocation?.polygon, // Include polygon data for highlighting
+      polygons: alert.alert_areas?.map((area) => area.place?.polygon).filter(Boolean) || [], // Collect all polygons
     },
   };
 }
@@ -151,7 +230,7 @@ export const App: React.FC = () => {
   const [severityFilters, setSeverityFilters] = useState<string[]>([]);
   const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
-  const [mapTheme, setMapTheme] = useState<string>("custom");
+  const [mapTheme, setMapTheme] = useState<string>("dark-v11");
   const [showPolygons, setShowPolygons] = useState<boolean>(true);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [filtersInitialized, setFiltersInitialized] = useState(false);
@@ -213,10 +292,38 @@ export const App: React.FC = () => {
   });
 
   // Transform Supabase alerts to DetailData format
-  const currentAlerts = useMemo(
-    () => supabaseAlerts.map(transformAlertToDetailData),
-    [supabaseAlerts]
-  );
+  const currentAlerts = useMemo(() => {
+    const transformedAlerts = supabaseAlerts.map(transformAlertToDetailData);
+    const now = new Date();
+    
+    // First, get active alerts (effective_until is in the future)
+    const activeAlerts = transformedAlerts.filter(alert => 
+      alert.additionalInfo?.effectiveUntil && 
+      new Date(alert.additionalInfo.effectiveUntil) > now
+    );
+    
+    // If we have at least 10 active alerts, return them
+    if (activeAlerts.length >= 10) {
+      return activeAlerts;
+    }
+    
+    // Otherwise, get past alerts to backfill
+    const pastAlerts = transformedAlerts.filter(alert => 
+      !alert.additionalInfo?.effectiveUntil || 
+      new Date(alert.additionalInfo.effectiveUntil) <= now
+    );
+    
+    // Sort past alerts by effective_until (most recent first)
+    pastAlerts.sort((a, b) => {
+      const dateA = a.additionalInfo?.effectiveUntil ? new Date(a.additionalInfo.effectiveUntil).getTime() : 0;
+      const dateB = b.additionalInfo?.effectiveUntil ? new Date(b.additionalInfo.effectiveUntil).getTime() : 0;
+      return dateB - dateA;
+    });
+    
+    // Combine active and past alerts to ensure at least 10 total
+    const neededCount = Math.max(0, 10 - activeAlerts.length);
+    return [...activeAlerts, ...pastAlerts.slice(0, neededCount)];
+  }, [supabaseAlerts]);
 
   const getSeverityColor = (severity?: string): string => {
     switch (severity?.toLowerCase()) {
@@ -261,14 +368,17 @@ export const App: React.FC = () => {
     setSelectedAlert(alert);
     setIsDetailCardVisible(true);
 
-    // Fly to location and highlight polygon on map
-    if (alert.additionalInfo?.coordinates && mapRef.current) {
-      const [lng, lat] = alert.additionalInfo.coordinates;
-      mapRef.current.flyTo([lng, lat], 7);
-
-      // Highlight the polygon if geometry data is available
-      if (alert.additionalInfo?.polygon) {
-        mapRef.current.highlightPolygon(alert.additionalInfo.polygon);
+    // Highlight all polygons and fit map to show them all
+    if (mapRef.current) {
+      if (alert.additionalInfo?.polygons && alert.additionalInfo.polygons.length > 0) {
+        // Highlight the polygons
+        mapRef.current.highlightPolygon(alert.additionalInfo.polygons);
+        // Fit map to show all polygons with padding
+        mapRef.current.fitToPolygons(alert.additionalInfo.polygons, 60);
+      } else if (alert.additionalInfo?.coordinates) {
+        // Fallback to flyTo if no polygons available
+        const [lng, lat] = alert.additionalInfo.coordinates;
+        mapRef.current.flyTo([lng, lat], 7);
       }
     }
   };
@@ -346,11 +456,13 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Prepare markers for map
+  // Prepare markers for map - hide other pins when an alert is focused
   const mapMarkers = currentAlerts
     .filter((alert) => alert.additionalInfo?.coordinates)
+    .filter((alert) => !selectedAlert || alert.id === selectedAlert.id) // Only show selected alert's pin when focused
     .map((alert) => ({
       coordinates: alert.additionalInfo!.coordinates as [number, number],
+      severity: alert.severity,
       popupContent: `
         <div class="p-3" style="background: var(--rich-black); color: var(--anti-flash-white);">
           <h3 class="font-semibold text-sm text-white mb-2">${alert.title}</h3>

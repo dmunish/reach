@@ -49,7 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Navigation Buttons*/}
+      {/* Navigation Buttons - Responsive */}
       <div className="flex flex-row space-x-4 sm:space-x-0 sm:space-y-6 sm:flex-col sm:flex-1 sm:justify-center">
         {/* Filter Panel Toggle */}
         <button

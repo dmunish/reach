@@ -15,6 +15,7 @@ export interface MapProps {
   markers?: Array<{
     coordinates: [number, number];
     popupContent?: string;
+    severity?: string;
     onClick?: () => void;
   }>;
   className?: string;
@@ -23,7 +24,8 @@ export interface MapProps {
 export interface MapRef {
   flyTo: (coordinates: [number, number], zoomLevel?: number) => void;
   getMap: () => mapboxgl.Map | null;
-  highlightPolygon: (geometry: any) => void;
+  highlightPolygon: (geometries: any | any[]) => void;
+  fitToPolygons: (geometries: any | any[], padding?: number) => void;
   clearHighlight: () => void;
 }
 
@@ -33,7 +35,7 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       accessToken,
       center = [69.3451, 30.3753], // Default to Pakistan center
       zoom = 3,
-      theme = "custom",
+      theme = "dark-v11",
       showPolygons = true,
       onMapClick,
       markers = [],
@@ -134,27 +136,46 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       markersRef.current.forEach((marker) => marker.remove());
       markersRef.current = [];
 
+      // Severity color mapping
+      const getSeverityColors = (severity?: string): { main: string; pulse: string } => {
+        switch (severity?.toLowerCase()) {
+          case 'extreme':
+            return { main: 'rgba(180, 0, 255, 0.9)', pulse: 'rgba(180, 0, 255, 0.6)' }; // Vibrant Purple
+          case 'severe':
+            return { main: 'rgba(220, 20, 60, 0.9)', pulse: 'rgba(220, 20, 60, 0.6)' }; // Crimson
+          case 'moderate':
+            return { main: 'rgba(255, 140, 0, 0.9)', pulse: 'rgba(255, 140, 0, 0.6)' }; // Dark Orange
+          case 'minor':
+            return { main: 'rgba(255, 215, 0, 0.9)', pulse: 'rgba(255, 215, 0, 0.6)' }; // Gold
+          case 'unknown':
+          default:
+            return { main: 'rgba(30, 144, 255, 0.9)', pulse: 'rgba(30, 144, 255, 0.6)' }; // Dodger Blue
+        }
+      };
+
       // Add new markers
-      markers.forEach(({ coordinates, popupContent, onClick }) => {
+      markers.forEach(({ coordinates, popupContent, severity, onClick }) => {
+        const colors = getSeverityColors(severity);
+        
         // Create custom marker element with glassmorphic design
         const el = document.createElement("div");
         el.className = "custom-marker";
         el.innerHTML = `
           <div style="position: relative; width: 28px; height: 28px;">
-            <div style="position: absolute; width: 28px; height: 28px; background: rgba(242, 100, 48, 0.6); border-radius: 50%; animation: pulse 2s ease-out infinite;"></div>
+            <div style="position: absolute; width: 28px; height: 28px; background: ${colors.pulse}; border-radius: 50%; animation: pulse 2s ease-out infinite;"></div>
             <div style="
               position: absolute; 
               width: 20px; 
               height: 20px; 
               top: 4px; 
               left: 4px; 
-              background: rgba(242, 100, 48, 0.8);
+              background: ${colors.main};
               backdrop-filter: blur(10px);
               -webkit-backdrop-filter: blur(10px);
               border: 2px solid rgba(255, 255, 255, 0.4);
               border-radius: 50%;
               box-shadow: 
-                0 4px 12px rgba(242, 100, 48, 0.4),
+                0 4px 12px ${colors.pulse},
                 inset 0 1px 2px rgba(255, 255, 255, 0.3),
                 0 1px 3px rgba(0, 0, 0, 0.2);
             "></div>
@@ -258,7 +279,7 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       return null;
     };
 
-    const highlightPolygon = (geometry: any) => {
+    const highlightPolygon = (geometries: any | any[]) => {
       if (!map.current) {
         console.warn("Map not available for highlighting");
         return;
@@ -274,20 +295,27 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       if (!map.current.isStyleLoaded()) {
         console.log("Map style not loaded yet, waiting...");
         map.current.once("styledata", () => {
-          highlightPolygon(geometry);
+          highlightPolygon(geometries);
         });
         return;
       }
 
-      console.log("Highlighting polygon with geometry:", geometry);
+      // Ensure geometries is an array
+      const geometryArray = Array.isArray(geometries) ? geometries : [geometries];
+      
+      console.log("Highlighting polygons with geometries:", geometryArray);
 
-      const geoJSON = convertToGeoJSON(geometry);
-      console.log("Converted to GeoJSON:", geoJSON);
+      // Convert all geometries to GeoJSON features
+      const features = geometryArray
+        .map(convertToGeoJSON)
+        .filter((feature) => feature !== null);
 
-      if (!geoJSON) {
-        console.warn("Failed to convert geometry to GeoJSON");
+      if (features.length === 0) {
+        console.warn("No valid geometries to highlight");
         return;
       }
+
+      console.log(`Converted ${features.length} geometry(ies) to GeoJSON`);
 
       try {
         // Remove existing highlight if any
@@ -299,10 +327,16 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
           return;
         }
 
-        // Add the polygon as a source
+        // Create a FeatureCollection from all features
+        const featureCollection = {
+          type: "FeatureCollection",
+          features: features,
+        };
+
+        // Add the polygons as a source
         map.current.addSource("highlighted-polygon", {
           type: "geojson",
-          data: geoJSON,
+          data: featureCollection as any,
         });
 
         // Add fill layer
@@ -327,7 +361,7 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
           },
         });
 
-        console.log("Polygon highlight added successfully");
+        console.log(`Successfully highlighted ${features.length} polygon(s)`);
       } catch (error) {
         console.warn(
           "Failed to add polygon highlight (context may be lost):",
@@ -337,13 +371,105 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
         setTimeout(() => {
           try {
             if (map.current && map.current.getStyle()) {
-              highlightPolygon(geometry);
+              highlightPolygon(geometries);
             }
           } catch (retryError) {
             console.warn("Retry failed, polygon highlighting unavailable");
           }
         }, 100);
       }
+    };
+
+    // Function to extract all coordinates from a geometry for bounds calculation
+    const extractCoordinatesFromGeometry = (geometry: any): number[][] => {
+      const coords: number[][] = [];
+      
+      if (!geometry) return coords;
+
+      try {
+        if (typeof geometry === "string") {
+          const polygonMatch = geometry.match(
+            /POLYGON\s*\(\s*\(\s*([\d.-\s,]+)\s*\)\s*\)/i
+          );
+          if (polygonMatch) {
+            const coordString = polygonMatch[1];
+            const coordPairs = coordString.split(",");
+            coordPairs.forEach((pair) => {
+              const parts = pair.trim().split(/\s+/);
+              if (parts.length >= 2) {
+                const lng = parseFloat(parts[0]);
+                const lat = parseFloat(parts[1]);
+                if (!isNaN(lng) && !isNaN(lat)) {
+                  coords.push([lng, lat]);
+                }
+              }
+            });
+          }
+        } else if (geometry && typeof geometry === "object") {
+          if (geometry.type === "Polygon" && geometry.coordinates?.[0]) {
+            geometry.coordinates[0].forEach((coord: number[]) => {
+              if (coord.length >= 2) {
+                coords.push([coord[0], coord[1]]);
+              }
+            });
+          } else if (geometry.type === "Point" && geometry.coordinates) {
+            coords.push([geometry.coordinates[0], geometry.coordinates[1]]);
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to extract coordinates:", error);
+      }
+
+      return coords;
+    };
+
+    // Function to fit map bounds to show all polygons
+    const fitToPolygons = (geometries: any | any[], padding: number = 50) => {
+      if (!map.current) {
+        console.warn("Map not available for fitting bounds");
+        return;
+      }
+
+      const geometryArray = Array.isArray(geometries) ? geometries : [geometries];
+      
+      // Collect all coordinates from all geometries
+      let allCoords: number[][] = [];
+      geometryArray.forEach((geom) => {
+        const coords = extractCoordinatesFromGeometry(geom);
+        allCoords = allCoords.concat(coords);
+      });
+
+      if (allCoords.length === 0) {
+        console.warn("No valid coordinates found for fitting bounds");
+        return;
+      }
+
+      // Calculate bounds
+      let minLng = Infinity;
+      let maxLng = -Infinity;
+      let minLat = Infinity;
+      let maxLat = -Infinity;
+
+      allCoords.forEach(([lng, lat]) => {
+        minLng = Math.min(minLng, lng);
+        maxLng = Math.max(maxLng, lng);
+        minLat = Math.min(minLat, lat);
+        maxLat = Math.max(maxLat, lat);
+      });
+
+      // Create bounds and fit map
+      const bounds = new mapboxgl.LngLatBounds(
+        [minLng, minLat],
+        [maxLng, maxLat]
+      );
+
+      map.current.fitBounds(bounds, {
+        padding: padding,
+        maxZoom: 12, // Don't zoom in too much for small polygons
+        duration: 1000, // Smooth animation
+      });
+
+      console.log(`Fitted map to bounds: [${minLng}, ${minLat}] - [${maxLng}, ${maxLat}]`);
     };
 
     const clearHighlight = () => {
@@ -374,6 +500,7 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       flyTo,
       getMap: () => map.current,
       highlightPolygon,
+      fitToPolygons,
       clearHighlight,
     }));
 

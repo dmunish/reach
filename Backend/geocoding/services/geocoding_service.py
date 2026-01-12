@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional, Tuple, Set
 from uuid import UUID
 import logging
+import asyncio
 from collections import defaultdict
 
 from ..models import GeocodeResult, MatchedPlace, GeocodeOptions
@@ -446,8 +447,11 @@ class GeocodingService:
         if unique_parent_ids:
             parent_uuids = [UUID(pid) for pid in unique_parent_ids]
             
-            # How many children does this parent have in total?
-            total_count = actual_child_counts.get(parent_id, 0)
+            # OPTIMIZATION: Batch fetch both child counts AND parent details in parallel
+            actual_child_counts, parent_details = await asyncio.gather(
+                self.repo.get_children_counts_batch(parent_uuids),
+                self.repo.get_by_ids_batch(parent_uuids)
+            )
             
             logger.debug(f"Checking aggregation for {len(unique_parent_ids)} parents")
             
@@ -485,13 +489,23 @@ class GeocodingService:
                 aggregated.append(place)
         
         logger.info(f"Aggregation: {len(valid_places)} -> {len(aggregated)} places "
-                    f"(removed {len(children_to_remove)} redundant children)")
+                    f"(removed {len(places_to_remove)} redundant places)")
         
-        # Recursive aggregation: if we removed children, check if parents can now be aggregated
-        # This handles cases like: all tehsils removed -> check if all districts can be removed
-        if children_to_remove and len(aggregated) > 1:
-            # Re-run aggregation on the reduced set (max depth = hierarchy levels = 4)
-            return await self._aggregate_hierarchy(aggregated)
+        # OPTIMIZATION: Check if we need recursive aggregation
+        # Only recurse if we added new parents that might themselves need aggregation
+        # This happens when districts aggregate to provinces, which might aggregate to country
+        if places_to_remove and len(aggregated) > 1:
+            # Check if any newly added parents have parent_ids in the result set
+            needs_recursion = False
+            for place in aggregated:
+                parent_id = place.get('parent_id')
+                if parent_id and str(parent_id) in {str(p['id']) for p in aggregated}:
+                    needs_recursion = True
+                    break
+            
+            if needs_recursion:
+                logger.debug("Recursive aggregation needed - parents have parents in result set")
+                return await self._aggregate_hierarchy(aggregated)
         
         return aggregated
     

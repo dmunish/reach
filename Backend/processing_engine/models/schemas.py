@@ -1,3 +1,6 @@
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime
 from enum import Enum
 
 # Alerts Enums
@@ -30,3 +33,49 @@ class AlertSeverity(str, Enum):
     MODERATE = "Moderate"
     MINOR = "Minor"
     UNKNOWN = "Unknown"
+
+#LLM structured response
+class AreaList(BaseModel):
+    """Represents a specific area or group if areas sharing same overrides (or none) affected by the alert."""
+    place_names: List[str]
+    specific_effective_from: Optional[str] = None
+    specific_effective_until: Optional[str] = None
+    specific_urgency: Optional[AlertUrgency] = None
+    specific_severity: Optional[AlertSeverity] = None
+    specific_instruction: Optional[str] = None
+
+class StructuredAlert(BaseModel):
+    """Represents the response from the LLM, with unflattened area list"""
+    category: AlertCategory
+    event: str
+    urgency: AlertUrgency
+    severity: AlertSeverity
+    description: str
+    instruction: str
+    effective_from: str
+    effective_until: str
+    areas: List[AreaList]
+
+# For insertion into DB
+class AlertArea(BaseModel):
+    """Represents a specific area affected by the alert."""
+    alert_id: str
+    place_id: str
+    specific_effective_from: Optional[datetime] = None
+    specific_effective_until: Optional[datetime] = None
+    specific_urgency: Optional[AlertUrgency] = None
+    specific_severity: Optional[AlertSeverity] = None
+    specific_instruction: Optional[str] = None
+
+class Alert(BaseModel):
+    """Complete alert data following a CAP inspired format"""
+    id: str
+    document_id: str
+    category: AlertCategory
+    event: str
+    urgency: AlertUrgency
+    severity: AlertSeverity
+    description: str
+    instruction: str
+    effective_from: datetime
+    effective_until: datetime

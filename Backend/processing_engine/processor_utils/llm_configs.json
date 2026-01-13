@@ -16,7 +16,7 @@
             "reasoning_effort":"high"
         }
     },
-    "ernie-4.5-vl-thinking:baidu": {
+    "ernie-4.5-vl:baidu": {
         "model": "ernie-4.5-turbo-vl",
         "api_key_name": "BAIDU_KEY",
         "base_url": "https://aistudio.baidu.com/llm/lmapi/v3",

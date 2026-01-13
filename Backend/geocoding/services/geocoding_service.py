@@ -540,3 +540,40 @@ class GeocodingService:
         )
         
         return sorted_candidates[:limit]
+    
+    async def geocode_batch_simple(self, place_names: List[str]) -> List[str]:
+        """
+        Simple batch geocoding interface.
+        
+        Accepts a list of place names and returns a list of place IDs.
+        This is a simplified interface that uses default options and
+        returns only the IDs from the first matched place for each input.
+        
+        Args:
+            place_names: List of location strings to geocode
+            
+        Returns:
+            List of place IDs (strings). Returns empty string if no match found.
+            
+        Example:
+            names = ["Islamabad", "Lahore", "Karachi"]
+            ids = await service.geocode_batch_simple(names)
+            # Returns: ["uuid-islamabad", "uuid-lahore", "uuid-karachi"]
+        """
+        options = GeocodeOptions()
+        results = []
+        
+        for name in place_names:
+            try:
+                result = await self.geocode_location(name, options)
+                if result.matched_places:
+                    # Return the first matched place ID
+                    results.append(str(result.matched_places[0].id))
+                else:
+                    # No match found
+                    results.append("")
+            except Exception as e:
+                logger.error(f"Error geocoding '{name}': {e}")
+                results.append("")
+        
+        return results

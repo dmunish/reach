@@ -9,6 +9,40 @@ _EXAMPLE_URLS = [
     "https://www.ndma.gov.pk/storage/projection-impact-langs/August2024/S1I2t0WfnuuE6fmYyK3D.pdf"
 ]
 
+# Cache for base64-encoded example files
+_cached_b64_files = None
+_cache_lock = asyncio.Lock()
+
+logger = logging.getLogger(__name__)
+
+async def _load_examples() -> List[List[str]]:
+  """
+  Load example files
+  """
+  global _cached_b64_files
+  
+  # Fast path: cache already initialized
+  if _cached_b64_files is not None:
+    return _cached_b64_files
+  
+  # Slow path: acquire lock and initialize cache
+  async with _cache_lock:
+    # Double-check after acquiring lock (another coroutine may have initialized)
+    if _cached_b64_files is not None:
+        return _cached_b64_files
+    
+    print("Initializing example files cache...")  # Debug log
+    
+    try:
+      tasks = [url_to_b64_strings(url) for url in _EXAMPLE_URLS]
+      b64_files = await asyncio.gather(*tasks)
+      _cached_b64_files = b64_files
+      logger.info(f"Cache initialized with {len(_cached_b64_files)} example files")
+      return _cached_b64_files
+    except Exception as e:
+      logger.error(f"Failed to initialize example cache: {e}")
+      raise
+
 system_prompt = """You are an expert disaster alert processor specializing in Pakistani emergency documents. 
 Your role is to extract structured information from disaster alerts, advisories, and warnings issued by Pakistani authorities (NDMA, PMD, etc.).
 
@@ -111,7 +145,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
 
 async def messages(inputs: List[str]):
     """Prepares prompt for conversion of image to markdown, along with examples (few-shot prompting)"""
-    b64_files = ""
+    b64_files = await _load_examples()
     return [
                 {
                     "role": "system",

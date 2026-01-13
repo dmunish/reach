@@ -1,0 +1,73 @@
+import json
+from pydantic import ValidationError
+from typing import List
+from processing_engine.processor_utils.llm_client import LLMClient
+from processing_engine.processor_utils.pipeline_prompts import messages
+from processing_engine.processor_utils.doc_utils import url_to_b64_strings
+from processing_engine.models.schemas import QueueJob, Alert, AlertArea, StructuredAlert
+
+
+class PipelineProcessor():
+    def __init__(self, llm: str):
+        self.llm = LLMClient(llm)
+    
+    async def transform(self, job: QueueJob, document_id: str, alert_id: str):
+        file = await url_to_b64_strings(job.message.url)
+        llm_message = await messages(file)
+        response = self.llm.call(llm_message)
+        json_response, alert, alert_areas = await self._parse(response, document_id, alert_id)
+        return json_response, alert, alert_areas
+    
+    async def _parse(self, response: str, document_id: str, alert_id: str) -> tuple[dict, Alert, list[AlertArea]]:
+        """Parse LLM JSON response"""
+        response = response[response.find("{") : response.rfind("}") + 1]
+        
+        try:
+            # Parse and validate JSON structure
+            structured_alert = StructuredAlert.model_validate_json(response)
+            json_response = structured_alert.model_dump()
+            
+            # Create Alert object
+            alert_model = Alert(
+                id=alert_id,
+                document_id=document_id,
+                category=structured_alert.category,
+                event=structured_alert.event,
+                urgency=structured_alert.urgency,
+                severity=structured_alert.severity,
+                description=structured_alert.description,
+                instruction=structured_alert.instruction,
+                effective_from=structured_alert.effective_from,
+                effective_until=structured_alert.effective_until
+            )
+
+            alert = alert_model.model_dump(mode='json')
+            
+            # Create AlertArea objects from the areas list
+            alert_areas = []
+            for area_list in structured_alert.areas:
+                place_ids = await self._geocode(area_list.place_names)
+                for place_id in place_ids:
+                    # Skip empty place_ids (unmatched locations)
+                    if not place_id:
+                        continue
+                    alert_area_model = AlertArea(
+                        alert_id=alert_id,
+                        place_id=place_id,
+                        specific_effective_from=area_list.specific_effective_from,
+                        specific_effective_until=area_list.specific_effective_until,
+                        specific_urgency=area_list.specific_urgency,
+                        specific_severity=area_list.specific_severity,
+                        specific_instruction=area_list.specific_instruction
+                    )
+                    alert_areas.append(alert_area_model.model_dump(mode='json'))
+            
+            return json_response, alert, alert_areas
+            
+        except json.JSONDecodeError as e:
+            raise ValueError(f"LLM returned invalid JSON: {e}")
+        except ValidationError as e:
+            raise ValueError(f"JSON doesn't match expected schema: {e}")
+        
+    async def _geocode(self, places: List[str]) -> List[str]:        
+        return ""

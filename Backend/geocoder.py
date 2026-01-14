@@ -1,12 +1,24 @@
+"""
+Geocoder - FastAPI Application
+
+Main entry point for the geocoding microservice.
+This module can be run from the Backend directory.
+
+Usage:
+    python -m geocoder
+    or
+    uvicorn geocoder:app --reload
+"""
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import logging
 
-from .api.routes import router
-from .dependencies import cleanup_services
-from .config import get_settings
+from geocoding.api import router
+from geocoding.dependencies import cleanup_services
+from geocoding.config import get_settings
 
 # Configure logging
 logging.basicConfig(
@@ -72,6 +84,18 @@ app = FastAPI(
     * Multi-level caching (in-memory LRU)
     * Async/await for non-blocking I/O
     * Connection pooling for external APIs
+    
+    ## Simple Batch Interface
+    
+    Use `GeocodingService.geocode_batch_simple()` for a simple list-to-list interface:
+    ```python
+    from geocoding import get_geocoding_service
+    
+    service = get_geocoding_service()
+    place_names = ["Islamabad", "Lahore", "Karachi"]
+    place_ids = await service.geocode_batch_simple(place_names)
+    # Returns: ["uuid-1", "uuid-2", "uuid-3"]
+    ```
     """,
     version="1.0.0",
     lifespan=lifespan,
@@ -107,7 +131,7 @@ async def root():
     }
 
 
-# Error handlers (optional but recommended)
+# Error handlers
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
     """Custom 404 handler"""
@@ -139,7 +163,7 @@ if __name__ == "__main__":
     
     # Run with uvicorn
     uvicorn.run(
-        "geocoding.main:app",
+        "geocoder:app",
         host="0.0.0.0",
         port=8000,
         reload=True,  # Disable in production

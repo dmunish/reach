@@ -16,7 +16,7 @@ echo "=========================================="
 echo ""
 echo "Make sure the service is running:"
 echo "  cd /home/ahmad_shahmeer/reach-geocoding/Backend"
-echo "  python -m geocoding.main"
+echo "  python -m geocoder"
 echo ""
 echo "Press Enter to continue..."
 read

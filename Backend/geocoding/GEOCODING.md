@@ -18,28 +18,51 @@ geocoding/
 ├── GEOCODING.md                  # This file
 ├── start.sh                      # Quick setup and validation script
 ├── config.py                     # Environment configuration
-├── main.py                       # FastAPI application entry point
+├── __init__.py                   # Package exports (modularization)
 ├── models.py                     # Pydantic models for requests/responses
 ├── dependencies.py               # Dependency injection container
-├── exceptions.py                 # Custom exception classes
 ├── db_queries.sql               # PostgreSQL functions and indexes
 │
 ├── api/
+│   ├── __init__.py              # API module exports
 │   └── routes.py                # FastAPI endpoint definitions
 │
 ├── repositories/
+│   ├── __init__.py              # Repository module exports
 │   └── places_repository.py     # Database access layer
 │
 ├── services/
+│   ├── __init__.py              # Services module exports
 │   ├── geocoding_service.py     # Main orchestration service
 │   ├── name_matcher.py          # Fuzzy name matching logic
 │   ├── directional_parser.py    # Directional phrase parser
 │   └── external_geocoder.py     # LocationIQ API integration
 │
 └── tests/
+    ├── __init__.py              # Tests module
     ├── test_api.py              # Integration tests with colored output
     ├── test_setup.py            # Setup validation (4 phases)
     └── test_curl_commands.sh    # Automated curl test script
+
+Backend/
+└── geocoder.py                   # FastAPI application entry point
+```
+
+### Modularization
+
+The geocoding package is fully modularized with `__init__.py` files, enabling clean imports:
+
+```python
+# From Backend directory
+from geocoding import GeocodingService, get_geocoding_service
+from geocoding.services import DirectionalParser
+from geocoding.repositories import PlacesRepository
+
+# Simple batch interface
+service = get_geocoding_service()
+place_names = ["Islamabad", "Lahore", "Karachi"]
+place_ids = await service.geocode_batch_simple(place_names)
+# Returns: ["uuid-1", "uuid-2", "uuid-3"]
 ```
 
 ---
@@ -71,14 +94,19 @@ chmod +x start.sh
 **After successful setup:**
 
 ```bash
-# Start the service
+# Start the service (from Backend directory)
 cd /home/ahmad_shahmeer/reach-geocoding/Backend
-python -m geocoding.main
+python -m geocoder
+
+# Alternative: use uvicorn directly
+uvicorn geocoder:app --reload --host 0.0.0.0 --port 8000
 
 # Service will be available at:
 # - http://localhost:8000
 # - API Docs: http://localhost:8000/docs
 ```
+
+**Note:** The geocoding module is now fully modularized with `__init__.py` files in all subdirectories (api, services, repositories, tests), allowing clean imports from the Backend directory level.
 
 **If setup fails:**
 
@@ -492,12 +520,12 @@ lsof -i :8000
 
 # Check logs for errors
 cd /home/ahmad_shahmeer/reach-geocoding/Backend
-python -m geocoding.main
+python -m geocoder
 ```
 
 ### Tests fail with "Connection refused"
 
--   Make sure service is running: `python -m geocoding.main`
+-   Make sure service is running: `python -m geocoder` (from Backend directory)
 -   Check correct port: `http://localhost:8000`
 
 ### "Function not found" errors

@@ -1,5 +1,10 @@
+fastapi
+uvicorn
 httpx
 supabase
 python-dotenv
 beautifulsoup4
 pandas
+openai
+PyMuPDF
+pillow

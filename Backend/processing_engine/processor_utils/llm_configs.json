@@ -1,22 +1,22 @@
 {
-    "qwen3-vl:novita": {
-        "model": "qwen/qwen3-vl-30b-a3b-thinking",
+    "qwen3-vl": {
+        "model": "qwen/qwen3-vl-235b-a22b-thinking",
         "api_key_name": "NOVITA_KEY",
         "base_url": "https://api.novita.ai/openai",
         "default_params": {
-            "max_completion_tokens": 16000,
+            "max_completion_tokens": 32768,
             "temperature":0.7
         }
     },
-    "gemini-3:google": {
-        "model": "gemini-3-flash",
+    "gemini-3": {
+        "model": "gemini-3-flash-preview",
         "api_key_name": "GEMINI_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "default_params": {
             "reasoning_effort":"high"
         }
     },
-    "ernie-4.5-vl:baidu": {
+    "ernie-4.5-vl": {
         "model": "ernie-4.5-turbo-vl",
         "api_key_name": "BAIDU_KEY",
         "base_url": "https://aistudio.baidu.com/llm/lmapi/v3",

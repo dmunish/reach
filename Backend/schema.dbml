@@ -42,6 +42,8 @@ Table alerts {
   instruction text?
   effective_from timestamptz
   effective_until timestamptz
+  centroid geometry
+  search_vector tsvector
 }
 
 Table alert_areas {

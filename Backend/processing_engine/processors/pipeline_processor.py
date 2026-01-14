@@ -1,7 +1,7 @@
 import json
 from pydantic import ValidationError
 from typing import List
-from processing_engine.processor_utils.llm_client import LLMClient
+from processing_engine.processor_utils.llm_client import LLMClient, AsyncLLMClient
 from processing_engine.processor_utils.pipeline_prompts import messages
 from processing_engine.processor_utils.doc_utils import url_to_b64_strings
 from processing_engine.models.schemas import QueueJob, Alert, AlertArea, StructuredAlert
@@ -9,12 +9,12 @@ from processing_engine.models.schemas import QueueJob, Alert, AlertArea, Structu
 
 class PipelineProcessor():
     def __init__(self, llm: str):
-        self.llm = LLMClient(llm)
+        self.llm = AsyncLLMClient(llm)
     
     async def transform(self, job: QueueJob, document_id: str, alert_id: str):
         file = await url_to_b64_strings(job.message.url)
         llm_message = await messages(file)
-        response = self.llm.call(llm_message)
+        response = await self.llm.call(llm_message)
         json_response, alert, alert_areas = await self._parse(response, document_id, alert_id)
         return json_response, alert, alert_areas
     
@@ -25,7 +25,7 @@ class PipelineProcessor():
         try:
             # Parse and validate JSON structure
             structured_alert = StructuredAlert.model_validate_json(response)
-            json_response = structured_alert.model_dump()
+            json_response = structured_alert.model_dump(mode='json')
             
             # Create Alert object
             alert_model = Alert(

@@ -31,5 +31,13 @@
             "frequency_penalty": 0,
             "presence_penalty": 0
         }
+    },
+    "molmo-2": {
+        "model": "allenai/molmo-2-8b:free",
+        "api_key_name": "OPEN_ROUTER_KEY",
+        "base_url": "https://openrouter.ai/api/v1",
+        "default_params": {
+            "temperature":0.3
+        }
     }
 }

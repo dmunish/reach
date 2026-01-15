@@ -140,25 +140,45 @@ DECLARE
     combined_geom GEOMETRY;
     bbox GEOMETRY;
     grid_cell GEOMETRY;
+    clipped_search_area GEOMETRY;
 BEGIN
     -- Get the combined polygon of all base regions (works for any hierarchy level)
     SELECT ST_Union(p.polygon) INTO combined_geom
     FROM places p
     WHERE p.id = ANY(base_place_ids);
     
+    -- Early exit if no base geometry found
     IF combined_geom IS NULL THEN
         RETURN;
     END IF;
     
-    -- Calculate bounding box and directional grid from the base region(s)
+    -- Validate geometry before processing
+    IF NOT ST_IsValid(combined_geom) THEN
+        RAISE WARNING 'Invalid geometry detected for base places, attempting repair';
+        combined_geom := ST_MakeValid(combined_geom);
+    END IF;
+    
+    -- Calculate bounding box for grid generation
     bbox := ST_Envelope(combined_geom);
+    
+    -- Generate rectangular grid cell based on direction and BBox
     grid_cell := get_directional_grid_cell(bbox, direction);
     
-    -- CRITICAL CONSTRAINT: Return only places that are:
-    -- 1. Spatially within the base region's polygon (not just intersecting)
-    -- 2. Intersecting the directional grid cell
-    -- 3. Not the base region itself
-    -- This ensures "North Punjab" returns only Punjab children, not KPK places
+    -- POLYGON CLIPPING: Intersect grid cell with actual province boundary
+    -- This "cookie-cutters" the rectangular grid to the actual shape of the region
+    -- Prevents leakage into neighboring provinces (e.g., KPK places in "North Punjab")
+    clipped_search_area := ST_Intersection(grid_cell, combined_geom);
+    
+    -- Validate the clipped area is not empty
+    IF clipped_search_area IS NULL OR ST_IsEmpty(clipped_search_area) THEN
+        RAISE NOTICE 'Directional grid does not overlap with base region for direction: %', direction;
+        RETURN; -- Empty result set
+    END IF;
+    
+    -- CRITICAL CONSTRAINT: Return only places that:
+    -- 1. Intersect the CLIPPED search area (grid cell ∩ base polygon)
+    -- 2. Are spatially within the base region's polygon
+    -- 3. Are not the base region itself
     -- Works at all hierarchy levels: province, district, tehsil
     RETURN QUERY
     SELECT 
@@ -168,9 +188,9 @@ BEGIN
         p.parent_id
     FROM places p
     WHERE p.polygon IS NOT NULL
-        AND ST_Intersects(p.polygon, grid_cell)           -- In the directional grid
-        AND ST_Within(p.polygon, combined_geom)            -- Within base region boundary
-        AND NOT (p.id = ANY(base_place_ids))               -- Exclude base region itself
+        AND ST_Intersects(p.polygon, clipped_search_area)  -- In the clipped directional area
+        AND ST_Within(p.polygon, combined_geom)             -- Within base region boundary
+        AND NOT (p.id = ANY(base_place_ids))                -- Exclude base region itself
     ORDER BY p.hierarchy_level DESC;
 END;
 $$ LANGUAGE plpgsql;

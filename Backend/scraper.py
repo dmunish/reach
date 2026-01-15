@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 import os
-from scrapers.scraper_orchestrator import main as run_scrapers
+from scrapers.scraper_orchestrator import run_scrapers
 from utils import load_env
 
 load_env()

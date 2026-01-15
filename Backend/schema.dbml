@@ -44,6 +44,7 @@ Table alerts {
   effective_until timestamptz
   centroid geometry
   search_vector tsvector
+  bbox geometry
 }
 
 Table alert_areas {

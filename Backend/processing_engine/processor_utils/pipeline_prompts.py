@@ -79,7 +79,7 @@ You excel at transforming complex, multi-modal disaster documents into clean, ac
 """
 
 json_prompt = """Convert the attached Pakistani disaster alert/information document to the specified CAP-derived JSON structure.
-Try to understand images in detail and make the extracted JSON information informed by the content of the text and the images/maps/charts in the document. 
+If there are images/visualizations, try to understand images in detail and make the extracted JSON information informed by the content of the text and the images/maps/charts in the document. 
 Don't miss any information. Be wary of typos in the document, and correct if possible. Output only the JSON object, without any leading or trailing markdown.
 
 # JSON Response Format:
@@ -142,6 +142,8 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
         Correct: "Rawalpindi", "Attock", "Chakwal", "Jhelum"
     5.  Wrong: "Sindh Coastal Areas"
         Correct: "Southern Sindh"
+    6.  Wrong: ["Gilgit-Baltistan"],["Khyber Pakhtunkhwa"]
+        Correct: ["Gilgit-Baltistan","Khyber Pakhtunkhwa"]
 """
 
 async def messages(inputs: List[str]):
@@ -264,6 +266,66 @@ async def messages(inputs: List[str]):
   "areas": [
     {
       "place_names": ["Swat", "Shangla", "Mansehra", "Khyber", "Kohistan", "Abbottabad", "Skardu", "Ghanche", "Nagar", "Diamir", "Hunza", "Gilgit", "Muzaffarabad", "Haveli", "Bagh", "Zhob", "Musakhel", "Loralai", "Ziarat", "Sherani", "Killa Saifullah"],
+      "specific_effective_from": null,
+      "specific_effective_until": null,
+      "specific_urgency": null,
+      "specific_severity": null,
+      "specific_instruction": null
+    }
+  ]
+}
+"""
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": json_prompt}] + 
+                    [
+                      {
+                        "type": "text",
+                        "text":"""
+{
+	"id": 3324,
+	"title": "Cold wave & Snow -  Northern Pakistan (January 14-20, 2026)",
+	"description": "A strong cold wave is expected over Gilgit-Baltistan, upper Khyber Pakhtunkhwa, and Azad Jammu & Kashmir from 14–20 January 2026, with very cold to extremely cold conditions, especially during nights and early mornings. Day temperatures will remain below normal, while moderate to heavy snowfall is likely in high-altitude and hilly areas, and cold, dry weather with frost in pockets is expected over adjoining plains.",
+	"impact": "Snowfall may disrupt road access, transportation, and power supply in mountainous areas.\r\nHigher risk of snow slides/avalanches in the vulnerable locations.\r\nExtreme cold/snow can increase health risks.\r\nFrost may damage standing crops and orchards in adjoining plains.",
+	"action": "Avoid non-essential travel to high-altitude and snowfall-prone areas, and use snowchains.\r\nEnsure adequate heating, warm clothing, and protection for vulnerable populations.\r\nCommunities should follow local advisories.\r\nAuthorities should remain prepared for snow clearance, emergency response, and power restoration.",
+	"type": "2",
+	"lat_long": "[\"36.37683240010968\",\"74.1854310938566\"]",
+	"image_url": "https://alert.ndma.gov.pk/public/storage/uploads/images/5jDVmuHSKi2qtKpbct9EoWO2gLp5Sul8oOGi1ICt.png",
+	"priority": "3",
+	"status": 1,
+	"user_id": null,
+	"category_alerts_id": 17,
+	"status_changed_by_id": null,
+	"created_at": "14-01-26",
+	"updated_at": "14-01-26",
+	"name": "Cold Wave",
+	"icon_1": "https://alert.ndma.gov.pk/public/storage/uploads/icon_ones/O8lsBdqRxjqP4S5fAqAb2IddfkWRrJ3sSsHb7qM3.png",
+	"icon_2": "https://alert.ndma.gov.pk/public/storage/uploads/icon_twos/kTZsAS2VGMOsJrBmxUvjxnb0Zng2LEgxZyrC4KnF.png",
+	"icon_3": null,
+	"latitude": "36.37683240010968",
+	"longitude": "74.1854310938566",
+	"audio": null
+}
+"""
+                      } 
+                    ] 
+                },
+                {
+                    "role": "assistant",
+                    "content": """
+{
+  "category": "Met",
+  "event": "Cold Wave and Snowfall",
+  "urgency": "Expected",
+  "severity": "Severe",
+  "description": "A strong cold wave is expected in the north of the country, bringing very cold to extremely cold conditions, especially during nights and early mornings. Day temperatures will remain below normal. Moderate to heavy snowfall is likely in high-altitude and hilly areas, with cold, dry weather and frost in nearby plains.",
+  "instruction": "1. Avoid non-essential travel to high-altitude and snowfall-prone areas. \n2. If travel is necessary, use snowchains on vehicles. \n3. Ensure adequate heating and warm clothing. \n4. Protect vulnerable populations such as the elderly and children. ",
+  "effective_from": "2026-01-14T00:00:00Z",
+  "effective_until": "2026-01-20T23:59:59Z",
+  "areas": [
+    {
+      "place_names": ["Gilgit-Baltistan", "North Khyber Pakhtunkhwa", "Azad Jammu and Kashmir"],
       "specific_effective_from": null,
       "specific_effective_until": null,
       "specific_urgency": null,

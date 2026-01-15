@@ -1,23 +1,36 @@
 import asyncio
 from httpx import AsyncClient
-from scrapers.parsers import NdmaParser, NeocParser
+from scrapers.parsers import NdmaParser, NeocParser, NdmaAPIParser, PmdPRParser
 from scrapers.base_scraper import BaseScraper
-from utils import supabase_client
+from utils import supabase_client, load_env
+import os
+
+load_env()
 
 SCRAPER_CONFIGS = [
     {
         'name': 'ndma',
         'url': 'https://www.ndma.gov.pk/advisories',
-        'parser': NdmaParser(),
+        'parser': NdmaParser()
     },
     {
         'name': 'neoc',
         'url': 'https://www.ndma.gov.pk/projection-impact-list_new',
-        'parser': NeocParser(),
+        'parser': NeocParser()
+    },
+    {
+        'name': 'ndma-api',
+        'url': os.getenv("NDMA_API"),
+        'parser': NdmaAPIParser()
+    },
+    {
+        'name': 'pmd-press-releases',
+        'url': 'https://nwfc.pmd.gov.pk/new/press-releases.php',
+        'parser': PmdPRParser()
     }
 ]
 
-async def main():
+async def run_scrapers():
     # Initialize shared clients
     http_client = AsyncClient(timeout=30.0)
     db_client = supabase_client()
@@ -42,4 +55,4 @@ async def main():
     return results
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run_scrapers())

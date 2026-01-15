@@ -141,6 +141,7 @@ DECLARE
     bbox GEOMETRY;
     grid_cell GEOMETRY;
 BEGIN
+    -- Get the combined polygon of all base regions (works for any hierarchy level)
     SELECT ST_Union(p.polygon) INTO combined_geom
     FROM places p
     WHERE p.id = ANY(base_place_ids);
@@ -149,9 +150,16 @@ BEGIN
         RETURN;
     END IF;
     
+    -- Calculate bounding box and directional grid from the base region(s)
     bbox := ST_Envelope(combined_geom);
     grid_cell := get_directional_grid_cell(bbox, direction);
     
+    -- CRITICAL CONSTRAINT: Return only places that are:
+    -- 1. Spatially within the base region's polygon (not just intersecting)
+    -- 2. Intersecting the directional grid cell
+    -- 3. Not the base region itself
+    -- This ensures "North Punjab" returns only Punjab children, not KPK places
+    -- Works at all hierarchy levels: province, district, tehsil
     RETURN QUERY
     SELECT 
         p.id,
@@ -159,8 +167,10 @@ BEGIN
         p.hierarchy_level,
         p.parent_id
     FROM places p
-    WHERE ST_Intersects(p.polygon, grid_cell)
-        AND p.polygon IS NOT NULL
+    WHERE p.polygon IS NOT NULL
+        AND ST_Intersects(p.polygon, grid_cell)           -- In the directional grid
+        AND ST_Within(p.polygon, combined_geom)            -- Within base region boundary
+        AND NOT (p.id = ANY(base_place_ids))               -- Exclude base region itself
     ORDER BY p.hierarchy_level DESC;
 END;
 $$ LANGUAGE plpgsql;

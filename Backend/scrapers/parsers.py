@@ -1,8 +1,10 @@
 from bs4 import BeautifulSoup
 import os
+from click import style
 import pandas as pd
 from urllib.parse import urlparse, parse_qs, unquote
 from scrapers.base_scraper import BaseParser
+import json
 
 def convert_secure_url(url):
     """Convert secure viewer URLs to direct URLs"""
@@ -24,7 +26,8 @@ def convert_secure_url(url):
     return direct_url
 
 class NdmaParser(BaseParser):
-    def parse_entries(self, html: str) -> list[dict]:
+    def parse_entries(self, response) -> list[dict]:
+        html = response.text
         parsed_page = BeautifulSoup(html, 'html.parser')
         advisory_cards = parsed_page.find_all("div", class_="advisory-card")
         
@@ -70,7 +73,8 @@ class NdmaParser(BaseParser):
         return structured_entries
 
 class NeocParser(BaseParser):
-    def parse_entries(self, html: str) -> list[dict]:
+    def parse_entries(self, response) -> list[dict]:
+        html = response.text
         parsed_page = BeautifulSoup(html, 'html.parser')
         divs = parsed_page.find_all("div", class_="panel panel-default proj-card")
 
@@ -120,6 +124,79 @@ class NeocParser(BaseParser):
                 "url": url,
                 "filename": filename,
                 "filetype": filetype
+            })
+        
+        return structured_entries
+
+class NdmaAPIParser(BaseParser):
+    def parse_entries(self, response) -> list[dict]:
+        alerts = response.json().get("data", [])
+        structured_entries = []
+        for alert in alerts:
+            structured_entries.append({
+                    "source": "NDMA",
+                    "posted_date": pd.to_datetime(alert.get("updated_at"), dayfirst=True).strftime('%Y-%m-%d'),
+                    "title": alert.get("title"),
+                    "url": str(response.url),
+                    "filetype": "txt",
+                    "raw_text": json.dumps(alert)
+                })
+            
+        return structured_entries
+
+class PmdPRParser(BaseParser):
+    def parse_entries(self, response) -> list[dict]:
+        html = response.text
+        parsed_page = BeautifulSoup(html, 'html.parser')
+        press_releases = parsed_page.find_all("div", class_="col-md-12", style="background-color:#00416A;")
+
+        structured_entries = []
+        for press_release in press_releases:
+            # Title
+            title_tag = press_release.find("h4", align="center")
+            title_text = title_tag.get_text(strip=True) if title_tag else None
+
+            # Date
+            date_tag = press_release.find("h5", align="center")
+            date_text = None
+            if date_tag:
+                # Extracts "2 Apr, 2023 01:59 PM" from "Issue Date: 2 Apr, 2023 01:59 PM"
+                date_text = date_tag.get_text(strip=True).replace("Issue Date:", "").strip()
+            
+            try:
+                formatted_date = pd.to_datetime(date_text).strftime('%Y-%m-%d')
+            except Exception as e:
+                print(f"Error parsing date '{date_text}': {e}")
+                formatted_date = None
+
+            # Content
+            content_div = press_release.find("div", class_="PR_English")
+            if content_div:
+                # Convert internal h3 into markdown headings
+                for h3 in content_div.find_all("h3"):
+                    h3.string = f"### {h3.get_text(strip=True)}"
+                content_text = content_div.get_text(separator="\n", strip=True)
+            else:
+                content_text = ""
+
+            # Coalesce into raw_text
+            raw_text_parts = []
+            if title_text:
+                raw_text_parts.append(f"# {title_text}")
+            if date_text:
+                raw_text_parts.append(f"**Issue Date:** {date_text}")
+            if content_text:
+                raw_text_parts.append(content_text)
+            
+            raw_text = "\n\n".join(raw_text_parts)
+
+            structured_entries.append({
+                "source": "PDMA",
+                "posted_date": formatted_date,
+                "title": title_text,
+                "url": str(response.url),
+                "filetype": "txt",
+                "raw_text": raw_text
             })
         
         return structured_entries

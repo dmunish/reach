@@ -1,5 +1,5 @@
 class BaseParser:
-    def parse_html(self, html: str) -> list[dict]:
+    def parse_html(self, response) -> list[dict]:
         """Extract entries from HTML."""
         raise NotImplementedError
     
@@ -12,14 +12,14 @@ class BaseScraper:
 
     async def run(self):
         response = await self.http.get(self.url)
-        html = response.text
-        entries = self.parser.parse_entries(html)
+        entries = self.parser.parse_entries(response)
+        print(entries)
         
         try:
             new_entries = self.filter_new(entries)
             if new_entries:
-                upserted = self.upsert(new_entries)
-                return upserted
+                # upserted = self.upsert(new_entries)
+                return 0
         except Exception as e:
             print(f"Error filtering new entries: {e}")
         return 0

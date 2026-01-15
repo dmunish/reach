@@ -11,7 +11,8 @@ Usage:
 import asyncio
 import httpx
 import json
-from typing import Dict, Any
+import time
+from typing import Dict, List, Any, Union
 from datetime import datetime
 
 
@@ -29,7 +30,7 @@ class Colors:
     BOLD = '\033[1m'
 
 
-def print_json(data: Dict[str, Any], indent: int = 0):
+def print_json(data: Union[Dict[str, Any], List[Any], Any], indent: int = 0):
     """Pretty print JSON data with colors."""
     indent_str = "  " * indent
     
@@ -57,6 +58,7 @@ async def test_simple_place():
     print(f"{Colors.BOLD}Test 1: Simple Place Name - Islamabad{Colors.RESET}")
     print(f"{Colors.HEADER}{'='*70}{Colors.RESET}")
     
+    start_time = time.time()
     async with httpx.AsyncClient() as client:
         response = await client.post(
             f"{BASE_URL}/api/v1/geocode",
@@ -76,6 +78,9 @@ async def test_simple_place():
         print(f"\n{Colors.BOLD}Response:{Colors.RESET}")
         print_json(result)
         
+        elapsed = time.time() - start_time
+        print(f"\n{Colors.BOLD}{Colors.CYAN}⏱  Time taken: {elapsed:.2f} seconds{Colors.RESET}")
+        
         return result
 
 
@@ -85,6 +90,7 @@ async def test_directional():
     print(f"{Colors.BOLD}Test 2: Directional Description - Central Sindh{Colors.RESET}")
     print(f"{Colors.HEADER}{'='*70}{Colors.RESET}")
     
+    start_time = time.time()
     async with httpx.AsyncClient() as client:
         response = await client.post(
             f"{BASE_URL}/api/v1/geocode",
@@ -107,6 +113,9 @@ async def test_directional():
         print(f"\n{Colors.YELLOW}Note: Results should show hierarchical aggregation{Colors.RESET}")
         print(f"{Colors.YELLOW}      (parent instead of all children if all present){Colors.RESET}")
         
+        elapsed = time.time() - start_time
+        print(f"\n{Colors.BOLD}{Colors.CYAN}⏱  Time taken: {elapsed:.2f} seconds{Colors.RESET}")
+        
         return result
 
 
@@ -116,7 +125,9 @@ async def test_batch():
     print(f"{Colors.BOLD}Test 3: Batch Geocoding - Multiple Locations{Colors.RESET}")
     print(f"{Colors.HEADER}{'='*70}{Colors.RESET}")
     
-    async with httpx.AsyncClient() as client:
+    start_time = time.time()
+    # Use longer timeout for batch processing (60 seconds for multiple directional queries)
+    async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
             f"{BASE_URL}/api/v1/geocode",
             json={
@@ -155,6 +166,9 @@ async def test_batch():
                     last = r['matched_places'][-1]
                     print(f"    Last: {Colors.GREEN}{last['name']}{Colors.RESET} (Level {last['hierarchy_level']})")
         
+        elapsed = time.time() - start_time
+        print(f"\n{Colors.BOLD}{Colors.CYAN}⏱  Time taken: {elapsed:.2f} seconds{Colors.RESET}")
+        
         return result
 
 
@@ -164,6 +178,7 @@ async def test_get_endpoint():
     print(f"{Colors.BOLD}Test 4: GET Endpoint - Single Location{Colors.RESET}")
     print(f"{Colors.HEADER}{'='*70}{Colors.RESET}")
     
+    start_time = time.time()
     async with httpx.AsyncClient() as client:
         response = await client.get(
             f"{BASE_URL}/api/v1/geocode/Lahore",
@@ -177,6 +192,9 @@ async def test_get_endpoint():
         print(f"\n{Colors.BOLD}Response:{Colors.RESET}")
         print_json(result)
         
+        elapsed = time.time() - start_time
+        print(f"\n{Colors.BOLD}{Colors.CYAN}⏱  Time taken: {elapsed:.2f} seconds{Colors.RESET}")
+        
         return result
 
 
@@ -186,6 +204,7 @@ async def test_suggestions():
     print(f"{Colors.BOLD}Test 5: Suggestions - Typo 'Islmabad'{Colors.RESET}")
     print(f"{Colors.HEADER}{'='*70}{Colors.RESET}")
     
+    start_time = time.time()
     async with httpx.AsyncClient() as client:
         response = await client.get(
             f"{BASE_URL}/api/v1/suggest/Islmabad",
@@ -199,6 +218,9 @@ async def test_suggestions():
         print(f"\n{Colors.BOLD}Suggestions:{Colors.RESET}")
         print_json(result)
         
+        elapsed = time.time() - start_time
+        print(f"\n{Colors.BOLD}{Colors.CYAN}⏱  Time taken: {elapsed:.2f} seconds{Colors.RESET}")
+        
         return result
 
 
@@ -208,6 +230,7 @@ async def test_health():
     print(f"{Colors.BOLD}Test 6: Health Check{Colors.RESET}")
     print(f"{Colors.HEADER}{'='*70}{Colors.RESET}")
     
+    start_time = time.time()
     async with httpx.AsyncClient() as client:
         response = await client.get(f"{BASE_URL}/api/v1/health")
         
@@ -217,6 +240,9 @@ async def test_health():
         result = response.json()
         print(f"\n{Colors.BOLD}Health Status:{Colors.RESET}")
         print_json(result)
+        
+        elapsed = time.time() - start_time
+        print(f"\n{Colors.BOLD}{Colors.CYAN}⏱  Time taken: {elapsed:.2f} seconds{Colors.RESET}")
         
         return result
 
@@ -230,7 +256,7 @@ async def run_all_tests():
     print(f"{Colors.YELLOW}Timestamp:{Colors.RESET} {datetime.now().isoformat()}")
     print(f"\n{Colors.YELLOW}Make sure the service is running:{Colors.RESET}")
     print(f"  cd /home/ahmad_shahmeer/reach-geocoding/Backend")
-    print(f"  python -m geocoding.main")
+    print(f"  python -m geocoder")
     
     try:
         # Run each test
@@ -262,7 +288,7 @@ async def run_all_tests():
         print(f"\n{Colors.RED}Could not connect to {BASE_URL}{Colors.RESET}")
         print(f"{Colors.YELLOW}Make sure the service is running:{Colors.RESET}")
         print(f"  cd /home/ahmad_shahmeer/reach-geocoding/Backend")
-        print(f"  python -m geocoding.main\n")
+        print(f"  python -m geocoder\n")
         
     except Exception as e:
         print(f"\n{Colors.BOLD}{Colors.RED}{'='*70}{Colors.RESET}")

@@ -1,5 +1,8 @@
 import hashlib
 import json
+from utils import get_logger
+
+logger = get_logger(__name__)
 
 class BaseParser:
     def parse_html(self, html: str) -> list[dict]:
@@ -18,20 +21,30 @@ class BaseScraper:
         self.parser = parser
         self.db = db_client
         self.http = http_client
+        self.logger = get_logger(self.__class__.__name__)
 
     async def run(self):
-        response = await self.http.get(self.url)
-        entries = self.parser.parse_entries(response)
-        
+        self.logger.info(f"Starting scrape for {self.url}")
         try:
+            response = await self.http.get(self.url)
+            response.raise_for_status()
+            
+            entries = self.parser.parse_entries(response)
+            self.logger.info(f"Parsed {len(entries)} entries from {self.url}")
+            
             new_entries = self.filter_new(entries)
-            print(json.dumps(new_entries, indent=4))
+            self.logger.info(f"Found {len(new_entries)} new entries")
+            
             if new_entries:
-                # upserted = self.upsert(new_entries)
-                return 0
+                count = self.upsert(new_entries)
+                self.logger.info(f"Upserted {count} entries")
+                return count
+            
+            return 0
+            
         except Exception as e:
-            print(f"Error filtering new entries: {e}")
-        return 0
+            self.logger.error(f"Error running scraper for {self.url}: {str(e)}", exc_info=True)
+            raise e
     
     def filter_new(self, entries):
         if not entries:
@@ -51,13 +64,18 @@ class BaseScraper:
             
             new_entries = [
                 entry for entry in entries 
-                if entry.get("content_hash") in existing_hashes
+                if entry.get("content_hash") not in existing_hashes
             ]
             return new_entries
         except Exception as e:
-            print(f"Error filtering new entries: {e}")
-            return []
+            self.logger.error(f"Error filtering new entries: {str(e)}", exc_info=True)
+            return [] # Fail safe to return empty list or maybe raise? returning empty list prevents duplicates if DB is down but loses data. 
+            # Actually, if DB is down, we probably can't proceed. But existing code returned [] on error.
     
     def upsert(self, entries):
-        response = self.db.table('documents').upsert(entries, on_conflict='content_hash').execute()
-        return len(response.data)
+        try:
+            response = self.db.table('documents').upsert(entries, on_conflict='content_hash').execute()
+            return len(response.data)
+        except Exception as e:
+            self.logger.error(f"Error upserting entries: {str(e)}", exc_info=True)
+            raise e

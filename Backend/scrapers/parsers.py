@@ -5,6 +5,9 @@ import pandas as pd
 from urllib.parse import urlparse, parse_qs, unquote
 from scrapers.base_scraper import BaseParser
 import json
+from utils import get_logger
+
+logger = get_logger(__name__)
 
 def convert_secure_url(url):
     """Convert secure viewer URLs to direct URLs"""
@@ -58,7 +61,7 @@ class NdmaParser(BaseParser):
                 filename, filetype = os.path.splitext(filename_with_ext)
                 filetype = filetype.lstrip('.')
             except Exception as e:
-                print(f"Error extracting filename from '{url}': {e}")
+                logger.error(f"Error extracting filename from '{url}': {e}")
                 continue
 
             structured_entries.append({
@@ -95,7 +98,7 @@ class NeocParser(BaseParser):
             try:
                 formatted_date = pd.to_datetime(date_text, dayfirst=True).strftime('%Y-%m-%d')
             except Exception as e:
-                print(f"Error parsing date '{date_text}': {e}")
+                logger.error(f"Error parsing date '{date_text}': {e}")
                 continue
 
             # URL
@@ -115,7 +118,7 @@ class NeocParser(BaseParser):
                 filename, filetype = os.path.splitext(filename_with_ext)
                 filetype = filetype.lstrip('.')
             except Exception as e:
-                print(f"Error extracting filename from '{url}': {e}")
+                logger.error(f"Error extracting filename from '{url}': {e}")
                 continue
 
             structured_entries.append({
@@ -171,7 +174,7 @@ class PmdPRParser(BaseParser):
             try:
                 formatted_date = pd.to_datetime(date_text).strftime('%Y-%m-%d')
             except Exception as e:
-                print(f"Error parsing date '{date_text}': {e}")
+                logger.error(f"Error parsing date '{date_text}': {e}")
                 formatted_date = None
 
             # Content

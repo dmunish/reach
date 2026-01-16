@@ -85,7 +85,7 @@ Table places {
 // Foreign Keys
 Ref: alerts.document_id > documents.id
 
-Ref: alert_areas.alert_id > alerts.id
+Ref: alert_areas.alert_id > alerts.id [delete: cascade]
 
 Ref: alert_areas.place_id > places.id
 

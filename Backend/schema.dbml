@@ -70,6 +70,7 @@ Table documents {
   structured_text jsonb?
   raw_text text?
   scraped_at timestamptz? @default(CURRENT_TIMESTAMP)
+  content_hash text
 }
 
 Table places {

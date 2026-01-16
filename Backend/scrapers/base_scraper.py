@@ -36,9 +36,9 @@ class BaseScraper:
             self.logger.info(f"Found {len(new_entries)} new entries")
             
             if new_entries:
-                count = self.upsert(new_entries)
-                self.logger.info(f"Upserted {count} entries")
-                return count
+                # count = self.upsert(new_entries)
+                # self.logger.info(f"Upserted {count} entries")
+                return 0
             
             return 0
             
@@ -62,10 +62,7 @@ class BaseScraper:
             
             existing_hashes = {item['content_hash'] for item in response.data}
             
-            new_entries = [
-                entry for entry in entries 
-                if entry.get("content_hash") not in existing_hashes
-            ]
+            new_entries = [entry for entry in entries if entry.get("content_hash") in existing_hashes]
             return new_entries
         except Exception as e:
             self.logger.error(f"Error filtering new entries: {str(e)}", exc_info=True)

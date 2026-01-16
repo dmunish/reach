@@ -1,4 +1,5 @@
 import os
+import logging
 from dotenv import load_dotenv
 from pathlib import Path
 from supabase import create_client, Client, acreate_client, AsyncClient
@@ -9,6 +10,17 @@ def load_env():
     load_dotenv(ENV, override=True)
 
 _env_loaded = load_env()
+
+def get_logger(name):
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        logger.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+    return logger
 
 def supabase_client():
     SUPABASE_URL = os.getenv("SUPABASE_URL")

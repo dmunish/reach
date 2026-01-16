@@ -37,7 +37,7 @@ class NdmaParser(BaseParser):
             if not a_tag or not a_tag.get("href"):
                 continue
             
-            pdf_url = convert_secure_url(a_tag["href"])
+            url = convert_secure_url(a_tag["href"])
             
             date_tag = card.find("p", class_="advisory-date")
             date_text = date_tag.get_text(strip=True) if date_tag else None
@@ -48,26 +48,27 @@ class NdmaParser(BaseParser):
             title_text = title_tag.get_text(strip=True) if title_tag else None
             
             try:
-                if "?file=" in pdf_url:
-                    filename_with_ext = unquote(pdf_url.split("?file=")[-1])
+                if "?file=" in url:
+                    filename_with_ext = unquote(url.split("?file=")[-1])
                     filename_with_ext = filename_with_ext.split("/")[-1]
                 else:
                     # Handle direct URLs
-                    filename_with_ext = os.path.basename(unquote(pdf_url))
+                    filename_with_ext = os.path.basename(unquote(url))
                 
                 filename, filetype = os.path.splitext(filename_with_ext)
                 filetype = filetype.lstrip('.')
             except Exception as e:
-                print(f"Error extracting filename from '{pdf_url}': {e}")
+                print(f"Error extracting filename from '{url}': {e}")
                 continue
 
             structured_entries.append({
                 "source": "NDMA",
                 "posted_date": formatted_date,
                 "title": title_text,
-                "url": pdf_url,
+                "url": url,
                 "filename": filename,
-                "filetype": filetype
+                "filetype": filetype,
+                "content_hash": self.generate_hash(url, formatted_date, title_text)
             })
         
         return structured_entries
@@ -123,7 +124,8 @@ class NeocParser(BaseParser):
                 "title": title_text,
                 "url": url,
                 "filename": filename,
-                "filetype": filetype
+                "filetype": filetype,
+                "content_hash": self.generate_hash(url, formatted_date, title_text)
             })
         
         return structured_entries
@@ -133,13 +135,16 @@ class NdmaAPIParser(BaseParser):
         alerts = response.json().get("data", [])
         structured_entries = []
         for alert in alerts:
+            title = alert.get("title")
+            formatted_date = pd.to_datetime(alert.get("updated_at"), dayfirst=True).strftime('%Y-%m-%d')
+            raw_text = json.dumps(alert)
             structured_entries.append({
                     "source": "NDMA",
-                    "posted_date": pd.to_datetime(alert.get("updated_at"), dayfirst=True).strftime('%Y-%m-%d'),
-                    "title": alert.get("title"),
-                    "url": str(response.url),
+                    "posted_date": formatted_date,
+                    "title": title,
                     "filetype": "txt",
-                    "raw_text": json.dumps(alert)
+                    "raw_text": raw_text,
+                    "content_hash": self.generate_hash(title, formatted_date, raw_text)
                 })
             
         return structured_entries
@@ -191,12 +196,14 @@ class PmdPRParser(BaseParser):
             raw_text = "\n\n".join(raw_text_parts)
 
             structured_entries.append({
-                "source": "PDMA",
+                "source": "PMD",
                 "posted_date": formatted_date,
                 "title": title_text,
                 "url": str(response.url),
                 "filetype": "txt",
-                "raw_text": raw_text
+                "raw_text": raw_text,
+                "content_hash": self.generate_hash(title_text, formatted_date ,raw_text)
+                
             })
         
         return structured_entries

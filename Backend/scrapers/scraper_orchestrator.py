@@ -33,7 +33,7 @@ SCRAPER_CONFIGS = [
 ]
 
 async def run_scrapers():
-    logger.info("Starting scraper orchestration")
+    logger.info("Starting scraping")
     # Initialize shared clients
     http_client = AsyncClient(timeout=30.0)
     db_client = supabase_client()
@@ -59,7 +59,7 @@ async def run_scrapers():
             logger.error(f"Scraper {config['name']} failed: {error_msg}", exc_info=True)
     
     await http_client.aclose()
-    logger.info("Scraper orchestration completed")
+    logger.info("Scraping completed")
     return results
 
 if __name__ == "__main__":

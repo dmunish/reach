@@ -5,7 +5,7 @@ from processing_engine.processor_utils.doc_utils import url_to_b64_strings
 
 _EXAMPLE_URLS = [
     "https://www.ndma.gov.pk/storage/advisories/August2025/WMpJfGUze00GwXezWekr.pdf", 
-    "https://www.ndma.gov.pk/storage/advisories/December2025/evgtuouxcEBpD4FSxL9w.pdf", 
+    "https://www.ndma.gov.pk/storage/advisories/January2026/s192iGRrLKbNUURRYmIy.pdf", 
     "https://www.ndma.gov.pk/storage/projection-impact-langs/August2024/S1I2t0WfnuuE6fmYyK3D.pdf"
 ]
 
@@ -55,7 +55,6 @@ Your role is to extract structured information from disaster alerts, advisories,
 
 ## Key Principles:
 - **Accuracy over Speed**: Carefully review all text and visual elements before extracting data
-- **Specificity**: Prefer specific locations over broad regions when both are mentioned
 - **Standardization**: Convert all location names, abbreviations, and directional terms to standard forms
 - **Completeness**: Extract all relevant information including area-specific variations in timing, severity, or instructions
 - **Context Awareness**: Use visual context (maps, severity indicators, timeline graphics) to inform and validate text-based extractions
@@ -63,10 +62,9 @@ Your role is to extract structured information from disaster alerts, advisories,
 
 ## Geographic Expertise:
 - Know all Pakistani provinces, districts, tehsils, and major cities
-- Understand regional references (Potohar, Pothohar Region = Rawalpindi, Attock, Chakwal, Jhelum)
+- Understand regional references and expand to districts/directional (e.g. Potohar, Pothohar Region = [Rawalpindi, Attock, Chakwal, Jhelum])
 - Recognize major infrastructure (dams, motorways, highways) and map them to administrative units
 - Apply consistent directional terminology (North/South/East/West/Central/North-Eastern/etc.)
-- Resolve overlapping location mentions by using the most specific level available
 
 ## Quality Standards:
 - Output valid, properly-formatted JSON only (no markdown, no explanations)
@@ -117,7 +115,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
 - **areas**: Array of affected locations with optional area-specific overrides
 
 # Area Object Fields:
-- **place_names**: Array of location names (cities, provinces, disctricts, province with directional term, etc.). If listing more specific parts (districts/tehsils/regions), don't mention more general regions(whole provinces, larger regions, etc.)
+- **place_names**: Array of location names (cities, provinces, disctricts, province with directional term, etc.).
 - **specific_effective_from**: (Optional) Override effective_from for this area(s)
 - **specific_effective_until**: (Optional) Override effective_until for this area(s)
 - **specific_urgency**: (Optional) Override urgency for this area(s)
@@ -126,29 +124,68 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
 
 # Place Names:
 - **Abbreviations**: Convert each abbreviation to its full form, like AJ&K to Azad Jammu and Kashmir.
+- **Clustering**: Try to cluster different regions/districts into a single list as much as possible, and only make seperate lists when there is a need to override the base alert's fields (effective_from, instructions, etc.).
 - **Directional**: Extract directional for regions to a unified form, like "North-Eastern Balochistan". The only valid values are "North", "South", "East", "West", "Central", "North-Eastern", "North-Western", "South-Eastern" and "South-Western".
-- **Overlap**: Try to avoid overlaps and be as specific as possible. For examples, if specific districts from a province relevant to the alert are mentioned alongside name of the entire province, use only specific districts.
+- **Overlap**: Try to avoid overlaps and be as general as possible. For examples, if specific districts from a province relevant to the alert are mentioned alongside name of the entire province, select the specific districts if they are a small part of the province, or select the province if the mentioned districts make up the majority of the province.
+- **Patchy Lists**: If the mentioned districts result in a patchy network if districts, expand the list slightly with the least amount of additinal districts possible so as to create a smooth polygon. Also try to use directional descriptions over listing specific names for this very reason.
 - **Infrastructure**: When specific infrastructure is mentioned, convert it to the disctricts/tehsils containing it. For example:
     - "Tarbela Dam" to "Haripur"
-    - "Motorways M2 and M5" to "Multan", "Bahawalpur", "Rahim Yar Khan", "Ghotki", "Sukkur", "Rawalpindi", "Chakwal", "Khushab", "Sargodha", "Sheikhupura", "Lahore"
+    - "Motorways M2 and M5" to ["Multan", "Bahawalpur", "Rahim Yar Khan", "Ghotki", "Sukkur", "Rawalpindi", "Chakwal", "Khushab", "Sargodha", "Sheikhupura", "Lahore"]
 - **Examples**: Some examples for the wrong and correct values:
     1.  Wrong: "Balochistan (Quetta, Ziarat, Zhob, Sherani, Chaman, Pishin, Qilla Abdullah, Qilla, Saifullah, Noushki)"
+        Reason: Improper formatting
         Correct: ["Quetta", "Ziarat", "Zhob", "Sherani", "Chaman", "Pishin", "Qilla Abdullah", "Qilla", "Saifullah", "Noushki"]
     2.  Wrong: "Punjab (plain areas)"
+        Reason: Cannot be geocoded. Expand to directional descriptions.
         Correct: ["Central Punjab", "South Punjab"]
     3.  Wrong: "Upper Sindh"
+        Reason: Improper wording for geocoder.
         Correct: "North Sindh"
     4.  Wrong: "Potohar region"
-        Correct: "Rawalpindi", "Attock", "Chakwal", "Jhelum"
+        Reason: Region names cannot be geocoded by geocoder. Only administrative units or their directional versions.
+        Correct: ["Rawalpindi", "Attock", "Chakwal", "Jhelum"]
     5.  Wrong: "Sindh Coastal Areas"
-        Correct: "Southern Sindh"
-    6.  Wrong: ["Gilgit-Baltistan"],["Khyber Pakhtunkhwa"]
-        Correct: ["Gilgit-Baltistan","Khyber Pakhtunkhwa"]
+        Reason: Natural language descriptions like these cannot be processed by geocoder.
+        Correct: ["Southern Sindh"]
+    6.  Wrong: "Kotli, Bhimber, Muzaffarabad, Jhelum Valley, Neelam Valley, Poonch, Bagh, Haveli"
+        Reason: Majority of districts of Azad Kashmir province listed. Better to replace with entire province to ensure smooth polygon.
+        Correct: ["Azad Kashmir"]
+    7.  Wrong: "Upper Chitral, Lower Chitral, Upper Dir, Lower Dir, Central Dir, Swat, Upper Swat, Shangla, Buner, Malakand, Bajaur, Upper Kohistan, Lower Kohistan, Kolai-Palas, Allai, Battagram, Torghar, Abbottabad"
+        Reason: Majority of districts of Northern KPK listed. Better to replace with directional description of province to ensure smooth polygon.
+        Correct: ["North Khyber Pakhtunkhwa"]
 """
 
-async def messages(inputs: List[str]):
+async def messages(input: str, type: str):
     """Prepares prompt for conversion of image to markdown, along with examples (few-shot prompting)"""
     b64_files = await _load_examples()
+    if type == "document":
+      images = await url_to_b64_strings(input)
+      request = {
+        "role": "user",
+        "content": [{"type": "text", "text": json_prompt}] + 
+        [
+          {
+            "type": "image_url",
+            "image_url":
+            {
+              "url": image
+            }
+          } for image in images
+        ]
+      }
+    elif type == "text":
+      request = {
+      "role": "user",
+      "content": [{"type": "text", "text": json_prompt},  
+        {
+          "type": "text",
+          "text": input
+        }
+      ]
+      }
+       
+       
+  
     return [
                 {
                     "role": "system",
@@ -181,7 +218,7 @@ async def messages(inputs: List[str]):
   "effective_until": "2025-08-18T23:59:59Z",
   "areas": [
     {
-      "place_names": ["Gilgit-Baltistan", "Northern Khyber Pakhtunkhwa"],
+      "place_names": ["Gilgit Baltistan", "Northern Khyber Pakhtunkhwa"],
       "specific_effective_from": null,
       "specific_effective_until": null,
       "specific_urgency": null,
@@ -210,30 +247,85 @@ async def messages(inputs: List[str]):
                     "content": """
 {
   "category": "Met",
-  "event": "Light Rain with Snowfall and Smog",
-  "urgency": "Immediate",
-  "severity": "Moderate",
-  "description": "A weather system will bring light rain and snow to parts of Gilgit-Baltistan, Azad Jammu and Kashmir, and the upper areas of Khyber Pakhtunkhwa from the night of December 4th through December 5th, 2025. Meanwhile, smog and fog will continue in the plains of Punjab and Khyber Pakhtunkhwa overnight and in the mornings. This weather could lead to landslides, flash floods, damage from hail and strong winds, and an increased risk of lightning strikes.",
-  "instruction": "1.Seek shelter immediately if there is hail or a thunderstorm. \n2. Avoid open fields, hilltops, and windows during storms. \n3.Do not drive during heavy hail or in standing water. \n4. Stay away from rivers, drainage canals, and flowing water in nullahs. \n5. If traveling, avoid crowded spots, maintain distance from water bodies, and do not go trekking in the rain. \n6. Check weather updates before heading to mountainous areas and avoid driving in unfamiliar or hilly terrain during rain.",
-  "effective_from": "2025-12-04T20:00:00Z",
-  "effective_until": "2025-12-05T23:59:59Z",
+  "event": "Widespread Rain, Snowfall, and Thunderstorms",
+  "urgency": "Expected",
+  "severity": "Severe",
+  "description": "Rain and snowfall expected across Pakistan from January 16-23. Light weather starts 16th, intensifying 20th-23rd with heavy snow in mountains and widespread rain/thunderstorms. Hazards include snow-blocked roads, landslides, avalanches, flash floods in streams, flooding in low-lying areas, and damage to structures/crops from windstorms and hail.",
+  "instruction": "1. Tourists should avoid mountainous areas Jan 16-23. If you must travel, check weather updates, bring tire chains and warm clothes.\n2. Stay away from weak structures, billboards, power lines, and solar panels during storms.\n3. Residents of mountainous regions should watch for landslides and avalanches. Residents of low-lying areas should prepare for flooding.\n4. Farmers should protect crops and livestock from hail and cold weather.",
+  "effective_from": "2026-01-16T18:00:00",
+  "effective_until": "2026-01-23T23:59:59",
   "areas": [
     {
-      "place_names": ["Gilgit-Baltistan", "Azad Jammu and Kashmir", "Dir", "Chitral", "Swat", "Kohistan", "Shangla", "Battagram"],
-      "specific_effective_from": null,
-      "specific_effective_until": null,
-      "specific_urgency": null,
-      "specific_severity": null,
-      "specific_instruction": "1. Be aware of potential landslides, rockfalls, and flash flooding. \n2. Avoid outdoor exposure in rainy and windy weather. \n3. Check weather updates before traveling to mountainous areas. \n4.Avoid self-driving in unfamiliar or hilly areas during rains. \n5. Farmers should manage activities keeping weather forecast in mind. \n6. Tourists should remain cautious of flash floods, avalanches, and tree falls."
+      "place_names": ["Gilgit Baltistan","Azad Kashmir","North Khyber Pakhtunkhwa"],
+      "specific_effective_from": "2026-01-16T18:00:00",
+      "specific_effective_until": "2026-01-19T23:59:59",
+      "specific_urgency": "Expected",
+      "specific_severity": "Moderate",
+      "specific_instruction": "Rain and thunderstorms with light-to-moderate snowfall expected."
     },
     {
-      "place_names": ["Sialkot", "Narowal", "Lahore", "Sheikhupura", "Gujranwala", "Gujrat", "Jhelum", "Faisalabad", "Sahiwal", "Multan", "Khanewal", "Layyah", "Kot Addu", "Bahawalpur", "Peshawar", "Swabi", "Mardan", "Dera Ismail Khan"],
-      "specific_effective_from": null,
-      "specific_effective_until": null,
-      "specific_urgency": null,
-      "specific_severity": "Minor",
-      "specific_instruction": "1. Exercise caution during night and morning hours due to reduced visibility. \n2. Avoid unnecessary travel during peak fog hours. \n3. Do not risk crossing any drain or road with water flow. \n4. Properly dispose of garbage to prevent clogging of drainage systems. \n5. Keep children away from nullahs and drainage lines."
-    }
+      "place_names": ["Murree","Abbottabad"],
+      "specific_effective_from": "2026-01-18T18:00:00",
+      "specific_effective_until": "2026-01-20T23:59:59",
+      "specific_urgency": "Expected",
+      "specific_severity": "Moderate",
+      "specific_instruction": "Light rain and snowfall expected in Murree, Galiyat and surrounding areas"
+    },
+    {
+      "place_names": ["Rawalpindi","Attock","Chakwal","Jhelum","Islamabad"],
+      "specific_effective_from": "2026-01-18T00:00:00",
+      "specific_effective_until": "2026-01-23T23:59:59",
+      "specific_urgency": "Expected",
+      "specific_severity": "Severe",
+      "specific_instruction": "Urban flooding risk in twin cities."
+    },
+    {
+      "place_names": ["Central Khyber Pakhtunkhwa","South Khyber Pakhtunkhwa","Central Punjab","South Punjab"],
+      "specific_effective_from": "2026-01-20T00:00:00",
+      "specific_effective_until": "2026-01-23T23:59:59",
+      "specific_urgency": "Future",
+      "specific_severity": "Moderate",
+      "specific_instruction": null
+    },
+    {
+      "place_names": ["Balochistan"],
+      "specific_effective_from": "2026-01-21T00:00:00",
+      "specific_effective_until": "2026-01-22T23:59:59",
+      "specific_urgency": "Future",
+      "specific_severity": "Severe",
+      "specific_instruction": "Flash flood risk in local nullahs."
+    },
+    {
+      "place_names": ["North Balochistan"],
+      "specific_effective_from": "2026-01-21T00:00:00",
+      "specific_effective_until": "2026-01-22T23:59:59",
+      "specific_urgency": "Future",
+      "specific_severity": "Severe",
+      "specific_instruction": "Heavy snowfall expected in Quetta, Ziarat, and northern districts."
+    },
+    {
+      "place_names": ["Sindh"],
+      "specific_effective_from": "2026-01-22T00:00:00",
+      "specific_effective_until": "2026-01-23T23:59:59",
+      "specific_urgency": "Future",
+      "specific_severity": "Moderate",
+      "specific_instruction": null
+    },
+    {
+      "place_names": ["Gilgit Baltistan","North Azad Kashmir","Central Azad Kashmir","North Khyber Pakhtunkhwa","Murree"],
+      "specific_effective_from": "2026-01-20T18:00:00",
+      "specific_effective_until": "2026-01-23T23:59:59",
+      "specific_urgency": "Expected",
+      "specific_severity": "Severe",
+      "specific_instruction": "Expect heavy rain and snowfall, road closures, and avalanche risks. Ensure vehicle winterization."
+      },
+      {
+      "place_names": ["Punjab","Islamabad","Central Khyber Pakhtunkhwa","South Khyber Pakhtunkhwa"],
+      "specific_effective_from": "2026-01-20T18:00:00",
+      "specific_effective_until": "2026-01-23T23:59:59",
+      "specific_urgency": "Expected",
+      "specific_severity": "Severe",
+      "specific_instruction": "Expect widespread rain and thunderstorms with occasional gaps. Heavy rains may generate flash floods in local streams and nullahs, and may cause urban flooding.}
   ]
 }
 """
@@ -265,7 +357,7 @@ async def messages(inputs: List[str]):
   "effective_until": "2024-04-15T23:59:59Z",
   "areas": [
     {
-      "place_names": ["Swat", "Shangla", "Mansehra", "Khyber", "Kohistan", "Abbottabad", "Skardu", "Ghanche", "Nagar", "Diamir", "Hunza", "Gilgit", "Muzaffarabad", "Haveli", "Bagh", "Zhob", "Musakhel", "Loralai", "Ziarat", "Sherani", "Killa Saifullah"],
+      "place_names": ["North Khyber Pakhtunkhwa","Khyber","North Gilgit Baltistan","East Gilgit Baltistan","North Azad Kashmir","Central Azad Kashmir", "North-Eastern Balochistan"],
       "specific_effective_from": null,
       "specific_effective_until": null,
       "specific_urgency": null,
@@ -278,8 +370,7 @@ async def messages(inputs: List[str]):
                 },
                 {
                     "role": "user",
-                    "content": [{"type": "text", "text": json_prompt}] + 
-                    [
+                    "content": [{"type": "text", "text": json_prompt},
                       {
                         "type": "text",
                         "text":"""
@@ -317,15 +408,15 @@ async def messages(inputs: List[str]):
 {
   "category": "Met",
   "event": "Cold Wave and Snowfall",
-  "urgency": "Expected",
+  "urgency": "Immediate",
   "severity": "Severe",
-  "description": "A strong cold wave is expected in the north of the country, bringing very cold to extremely cold conditions, especially during nights and early mornings. Day temperatures will remain below normal. Moderate to heavy snowfall is likely in high-altitude and hilly areas, with cold, dry weather and frost in nearby plains.",
-  "instruction": "1. Avoid non-essential travel to high-altitude and snowfall-prone areas. \n2. If travel is necessary, use snowchains on vehicles. \n3. Ensure adequate heating and warm clothing. \n4. Protect vulnerable populations such as the elderly and children. ",
-  "effective_from": "2026-01-14T00:00:00Z",
-  "effective_until": "2026-01-20T23:59:59Z",
+  "description": "A strong cold wave is expected to bring very cold to extremely cold conditions, particularly during nights and early mornings. Moderate to heavy snowfall is likely in high-altitude and hilly areas, while cold, dry weather with frost pockets is anticipated in adjacent plains. Impacts include potential disruptions to transport infrastructure and increased risk of landslide.",
+  "instruction": "1. Avoid non-essential travel to high-altitude and snowfall-prone areas, and use snow chains if driving is necessary.\n2. Ensure adequate heating arrangements and wear warm clothing to prevent health risks from extreme cold.\n3. Farmers should take measures to protect standing crops and orchards from frost.\n",
+  "effective_from": "2026-01-14T00:00:00+05:00",
+  "effective_until": "2026-01-20T23:59:59+05:00",
   "areas": [
     {
-      "place_names": ["Gilgit-Baltistan", "North Khyber Pakhtunkhwa", "Azad Jammu and Kashmir"],
+      "place_names": ["Gilgit Baltistan","North Khyber Pakhtunkhwa","Azad Kashmir"],
       "specific_effective_from": null,
       "specific_effective_until": null,
       "specific_urgency": null,
@@ -338,15 +429,43 @@ async def messages(inputs: List[str]):
                 },
                 {
                     "role": "user",
-                    "content": [{"type": "text", "text": json_prompt}] + 
-                    [
+                    "content": [{"type": "text", "text": json_prompt},
                       {
-                        "type": "image_url",
-                        "image_url":
-                        {
-                          "url": input
-                        }
-                      } for input in inputs
-                    ]
-                }
+                        "type": "text",
+                        "text":"""
+#Rising Smog Levels in the country in coming days\n\n**Issue Date:** 23 Oct, 2025 03:54 PM\n\nSMOG is the combination of smoke and fog and develops from November to mid-December. 
+The stable and dry weather conditions is conducive to smog level increase in coming days. Pakistan can face an alarming increase in smog levels across its major cities, aggravated by recent stable meteorological conditions. Combination of industrial pollution, vehicular emissions, and conducive weather patterns may lead to an increase of air pollution, posing threats to public health and the environment in the coming days.\n
+Stable weather conditions, will contribute to the accumulation of harmful pollutants in the atmosphere. Calm wind pattern, lower temperatures, and humidity may prevent pollutants from dispersing and causing thick layers of smog to linger on Eastern parts of Punjab (Lahore, Gujranwala, Sheikhupura, Kasur, Nankana Sahib, Faisalabad, Multan, Bahawalpur, Rahim Yar Khan, Bahawalnagar and Khanpur)
+.\nImpacts\nThe rise in smog levels may trigger an increase in respiratory illnesses, asthma cases, and other pollution-related health problems. Vulnerable populations, including children, the elderly, and people with pre-existing health conditions, are at high risk.\nPoor air quality can cause reduced visibility on roads, leading to a surge in traffic accidents. Outdoor activities can also be disrupted.\n
+For daily weather updates please visit:\nwww.pmd.gov.pk\n,\nPak Weather Application\n, \r\nSocial Media platforms & CAP (Alert).
+"""
+                      } 
+                    ] 
+                },
+                {
+                    "role": "assistant",
+                    "content": """
+{
+  "category": "Env",
+  "event": "Rising Smog Levels",
+  "urgency": "Expected",
+  "severity": "Severe",
+  "description": "Stable and dry weather conditions are contributing to the accumulation of pollutants, leading to an alarming increase in smog levels. This situation poses threats to public health, particularly respiratory illnesses, and reduces visibility on roads.",
+  "instruction": "1. Wear face masks when outdoors to minimize inhalation of pollutants.\n2. Limit prolonged outdoor activities, especially for children, the elderly, and those with respiratory conditions.\n3. Keep windows closed to maintain indoor air quality and use air purifiers if available.\n4. Drive with extreme caution and use fog lights due to reduced visibility.\n5. Stay hydrated and seek medical attention if experiencing breathing difficulties.\n[AI-generated]",
+  "effective_from": "2025-11-01T00:00:00+05:00",
+  "effective_until": "2025-12-10T23:59:59+05:00",
+  "areas": [
+    {
+      "place_names": ["Central Punjab","South Punjab"],
+      "specific_effective_from": null,
+      "specific_effective_until": null,
+      "specific_urgency": null,
+      "specific_severity": null,
+      "specific_instruction": null
+    }
+  ]
+}
+"""
+                },
+                request
             ]

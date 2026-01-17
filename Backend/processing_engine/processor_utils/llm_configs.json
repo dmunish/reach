@@ -39,5 +39,23 @@
         "default_params": {
             "temperature":0.3
         }
+    },
+    "glm-4.6v": {
+        "model": "zai-org/glm-4.6v",
+        "api_key_name": "NOVITA_KEY",
+        "base_url": "https://api.novita.ai/openai",
+        "default_params": {
+            "max_completion_tokens": 32768,
+            "temperature":0.7
+        }
+    },
+    "gemma-3": {
+        "model": "google/gemma-3-27b-it",
+        "api_key_name": "NOVITA_KEY",
+        "base_url": "https://api.novita.ai/openai",
+        "default_params": {
+            "max_completion_tokens": 16384,
+            "temperature":0.7
+        }
     }
 }

@@ -69,7 +69,7 @@ Your role is to extract structured information from disaster alerts, advisories,
 ## Quality Standards:
 - Output valid, properly-formatted JSON only (no markdown, no explanations)
 - Ensure all enum fields use only permitted values
-- Use ISO 8601 datetime format with timezone
+- Use ISO 8601 datetime format with timezone (e.g."2024-03-15T14:30:00Z")
 - Validate logical consistency (e.g., effective_from before effective_until)
 - Include area-specific overrides only when document explicitly differentiates by location
 
@@ -107,7 +107,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
 - **event**: Brief name or title of the hazard or event (e.g., "Severe Thunderstorm", "Wildfire", "Flood Warning")
 - **urgency**: Response time expected. The only valid values are: "Immediate", "Expected", "Future", "Past", "Unknown"
 - **severity**: Severity of the event. The only valid values are: "Extreme", "Severe", "Moderate", "Minor", "Unknown"
-- **description**: Description of the alert situation, hazards, and expected impacts in simple language. Avoid mentioning affected areas, dates, etc. here as they will be mentioned in other
+- **description**: Description of the alert situation, hazards, and expected impacts in simple language. Avoid detailed mentions of affected areas, dates, etc. here as they will be mentioned in other fields.
 - **instruction**: A numbered list of recommended actions for citizens (not government personnel) to take. If no citizen-centric instructions present but needed, generate your own with [AI-generated] tag at the end of the list. Use proper end-lines "\n" at the end of each list instruction. Limited to at most 5 items.
 
 - **effective_from**: ISO 8601 datetime when alert becomes active (e.g., "2024-03-15T14:30:00Z")
@@ -140,7 +140,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
         Correct: ["Central Punjab", "South Punjab"]
     3.  Wrong: "Upper Sindh"
         Reason: Improper wording for geocoder.
-        Correct: "North Sindh"
+        Correct: ["North Sindh"]
     4.  Wrong: "Potohar region"
         Reason: Region names cannot be geocoded by geocoder. Only administrative units or their directional versions.
         Correct: ["Rawalpindi", "Attock", "Chakwal", "Jhelum"]
@@ -257,75 +257,75 @@ async def messages(input: str, type: str):
   "areas": [
     {
       "place_names": ["Gilgit Baltistan","Azad Kashmir","North Khyber Pakhtunkhwa"],
-      "specific_effective_from": "2026-01-16T18:00:00",
-      "specific_effective_until": "2026-01-19T23:59:59",
+      "specific_effective_from": "2026-01-16T18:00:00Z",
+      "specific_effective_until": "2026-01-19T23:59:59Z",
       "specific_urgency": "Expected",
       "specific_severity": "Moderate",
       "specific_instruction": "Rain and thunderstorms with light-to-moderate snowfall expected."
     },
     {
       "place_names": ["Murree","Abbottabad"],
-      "specific_effective_from": "2026-01-18T18:00:00",
-      "specific_effective_until": "2026-01-20T23:59:59",
+      "specific_effective_from": "2026-01-18T18:00:00Z",
+      "specific_effective_until": "2026-01-20T23:59:59Z",
       "specific_urgency": "Expected",
       "specific_severity": "Moderate",
       "specific_instruction": "Light rain and snowfall expected in Murree, Galiyat and surrounding areas"
     },
     {
       "place_names": ["Rawalpindi","Attock","Chakwal","Jhelum","Islamabad"],
-      "specific_effective_from": "2026-01-18T00:00:00",
-      "specific_effective_until": "2026-01-23T23:59:59",
+      "specific_effective_from": "2026-01-18T00:00:00Z",
+      "specific_effective_until": "2026-01-23T23:59:59Z",
       "specific_urgency": "Expected",
       "specific_severity": "Severe",
       "specific_instruction": "Urban flooding risk in twin cities."
     },
     {
       "place_names": ["Central Khyber Pakhtunkhwa","South Khyber Pakhtunkhwa","Central Punjab","South Punjab"],
-      "specific_effective_from": "2026-01-20T00:00:00",
-      "specific_effective_until": "2026-01-23T23:59:59",
+      "specific_effective_from": "2026-01-20T00:00:00Z",
+      "specific_effective_until": "2026-01-23T23:59:59Z",
       "specific_urgency": "Future",
       "specific_severity": "Moderate",
       "specific_instruction": null
     },
     {
       "place_names": ["Balochistan"],
-      "specific_effective_from": "2026-01-21T00:00:00",
-      "specific_effective_until": "2026-01-22T23:59:59",
+      "specific_effective_from": "2026-01-21T00:00:00Z",
+      "specific_effective_until": "2026-01-22T23:59:59Z",
       "specific_urgency": "Future",
       "specific_severity": "Severe",
       "specific_instruction": "Flash flood risk in local nullahs."
     },
     {
       "place_names": ["North Balochistan"],
-      "specific_effective_from": "2026-01-21T00:00:00",
-      "specific_effective_until": "2026-01-22T23:59:59",
+      "specific_effective_from": "2026-01-21T00:00:00Z",
+      "specific_effective_until": "2026-01-22T23:59:59Z",
       "specific_urgency": "Future",
       "specific_severity": "Severe",
       "specific_instruction": "Heavy snowfall expected in Quetta, Ziarat, and northern districts."
     },
     {
       "place_names": ["Sindh"],
-      "specific_effective_from": "2026-01-22T00:00:00",
-      "specific_effective_until": "2026-01-23T23:59:59",
+      "specific_effective_from": "2026-01-22T00:00:00Z",
+      "specific_effective_until": "2026-01-23T23:59:59Z",
       "specific_urgency": "Future",
       "specific_severity": "Moderate",
       "specific_instruction": null
     },
     {
       "place_names": ["Gilgit Baltistan","North Azad Kashmir","Central Azad Kashmir","North Khyber Pakhtunkhwa","Murree"],
-      "specific_effective_from": "2026-01-20T18:00:00",
-      "specific_effective_until": "2026-01-23T23:59:59",
+      "specific_effective_from": "2026-01-20T18:00:00Z",
+      "specific_effective_until": "2026-01-23T23:59:59Z",
       "specific_urgency": "Expected",
       "specific_severity": "Severe",
       "specific_instruction": "Expect heavy rain and snowfall, road closures, and avalanche risks. Ensure vehicle winterization."
       },
       {
       "place_names": ["Punjab","Islamabad","Central Khyber Pakhtunkhwa","South Khyber Pakhtunkhwa"],
-      "specific_effective_from": "2026-01-20T18:00:00",
-      "specific_effective_until": "2026-01-23T23:59:59",
+      "specific_effective_from": "2026-01-20T18:00:00Z",
+      "specific_effective_until": "2026-01-23T23:59:59Z",
       "specific_urgency": "Expected",
       "specific_severity": "Severe",
-      "specific_instruction": "Expect widespread rain and thunderstorms with occasional gaps. Heavy rains may generate flash floods in local streams and nullahs, and may cause urban flooding.}
+      "specific_instruction": "Expect widespread rain and thunderstorms with occasional gaps. Heavy rains may generate flash floods in local streams and nullahs, and may cause urban flooding."}
   ]
 }
 """
@@ -412,8 +412,8 @@ async def messages(input: str, type: str):
   "severity": "Severe",
   "description": "A strong cold wave is expected to bring very cold to extremely cold conditions, particularly during nights and early mornings. Moderate to heavy snowfall is likely in high-altitude and hilly areas, while cold, dry weather with frost pockets is anticipated in adjacent plains. Impacts include potential disruptions to transport infrastructure and increased risk of landslide.",
   "instruction": "1. Avoid non-essential travel to high-altitude and snowfall-prone areas, and use snow chains if driving is necessary.\n2. Ensure adequate heating arrangements and wear warm clothing to prevent health risks from extreme cold.\n3. Farmers should take measures to protect standing crops and orchards from frost.\n",
-  "effective_from": "2026-01-14T00:00:00+05:00",
-  "effective_until": "2026-01-20T23:59:59+05:00",
+  "effective_from": "2026-01-14T00:00:00Z",
+  "effective_until": "2026-01-20T23:59:59Z",
   "areas": [
     {
       "place_names": ["Gilgit Baltistan","North Khyber Pakhtunkhwa","Azad Kashmir"],
@@ -452,8 +452,8 @@ For daily weather updates please visit:\nwww.pmd.gov.pk\n,\nPak Weather Applicat
   "severity": "Severe",
   "description": "Stable and dry weather conditions are contributing to the accumulation of pollutants, leading to an alarming increase in smog levels. This situation poses threats to public health, particularly respiratory illnesses, and reduces visibility on roads.",
   "instruction": "1. Wear face masks when outdoors to minimize inhalation of pollutants.\n2. Limit prolonged outdoor activities, especially for children, the elderly, and those with respiratory conditions.\n3. Keep windows closed to maintain indoor air quality and use air purifiers if available.\n4. Drive with extreme caution and use fog lights due to reduced visibility.\n5. Stay hydrated and seek medical attention if experiencing breathing difficulties.\n[AI-generated]",
-  "effective_from": "2025-11-01T00:00:00+05:00",
-  "effective_until": "2025-12-10T23:59:59+05:00",
+  "effective_from": "2025-11-01T00:00:00Z",
+  "effective_until": "2025-12-10T23:59:59Z",
   "areas": [
     {
       "place_names": ["Central Punjab","South Punjab"],

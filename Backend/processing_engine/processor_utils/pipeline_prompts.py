@@ -87,7 +87,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
   "urgency": "string",
   "severity": "string",
   "description": "string",
-  "instruction": "string",
+  "instructions": ["string"],
   "effective_from": "ISO 8601 datetime",
   "effective_until": "ISO 8601 datetime",
   "areas": [
@@ -97,7 +97,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
       "specific_effective_until": "ISO 8601 datetime or null",
       "specific_urgency": "string or null",
       "specific_severity": "string or null",
-      "specific_instruction": "string or null"
+      "specific_instructions": "string or null"
     }
   ]
 }
@@ -108,7 +108,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
 - **urgency**: Response time expected. The only valid values are: "Immediate", "Expected", "Future", "Past", "Unknown"
 - **severity**: Severity of the event. The only valid values are: "Extreme", "Severe", "Moderate", "Minor", "Unknown"
 - **description**: Description of the alert situation, hazards, and expected impacts in simple language. Avoid detailed mentions of affected areas, dates, etc. here as they will be mentioned in other fields.
-- **instruction**: A numbered list of recommended actions for citizens (not government personnel) to take. If no citizen-centric instructions present but needed, generate your own with [AI-generated] tag at the end of the list. Use proper end-lines "\n" at the end of each list instruction. Limited to at most 5 items.
+- **instructions**: An array of strings, where each string is a distinct recommended action for citizens. If no citizen-centric instructions present but needed, generate your own with [AI-generated] tag at the end of the list. Limited to at most 5 items.
 
 - **effective_from**: ISO 8601 datetime when alert becomes active (e.g., "2024-03-15T14:30:00Z")
 - **effective_until**: ISO 8601 datetime when alert expires
@@ -120,7 +120,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
 - **specific_effective_until**: (Optional) Override effective_until for this area(s)
 - **specific_urgency**: (Optional) Override urgency for this area(s)
 - **specific_severity**: (Optional) Override severity for this area(s)
-- **specific_instruction**: (Optional) Additional or override instructions for this area(s)
+- **specific_instructions**: A single string overriding instructions for this area(s)
 
 # Place Names:
 - **Abbreviations**: Convert each abbreviation to its full form, like AJ&K to Azad Jammu and Kashmir.
@@ -142,7 +142,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
         Reason: Improper wording for geocoder.
         Correct: ["North Sindh"]
     4.  Wrong: "Potohar region"
-        Reason: Region names cannot be geocoded by geocoder. Only administrative units or their directional versions.
+        Reason: Region names cannot be geocoded by geocoder. Only administrative units or their directional versions. Expand region names like these to the constituent districts using your world knowledge.
         Correct: ["Rawalpindi", "Attock", "Chakwal", "Jhelum"]
     5.  Wrong: "Sindh Coastal Areas"
         Reason: Natural language descriptions like these cannot be processed by geocoder.
@@ -213,7 +213,7 @@ async def messages(input: str, type: str):
   "urgency": "Immediate",
   "severity": "Severe",
   "description": "A wet spell is likely to affect Gilgit-Baltistan and Khyber Pakhtunkhwa in the current week, with scattered rain and thunderstorms and isolated heavy falls. This increases the risk of Glacial Lake Outburst Floods (GLOFs), flash floods, and landslides in vulnerable glaciated regions.",
-  "instruction": "1. Avoid unnecessary movement in vulnerable areas, especially near discharge nullahs, streams, and rivers. \n2. Be aware of the risk of vehicles being washed away in fast-flowing water channels. If living in a low-lying area, exercise extra caution and heed community-based alert systems. \n3. Familiarize yourself with and follow the local evacuation plan for at-risk communities. \n4. Tourists should avoid trekking in glacier-prone areas, refrain from taking pictures or videos near glaciers, and strictly avoid going close to glacier sites.",
+  "instructions": ["1. Avoid unnecessary movement in vulnerable areas, especially near discharge nullahs, streams, and rivers.","2. Be aware of the risk of vehicles being washed away in fast-flowing water channels. If living in a low-lying area, exercise extra caution and heed community-based alert systems.","3. Familiarize yourself with and follow the local evacuation plan for at-risk communities.","4. Tourists should avoid trekking in glacier-prone areas, refrain from taking pictures or videos near glaciers, and strictly avoid going close to glacier sites."],
   "effective_from": "2025-08-12T11:30:00Z",
   "effective_until": "2025-08-18T23:59:59Z",
   "areas": [
@@ -223,7 +223,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": null,
       "specific_urgency": null,
       "specific_severity": null,
-      "specific_instruction": null
+      "specific_instructions": null
     }
   ]
 }
@@ -251,7 +251,7 @@ async def messages(input: str, type: str):
   "urgency": "Expected",
   "severity": "Severe",
   "description": "Rain and snowfall expected across Pakistan from January 16-23. Light weather starts 16th, intensifying 20th-23rd with heavy snow in mountains and widespread rain/thunderstorms. Hazards include snow-blocked roads, landslides, avalanches, flash floods in streams, flooding in low-lying areas, and damage to structures/crops from windstorms and hail.",
-  "instruction": "1. Tourists should avoid mountainous areas Jan 16-23. If you must travel, check weather updates, bring tire chains and warm clothes.\n2. Stay away from weak structures, billboards, power lines, and solar panels during storms.\n3. Residents of mountainous regions should watch for landslides and avalanches. Residents of low-lying areas should prepare for flooding.\n4. Farmers should protect crops and livestock from hail and cold weather.",
+  "instructions": ["1. Tourists should avoid mountainous areas Jan 16-23. If you must travel, check weather updates, bring tire chains and warm clothes.","2. Stay away from weak structures, billboards, power lines, and solar panels during storms.","3. Residents of mountainous regions should watch for landslides and avalanches. Residents of low-lying areas should prepare for flooding.","4. Farmers should protect crops and livestock from hail and cold weather."],
   "effective_from": "2026-01-16T18:00:00",
   "effective_until": "2026-01-23T23:59:59",
   "areas": [
@@ -261,7 +261,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": "2026-01-19T23:59:59Z",
       "specific_urgency": "Expected",
       "specific_severity": "Moderate",
-      "specific_instruction": "Rain and thunderstorms with light-to-moderate snowfall expected."
+      "specific_instructions": "Rain and thunderstorms with light-to-moderate snowfall expected."
     },
     {
       "place_names": ["Murree","Abbottabad"],
@@ -269,7 +269,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": "2026-01-20T23:59:59Z",
       "specific_urgency": "Expected",
       "specific_severity": "Moderate",
-      "specific_instruction": "Light rain and snowfall expected in Murree, Galiyat and surrounding areas"
+      "specific_instructions": "Light rain and snowfall expected in Murree, Galiyat and surrounding areas"
     },
     {
       "place_names": ["Rawalpindi","Attock","Chakwal","Jhelum","Islamabad"],
@@ -277,7 +277,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": "2026-01-23T23:59:59Z",
       "specific_urgency": "Expected",
       "specific_severity": "Severe",
-      "specific_instruction": "Urban flooding risk in twin cities."
+      "specific_instructions": "Urban flooding risk in twin cities."
     },
     {
       "place_names": ["Central Khyber Pakhtunkhwa","South Khyber Pakhtunkhwa","Central Punjab","South Punjab"],
@@ -285,7 +285,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": "2026-01-23T23:59:59Z",
       "specific_urgency": "Future",
       "specific_severity": "Moderate",
-      "specific_instruction": null
+      "specific_instructions": null
     },
     {
       "place_names": ["Balochistan"],
@@ -293,7 +293,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": "2026-01-22T23:59:59Z",
       "specific_urgency": "Future",
       "specific_severity": "Severe",
-      "specific_instruction": "Flash flood risk in local nullahs."
+      "specific_instructions": "Flash flood risk in local nullahs."
     },
     {
       "place_names": ["North Balochistan"],
@@ -301,7 +301,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": "2026-01-22T23:59:59Z",
       "specific_urgency": "Future",
       "specific_severity": "Severe",
-      "specific_instruction": "Heavy snowfall expected in Quetta, Ziarat, and northern districts."
+      "specific_instructions": "Heavy snowfall expected in Quetta, Ziarat, and northern districts."
     },
     {
       "place_names": ["Sindh"],
@@ -309,7 +309,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": "2026-01-23T23:59:59Z",
       "specific_urgency": "Future",
       "specific_severity": "Moderate",
-      "specific_instruction": null
+      "specific_instructions": null
     },
     {
       "place_names": ["Gilgit Baltistan","North Azad Kashmir","Central Azad Kashmir","North Khyber Pakhtunkhwa","Murree"],
@@ -317,7 +317,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": "2026-01-23T23:59:59Z",
       "specific_urgency": "Expected",
       "specific_severity": "Severe",
-      "specific_instruction": "Expect heavy rain and snowfall, road closures, and avalanche risks. Ensure vehicle winterization."
+      "specific_instructions": "Expect heavy rain and snowfall, road closures, and avalanche risks. Ensure vehicle winterization."
       },
       {
       "place_names": ["Punjab","Islamabad","Central Khyber Pakhtunkhwa","South Khyber Pakhtunkhwa"],
@@ -325,7 +325,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": "2026-01-23T23:59:59Z",
       "specific_urgency": "Expected",
       "specific_severity": "Severe",
-      "specific_instruction": "Expect widespread rain and thunderstorms with occasional gaps. Heavy rains may generate flash floods in local streams and nullahs, and may cause urban flooding."}
+      "specific_instructions": "Expect widespread rain and thunderstorms with occasional gaps. Heavy rains may generate flash floods in local streams and nullahs, and may cause urban flooding."}
   ]
 }
 """
@@ -352,7 +352,7 @@ async def messages(input: str, type: str):
   "urgency": "Immediate",
   "severity": "Extreme",
   "description": "Heavy rainfall is expected from April 8 to 15, 2024, in Gilgit-Baltistan, Khyber Pakhtunkhwa, Azad Jammu and Kashmir, and Balochistan. This may cause landslides, slope failures, rock falls, and ground subsidence in vulnerable zones. Specific districts and sections of Karakoram Highway are at high risk.",
-  "instruction": "1. Be watchful of landslides, slope failures, rock falls, and ground subsidence in vulnerable zones. \n2. Avoid unnecessary travel. \n3. Stay updated on weather and road conditions through social media and local news.",
+  "instructions": ["1. Be watchful of landslides, slope failures, rock falls, and ground subsidence in vulnerable zones. ","2. Avoid unnecessary travel. ","3. Stay updated on weather and road conditions through social media and local news."],
   "effective_from": "2024-04-08T00:00:00Z",
   "effective_until": "2024-04-15T23:59:59Z",
   "areas": [
@@ -362,7 +362,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": null,
       "specific_urgency": null,
       "specific_severity": null,
-      "specific_instruction": null
+      "specific_instructions": null
     }
   ]
 }
@@ -378,8 +378,8 @@ async def messages(input: str, type: str):
 	"id": 3324,
 	"title": "Cold wave & Snow -  Northern Pakistan (January 14-20, 2026)",
 	"description": "A strong cold wave is expected over Gilgit-Baltistan, upper Khyber Pakhtunkhwa, and Azad Jammu & Kashmir from 14–20 January 2026, with very cold to extremely cold conditions, especially during nights and early mornings. Day temperatures will remain below normal, while moderate to heavy snowfall is likely in high-altitude and hilly areas, and cold, dry weather with frost in pockets is expected over adjoining plains.",
-	"impact": "Snowfall may disrupt road access, transportation, and power supply in mountainous areas.\r\nHigher risk of snow slides/avalanches in the vulnerable locations.\r\nExtreme cold/snow can increase health risks.\r\nFrost may damage standing crops and orchards in adjoining plains.",
-	"action": "Avoid non-essential travel to high-altitude and snowfall-prone areas, and use snowchains.\r\nEnsure adequate heating, warm clothing, and protection for vulnerable populations.\r\nCommunities should follow local advisories.\r\nAuthorities should remain prepared for snow clearance, emergency response, and power restoration.",
+	"impact": "Snowfall may disrupt road access, transportation, and power supply in mountainous areas.\r","Higher risk of snow slides/avalanches in the vulnerable locations.\r","Extreme cold/snow can increase health risks.\r","Frost may damage standing crops and orchards in adjoining plains.",
+	"action": "Avoid non-essential travel to high-altitude and snowfall-prone areas, and use snowchains.\r","Ensure adequate heating, warm clothing, and protection for vulnerable populations.\r","Communities should follow local advisories.\r","Authorities should remain prepared for snow clearance, emergency response, and power restoration.",
 	"type": "2",
 	"lat_long": "[\"36.37683240010968\",\"74.1854310938566\"]",
 	"image_url": "https://alert.ndma.gov.pk/public/storage/uploads/images/5jDVmuHSKi2qtKpbct9EoWO2gLp5Sul8oOGi1ICt.png",
@@ -411,7 +411,7 @@ async def messages(input: str, type: str):
   "urgency": "Immediate",
   "severity": "Severe",
   "description": "A strong cold wave is expected to bring very cold to extremely cold conditions, particularly during nights and early mornings. Moderate to heavy snowfall is likely in high-altitude and hilly areas, while cold, dry weather with frost pockets is anticipated in adjacent plains. Impacts include potential disruptions to transport infrastructure and increased risk of landslide.",
-  "instruction": "1. Avoid non-essential travel to high-altitude and snowfall-prone areas, and use snow chains if driving is necessary.\n2. Ensure adequate heating arrangements and wear warm clothing to prevent health risks from extreme cold.\n3. Farmers should take measures to protect standing crops and orchards from frost.\n",
+  "instructions": ["1. Avoid non-essential travel to high-altitude and snowfall-prone areas, and use snow chains if driving is necessary.","2. Ensure adequate heating arrangements and wear warm clothing to prevent health risks from extreme cold.","3. Farmers should take measures to protect standing crops and orchards from frost.",""],
   "effective_from": "2026-01-14T00:00:00Z",
   "effective_until": "2026-01-20T23:59:59Z",
   "areas": [
@@ -421,7 +421,7 @@ async def messages(input: str, type: str):
       "specific_effective_until": null,
       "specific_urgency": null,
       "specific_severity": null,
-      "specific_instruction": null
+      "specific_instructions": null
     }
   ]
 }
@@ -433,11 +433,11 @@ async def messages(input: str, type: str):
                       {
                         "type": "text",
                         "text":"""
-#Rising Smog Levels in the country in coming days\n\n**Issue Date:** 23 Oct, 2025 03:54 PM\n\nSMOG is the combination of smoke and fog and develops from November to mid-December. 
-The stable and dry weather conditions is conducive to smog level increase in coming days. Pakistan can face an alarming increase in smog levels across its major cities, aggravated by recent stable meteorological conditions. Combination of industrial pollution, vehicular emissions, and conducive weather patterns may lead to an increase of air pollution, posing threats to public health and the environment in the coming days.\n
+#Rising Smog Levels in the country in coming days","","**Issue Date:** 23 Oct, 2025 03:54 PM","","SMOG is the combination of smoke and fog and develops from November to mid-December. 
+The stable and dry weather conditions is conducive to smog level increase in coming days. Pakistan can face an alarming increase in smog levels across its major cities, aggravated by recent stable meteorological conditions. Combination of industrial pollution, vehicular emissions, and conducive weather patterns may lead to an increase of air pollution, posing threats to public health and the environment in the coming days.","
 Stable weather conditions, will contribute to the accumulation of harmful pollutants in the atmosphere. Calm wind pattern, lower temperatures, and humidity may prevent pollutants from dispersing and causing thick layers of smog to linger on Eastern parts of Punjab (Lahore, Gujranwala, Sheikhupura, Kasur, Nankana Sahib, Faisalabad, Multan, Bahawalpur, Rahim Yar Khan, Bahawalnagar and Khanpur)
-.\nImpacts\nThe rise in smog levels may trigger an increase in respiratory illnesses, asthma cases, and other pollution-related health problems. Vulnerable populations, including children, the elderly, and people with pre-existing health conditions, are at high risk.\nPoor air quality can cause reduced visibility on roads, leading to a surge in traffic accidents. Outdoor activities can also be disrupted.\n
-For daily weather updates please visit:\nwww.pmd.gov.pk\n,\nPak Weather Application\n, \r\nSocial Media platforms & CAP (Alert).
+.","Impacts","The rise in smog levels may trigger an increase in respiratory illnesses, asthma cases, and other pollution-related health problems. Vulnerable populations, including children, the elderly, and people with pre-existing health conditions, are at high risk.","Poor air quality can cause reduced visibility on roads, leading to a surge in traffic accidents. Outdoor activities can also be disrupted.","
+For daily weather updates please visit:","www.pmd.gov.pk",",","Pak Weather Application",", \r","Social Media platforms & CAP (Alert).
 """
                       } 
                     ] 
@@ -451,7 +451,7 @@ For daily weather updates please visit:\nwww.pmd.gov.pk\n,\nPak Weather Applicat
   "urgency": "Expected",
   "severity": "Severe",
   "description": "Stable and dry weather conditions are contributing to the accumulation of pollutants, leading to an alarming increase in smog levels. This situation poses threats to public health, particularly respiratory illnesses, and reduces visibility on roads.",
-  "instruction": "1. Wear face masks when outdoors to minimize inhalation of pollutants.\n2. Limit prolonged outdoor activities, especially for children, the elderly, and those with respiratory conditions.\n3. Keep windows closed to maintain indoor air quality and use air purifiers if available.\n4. Drive with extreme caution and use fog lights due to reduced visibility.\n5. Stay hydrated and seek medical attention if experiencing breathing difficulties.\n[AI-generated]",
+  "instructions": ["1. Wear face masks when outdoors to minimize inhalation of pollutants.","2. Limit prolonged outdoor activities, especially for children, the elderly, and those with respiratory conditions.","3. Keep windows closed to maintain indoor air quality and use air purifiers if available.","4. Drive with extreme caution and use fog lights due to reduced visibility.","5. Stay hydrated and seek medical attention if experiencing breathing difficulties.","[AI-generated]"],
   "effective_from": "2025-11-01T00:00:00Z",
   "effective_until": "2025-12-10T23:59:59Z",
   "areas": [
@@ -461,7 +461,7 @@ For daily weather updates please visit:\nwww.pmd.gov.pk\n,\nPak Weather Applicat
       "specific_effective_until": null,
       "specific_urgency": null,
       "specific_severity": null,
-      "specific_instruction": null
+      "specific_instructions": null
     }
   ]
 }

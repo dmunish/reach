@@ -42,7 +42,7 @@ class AreaList(BaseModel):
     specific_effective_until: Optional[str] = None
     specific_urgency: Optional[AlertUrgency] = None
     specific_severity: Optional[AlertSeverity] = None
-    specific_instruction: Optional[str] = None
+    specific_instructions: Optional[str] = None
 
 class StructuredAlert(BaseModel):
     """Represents the response from the LLM, with unflattened area list"""
@@ -51,7 +51,7 @@ class StructuredAlert(BaseModel):
     urgency: AlertUrgency
     severity: AlertSeverity
     description: str
-    instruction: str
+    instructions: List[str]
     effective_from: str
     effective_until: str
     areas: List[AreaList]

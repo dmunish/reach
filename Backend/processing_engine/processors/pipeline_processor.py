@@ -41,7 +41,7 @@ class PipelineProcessor():
                 urgency=structured_alert.urgency,
                 severity=structured_alert.severity,
                 description=structured_alert.description,
-                instruction=structured_alert.instruction,
+                instruction="\n".join(structured_alert.instructions),
                 effective_from=structured_alert.effective_from,
                 effective_until=structured_alert.effective_until
             )
@@ -63,7 +63,8 @@ class PipelineProcessor():
                         specific_effective_until=area_list.specific_effective_until,
                         specific_urgency=area_list.specific_urgency,
                         specific_severity=area_list.specific_severity,
-                        specific_instruction=area_list.specific_instruction
+                        specific_instruction=area_list.specific_instructions
+
                     )
                     alert_areas.append(alert_area_model.model_dump(mode='json'))
             

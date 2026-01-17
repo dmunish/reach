@@ -132,14 +132,14 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
     - "Tarbela Dam" to "Haripur"
     - "Motorways M2 and M5" to ["Multan","Bahawalpur","Rahim Yar Khan","Ghotki","Sukkur","Rawalpindi","Chakwal","Khushab","Sargodha","Sheikhupura","Lahore"]
 - **Examples**: Some examples for the wrong and correct values:
-    1.  Wrong: [:Balochistan (Quetta, Ziarat, Zhob, Sherani, Chaman, Pishin, Qilla Abdullah, Qilla, Saifullah, Noushki)"]
+    1.  Wrong: ["Balochistan (Quetta, Ziarat, Zhob, Sherani, Chaman, Pishin, Qilla Abdullah, Qilla, Saifullah, Noushki)"]
         Reason: Improper formatting
         Correct: ["Quetta","Ziarat","Zhob","Sherani","Chaman","Pishin","Qilla Abdullah","Qilla","Saifullah","Noushki"]
     2.  Wrong: ["Punjab (plain areas)"]
         Reason: Cannot be geocoded. Expand to directional descriptions.
         Correct: ["Central Punjab","South Punjab"]
-    3.  Wrong: "[Upper Sindh]"
-        Reason: Improper wording for geocoder.
+    3.  Wrong: ["Upper Sindh"]
+        Reason: Improper wording for geocoder. Geocoder can only parse these directional terms: "North", "South", "East", "West", "Central", "North-Eastern", "North-Western", "South-Eastern" and "South-Western".
         Correct: ["North Sindh"]
     4.  Wrong: ["Potohar region"]
         Reason: Region names cannot be geocoded by geocoder. Only official administrative units or their directional versions. Expand region names like these to the constituent districts using your world knowledge.

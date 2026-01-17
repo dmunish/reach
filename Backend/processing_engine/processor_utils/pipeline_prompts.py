@@ -77,7 +77,7 @@ You excel at transforming complex, multi-modal disaster documents into clean, ac
 """
 
 json_prompt = """Convert the attached Pakistani disaster alert/information document to the specified CAP-derived JSON structure.
-If there are images/visualizations, try to understand images in detail and make the extracted JSON information informed by the content of the text and the images/maps/charts in the document. 
+If there are images/visualizations, you must to understand images in detail and make the extracted JSON information informed by the content of the text and the images/maps/charts in the document. 
 Don't miss any information. Be wary of typos in the document, and correct if possible. Output only the JSON object, without any leading or trailing markdown.
 
 # JSON Response Format:
@@ -124,44 +124,45 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
 
 # Place Names:
 - **Abbreviations**: Convert each abbreviation to its full form, like AJ&K to Azad Jammu and Kashmir.
-- **Clustering**: Try to cluster different regions/districts into a single list as much as possible, and only make seperate lists when there is a need to override the base alert's fields (effective_from, instructions, etc.).
+- **Clustering**: Cluster different regions/districts into a single list as much as possible, and only make seperate lists when there is a need to override the base alert's fields (effective_from, instructions, etc.).
 - **Directional**: Extract directional for regions to a unified form, like "North-Eastern Balochistan". The only valid values are "North", "South", "East", "West", "Central", "North-Eastern", "North-Western", "South-Eastern" and "South-Western".
-- **Overlap**: Try to avoid overlaps and be as general as possible. For examples, if specific districts from a province relevant to the alert are mentioned alongside name of the entire province, select the specific districts if they are a small part of the province, or select the province if the mentioned districts make up the majority of the province.
+- **Overlap**: Avoid overlaps and be as general as possible. For examples, if specific districts from a province relevant to the alert are mentioned alongside name of the entire province, select the specific districts if they are a small part of the province, or select the province if the mentioned districts make up the majority of the province.
 - **Patchy Lists**: If the mentioned districts result in a patchy network if districts, expand the list slightly with the least amount of additinal districts possible so as to create a smooth polygon. Also try to use directional descriptions over listing specific names for this very reason.
 - **Infrastructure**: When specific infrastructure is mentioned, convert it to the disctricts/tehsils containing it. For example:
     - "Tarbela Dam" to "Haripur"
     - "Motorways M2 and M5" to ["Multan","Bahawalpur","Rahim Yar Khan","Ghotki","Sukkur","Rawalpindi","Chakwal","Khushab","Sargodha","Sheikhupura","Lahore"]
-- **Examples**: Some examples for the wrong and correct values:
-    1.  Wrong: ["Balochistan (Quetta, Ziarat, Zhob, Sherani, Chaman, Pishin, Qilla Abdullah, Qilla, Saifullah, Noushki)"]
-        Reason: Improper formatting
-        Correct: ["Quetta","Ziarat","Zhob","Sherani","Chaman","Pishin","Qilla Abdullah","Qilla","Saifullah","Noushki"]
-    2.  Wrong: ["Punjab (plain areas)"]
-        Reason: Cannot be geocoded. Expand to directional descriptions.
-        Correct: ["Central Punjab","South Punjab"]
-    3.  Wrong: ["Upper Sindh"]
-        Reason: Improper wording for geocoder. Geocoder can only parse these directional terms: "North", "South", "East", "West", "Central", "North-Eastern", "North-Western", "South-Eastern" and "South-Western".
-        Correct: ["North Sindh"]
-    4.  Wrong: ["Potohar region"]
-        Reason: Region names cannot be geocoded by geocoder. Only official administrative units or their directional versions. Expand region names like these to the constituent districts using your world knowledge.
-        Correct: ["Rawalpindi","Attock","Chakwal","Jhelum"]
-    5.  Wrong: ["Sindh Coastal Areas"]
-        Reason: Natural language descriptions like these cannot be processed by geocoder.
-        Correct: ["Southern Sindh"]
-    6.  Wrong: ["Kotli","Bhimber","Muzaffarabad","Jhelum Valley","Neelam Valley","Poonch","Bagh","Haveli"}
-        Reason: Majority of districts of Azad Kashmir province listed. Better to replace with entire province to ensure smooth polygon.
-        Correct: ["Azad Kashmir"]
-    7.  Wrong: ["Upper Chitral","Lower Chitral","Upper Dir","Lower Dir","Central Dir","Swat","Upper Swat","Shangla","Buner","Malakand","Bajaur","Upper Kohistan","Lower Kohistan","Kolai-Palas","Allai","Battagram","Torghar","Abbottabad"]
-        Reason: Majority of districts of Northern KPK listed. Better to replace with directional description of province to ensure smooth polygon.
-        Correct: ["North Khyber Pakhtunkhwa"]
-    8.  Wrong: ["Murree","Galiyat"]
-        Reason: Galiyat is not an administrative unit, but instead a region.
-        Correct: ["Murree","Abbottabad"]
-    9.  Wrong: ["Lahore","Gujranwala","Sheikhupura","Kasur","Nankana Sahib","Faisalabad","Multan","Bahawalpur","Rahim Yar Khan","Bahawalnagar","Khanpur"]
-        Reason: Too many specific districts. Might result in patchy polygon when geocoded.
-        Correct: ["Central Punjab","South Punjab"]
-    10. Wrong: ["D.G Khan (Tribal Area)"]
-        Reason: Not the official name of the administrative unit.
-        Correct: ["Dera Ghazi Khan"]
+
+## Transformation Examples (WRONG Output List -> CORRECT Output List):
+1.  **Improper Formatting**:
+    *WRONG Output:* "Balochistan (Quetta, Ziarat, Zhob, Sherani, Chaman, Pishin...)"
+    *CORRECT:* ["Quetta","Ziarat","Zhob","Sherani","Chaman","Pishin","Qilla Abdullah","Qilla","Saifullah","Noushki"]
+2.  **Ambiguous Plain Areas**:
+    *WRONG:* "Punjab (plain areas)"
+    *CORRECT:* ["Central Punjab","South Punjab"]
+3.  **Unofficial Regional Terms**:
+    *WRONG:* "Upper Sindh"
+    *CORRECT:* ["North Sindh"]
+4.  **Regional Names**:
+    *WRONG:* "Potohar region"
+    *CORRECT:* ["Rawalpindi","Attock","Chakwal","Jhelum"]
+5.  **Natural Language Descriptions**:
+    *WRONG:* "Sindh Coastal Areas"
+    *CORRECT:* ["Southern Sindh"]
+6.  **Full Province Coverage**:
+    *WRONG:* "Kotli, Bhimber, Muzaffarabad, Jhelum Valley, Neelam Valley, Poonch, Bagh, Haveli"
+    *CORRECT:* ["Azad Kashmir"]
+7.  **Majority District Coverage**:
+    *WRONG:* "Upper Chitral, Lower Chitral ... Abbottabad" (Majority of Northern KPK)
+    *CORRECT:* ["North Khyber Pakhtunkhwa"]
+8.  **Non-Administrative Regions**:
+    *WRONG:* "Murree, Galiyat"
+    *CORRECT:* ["Murree","Abbottabad"]
+9.  **Excessive Specificity**:
+    *WRONG:* "Lahore, Gujranwala, Sheikhupura, Kasur, Nankana Sahib... Khanpur"
+    *CORRECT:* ["Central Punjab","South Punjab"]
+10. **Unofficial Names**:
+    *WRONG:* "D.G Khan (Tribal Area)"
+    *CORRECT:* ["Dera Ghazi Khan"]
 """
 
 async def messages(input: str, type: str):
@@ -202,8 +203,7 @@ async def messages(input: str, type: str):
                 },
                 {
                     "role": "user",
-                    "content": [{"type": "text", "text": json_prompt}] + 
-                    [
+                    "content": [
                       {
                         "type": "image_url",
                         "image_url":
@@ -240,8 +240,7 @@ async def messages(input: str, type: str):
                 },
                 {
                     "role": "user",
-                    "content": [{"type": "text", "text": json_prompt}] + 
-                    [
+                    "content": [
                       {
                         "type": "image_url",
                         "image_url":
@@ -341,8 +340,7 @@ async def messages(input: str, type: str):
                 },
                 {
                     "role": "user",
-                    "content": [{"type": "text", "text": json_prompt}] + 
-                    [
+                    "content": [
                       {
                         "type": "image_url",
                         "image_url":
@@ -438,7 +436,7 @@ async def messages(input: str, type: str):
                 },
                 {
                     "role": "user",
-                    "content": [{"type": "text", "text": json_prompt},
+                    "content": [
                       {
                         "type": "text",
                         "text":"""

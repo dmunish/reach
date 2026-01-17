@@ -55,7 +55,7 @@ Your role is to extract structured information from disaster alerts, advisories,
 
 ## Key Principles:
 - **Accuracy over Speed**: Carefully review all text and visual elements before extracting data
-- **Standardization**: Convert all location names, abbreviations, and directional terms to standard forms
+- **Standardization**: Convert all location names, abbreviations, and directional terms to standard forms. YOU NEVER OUTPUT THE NAME OF A REGION THAT IS NOT AN OFFICIAL ADMIMINISTRATIVE UNIT OF PAKISTAN
 - **Completeness**: Extract all relevant information including area-specific variations in timing, severity, or instructions
 - **Context Awareness**: Use visual context (maps, severity indicators, timeline graphics) to inform and validate text-based extractions
 - **Citizen-Focused**: When generating instructions, prioritize actionable guidance for general public safety
@@ -79,6 +79,7 @@ You excel at transforming complex, multi-modal disaster documents into clean, ac
 json_prompt = """Convert the attached Pakistani disaster alert/information document to the specified CAP-derived JSON structure.
 If there are images/visualizations, you must to understand images in detail and make the extracted JSON information informed by the content of the text and the images/maps/charts in the document. 
 Don't miss any information. Be wary of typos in the document, and correct if possible. Output only the JSON object, without any leading or trailing markdown.
+NEVER OUTPUT THE NAME OF A REGION THAT IS NOT AN OFFICIAL ADMIMINISTRATIVE UNIT OF PAKISTAN, OR ITS DIRECTIONAL VARIANT.
 
 # JSON Response Format:
 {
@@ -132,7 +133,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
     - "Tarbela Dam" to "Haripur"
     - "Motorways M2 and M5" to ["Multan","Bahawalpur","Rahim Yar Khan","Ghotki","Sukkur","Rawalpindi","Chakwal","Khushab","Sargodha","Sheikhupura","Lahore"]
 
-## Transformation Examples (WRONG Output List -> CORRECT Output List):
+## Examples (WRONG Output List : CORRECT Output List):
 1.  **Improper Formatting**:
     *WRONG Output:* "Balochistan (Quetta, Ziarat, Zhob, Sherani, Chaman, Pishin...)"
     *CORRECT:* ["Quetta","Ziarat","Zhob","Sherani","Chaman","Pishin","Qilla Abdullah","Qilla","Saifullah","Noushki"]
@@ -142,7 +143,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
 3.  **Unofficial Regional Terms**:
     *WRONG:* "Upper Sindh"
     *CORRECT:* ["North Sindh"]
-4.  **Regional Names**:
+4.  **Unofficial Names/Regions that are not administrative units**:
     *WRONG:* "Potohar region"
     *CORRECT:* ["Rawalpindi","Attock","Chakwal","Jhelum"]
 5.  **Natural Language Descriptions**:
@@ -152,17 +153,20 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
     *WRONG:* "Kotli, Bhimber, Muzaffarabad, Jhelum Valley, Neelam Valley, Poonch, Bagh, Haveli"
     *CORRECT:* ["Azad Kashmir"]
 7.  **Majority District Coverage**:
-    *WRONG:* "Upper Chitral, Lower Chitral ... Abbottabad" (Majority of Northern KPK)
+    *WRONG:* "Upper Chitral","Lower Chitral","Upper Dir","Lower Dir","Central Dir","Swat","Upper Swat","Shangla","Buner","Malakand","Bajaur","Upper Kohistan","Lower Kohistan","Kolai-Palas","Allai","Battagram","Torghar","Abbottabad"
     *CORRECT:* ["North Khyber Pakhtunkhwa"]
 8.  **Non-Administrative Regions**:
     *WRONG:* "Murree, Galiyat"
     *CORRECT:* ["Murree","Abbottabad"]
 9.  **Excessive Specificity**:
-    *WRONG:* "Lahore, Gujranwala, Sheikhupura, Kasur, Nankana Sahib... Khanpur"
+    *WRONG:* "Lahore","Gujranwala","Sheikhupura","Kasur","Nankana Sahib","Faisalabad","Multan","Bahawalpur","Rahim Yar Khan","Bahawalnagar","Khanpur"
     *CORRECT:* ["Central Punjab","South Punjab"]
 10. **Unofficial Names**:
     *WRONG:* "D.G Khan (Tribal Area)"
     *CORRECT:* ["Dera Ghazi Khan"]
+11. **Overlapping areas in seperate lists**:
+    *WRONG*: ["Balochistan"],["Quetta","Ziarat","Chaman","Pishin","Qilla Abdullah","Noushki","Khuzdar","Loralai"]
+    *CORECT*: ["North Balochistan", "Central Balochistan"]
 """
 
 async def messages(input: str, type: str):

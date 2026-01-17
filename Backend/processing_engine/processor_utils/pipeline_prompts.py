@@ -159,6 +159,9 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
     9.  Wrong: ["Lahore","Gujranwala","Sheikhupura","Kasur","Nankana Sahib","Faisalabad","Multan","Bahawalpur","Rahim Yar Khan","Bahawalnagar","Khanpur"]
         Reason: Too many specific districts. Might result in patchy polygon when geocoded.
         Correct: ["Central Punjab","South Punjab"]
+    10. Wrong: ["D.G Khan (Tribal Area)"]
+        Reason: Not the official name of the administrative unit.
+        Correct: ["Dera Ghazi Khan"]
 """
 
 async def messages(input: str, type: str):

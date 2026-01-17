@@ -1,7 +1,7 @@
 import json
 from pydantic import ValidationError
 from typing import List
-from processing_engine.processor_utils.llm_client import LLMClient, AsyncLLMClient
+from processing_engine.processor_utils.llm_client import AsyncLLMClient
 from processing_engine.processor_utils.pipeline_prompts import messages
 from processing_engine.processor_utils.doc_utils import url_to_b64_strings
 from processing_engine.models.schemas import QueueJob, Alert, AlertArea, StructuredAlert
@@ -12,8 +12,13 @@ class PipelineProcessor():
         self.llm = AsyncLLMClient(llm)
     
     async def transform(self, job: QueueJob, document_id: str, alert_id: str):
-        file = await url_to_b64_strings(job.message.url)
-        llm_message = await messages(file)
+        if job.message.filetype == "txt":
+            document = job.message.raw_text
+            filetype = "text"
+        elif job.message.filetype in ["pdf", "pptx", "gif", "png", "jpeg", "jpg"]:
+            document = job.message.url
+            filetype = "document"
+        llm_message = await messages(input=document, type=filetype)
         response = await self.llm.call(llm_message)
         json_response, alert, alert_areas = await self._parse(response, document_id, alert_id)
         return json_response, alert, alert_areas

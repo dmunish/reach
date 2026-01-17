@@ -142,7 +142,7 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
         Reason: Improper wording for geocoder.
         Correct: ["North Sindh"]
     4.  Wrong: ["Potohar region"]
-        Reason: Region names cannot be geocoded by geocoder. Only administrative units or their directional versions. Expand region names like these to the constituent districts using your world knowledge.
+        Reason: Region names cannot be geocoded by geocoder. Only official administrative units or their directional versions. Expand region names like these to the constituent districts using your world knowledge.
         Correct: ["Rawalpindi","Attock","Chakwal","Jhelum"]
     5.  Wrong: ["Sindh Coastal Areas"]
         Reason: Natural language descriptions like these cannot be processed by geocoder.

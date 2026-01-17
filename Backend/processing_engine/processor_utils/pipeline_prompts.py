@@ -130,35 +130,35 @@ Don't miss any information. Be wary of typos in the document, and correct if pos
 - **Patchy Lists**: If the mentioned districts result in a patchy network if districts, expand the list slightly with the least amount of additinal districts possible so as to create a smooth polygon. Also try to use directional descriptions over listing specific names for this very reason.
 - **Infrastructure**: When specific infrastructure is mentioned, convert it to the disctricts/tehsils containing it. For example:
     - "Tarbela Dam" to "Haripur"
-    - "Motorways M2 and M5" to ["Multan", "Bahawalpur", "Rahim Yar Khan", "Ghotki", "Sukkur", "Rawalpindi", "Chakwal", "Khushab", "Sargodha", "Sheikhupura", "Lahore"]
+    - "Motorways M2 and M5" to ["Multan","Bahawalpur","Rahim Yar Khan","Ghotki","Sukkur","Rawalpindi","Chakwal","Khushab","Sargodha","Sheikhupura","Lahore"]
 - **Examples**: Some examples for the wrong and correct values:
     1.  Wrong: "[Balochistan (Quetta, Ziarat, Zhob, Sherani, Chaman, Pishin, Qilla Abdullah, Qilla, Saifullah, Noushki)]"
         Reason: Improper formatting
-        Correct: ["Quetta", "Ziarat", "Zhob", "Sherani", "Chaman", "Pishin", "Qilla Abdullah", "Qilla", "Saifullah", "Noushki"]
+        Correct: ["Quetta","Ziarat","Zhob","Sherani","Chaman","Pishin","Qilla Abdullah","Qilla","Saifullah","Noushki"]
     2.  Wrong: "[Punjab (plain areas)]"
         Reason: Cannot be geocoded. Expand to directional descriptions.
-        Correct: ["Central Punjab", "South Punjab"]
+        Correct: ["Central Punjab","South Punjab"]
     3.  Wrong: "[Upper Sindh]"
         Reason: Improper wording for geocoder.
         Correct: ["North Sindh"]
     4.  Wrong: "[Potohar region]"
         Reason: Region names cannot be geocoded by geocoder. Only administrative units or their directional versions. Expand region names like these to the constituent districts using your world knowledge.
-        Correct: ["Rawalpindi", "Attock", "Chakwal", "Jhelum"]
+        Correct: ["Rawalpindi","Attock","Chakwal","Jhelum"]
     5.  Wrong: "[Sindh Coastal Areas]"
         Reason: Natural language descriptions like these cannot be processed by geocoder.
         Correct: ["Southern Sindh"]
-    6.  Wrong: ["Kotli", "Bhimber", "Muzaffarabad", "Jhelum Valley", "Neelam Valley", "Poonch", "Bagh", "Haveli"}
+    6.  Wrong: ["Kotli","Bhimber","Muzaffarabad","Jhelum Valley","Neelam Valley","Poonch","Bagh","Haveli"}
         Reason: Majority of districts of Azad Kashmir province listed. Better to replace with entire province to ensure smooth polygon.
         Correct: ["Azad Kashmir"]
-    7.  Wrong: ["Upper Chitral", "Lower Chitral", "Upper Dir", "Lower Dir", "Central Dir", "Swat", "Upper Swat", "Shangla", "Buner", "Malakand", "Bajaur", "Upper Kohistan", "Lower Kohistan", "Kolai-Palas", "Allai", "Battagram", "Torghar", "Abbottabad"]
+    7.  Wrong: ["Upper Chitral","Lower Chitral","Upper Dir","Lower Dir","Central Dir","Swat","Upper Swat","Shangla","Buner","Malakand","Bajaur","Upper Kohistan","Lower Kohistan","Kolai-Palas","Allai","Battagram","Torghar","Abbottabad"]
         Reason: Majority of districts of Northern KPK listed. Better to replace with directional description of province to ensure smooth polygon.
         Correct: ["North Khyber Pakhtunkhwa"]
-    8.  Wrong: ["Murree", "Galiyat"]
+    8.  Wrong: ["Murree","Galiyat"]
         Reason: Galiyat is not an administrative unit, but instead a region.
-        Correct: ["Murree", "Abbottabad"]
-    9.  Wrong: ["Lahore", "Gujranwala", "Sheikhupura", "Kasur", "Nankana Sahib", "Faisalabad", "Multan", "Bahawalpur", "Rahim Yar Khan", "Bahawalnagar", "Khanpur"]
-        Reason: Too many specific districts. Might result in patchy polygon when geocoded/
-        Correct: ["Central Punjab", "South Punjab"]
+        Correct: ["Murree","Abbottabad"]
+    9.  Wrong: ["Lahore","Gujranwala","Sheikhupura","Kasur","Nankana Sahib","Faisalabad","Multan","Bahawalpur","Rahim Yar Khan","Bahawalnagar","Khanpur"]
+        Reason: Too many specific districts. Might result in patchy polygon when geocoded.
+        Correct: ["Central Punjab","South Punjab"]
 """
 
 async def messages(input: str, type: str):

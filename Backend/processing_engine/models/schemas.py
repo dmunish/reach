@@ -82,10 +82,9 @@ class Alert(BaseModel):
 
 class DocumentPayload(BaseModel):
     """Schema for the message payload/content"""
-    url: str
+    url: Optional[str]
     title: str
     source: Literal["NDMA", "NEOC", "PMD"]
-    filename: Optional[str]
     filetype: Literal["pdf", "pptx", "txt", "gif", "png", "jpeg", "jpg"]
     raw_text: Optional[str] = None
     document_id: str

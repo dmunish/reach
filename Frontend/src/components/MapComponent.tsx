@@ -347,8 +347,16 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
           type: "fill",
           source: "highlighted-polygon",
           paint: {
-            "fill-color": "#006240", // Bangladesh green - more muted
+            "fill-color": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              0, "#003020",   // Darker at global view to compensate for ambient light
+              6, "#004530",   // Transition
+              10, "#006240"   // Intended color at street level
+            ],
             "fill-opacity": 0.25,
+            "fill-emissive-strength": 1, // Ensure visibility in Standard style night mode
           },
         });
 
@@ -360,6 +368,7 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
           paint: {
             "line-color": "#2fa96c", // Mint green - softer outline
             "line-width": 2,
+            "line-emissive-strength": 1, // Ensure visibility in Standard style night mode
           },
         });
 
@@ -555,8 +564,16 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
           type: "fill",
           source: "highlighted-polygon",
           paint: {
-            "fill-color": "#006240", // Bangladesh green - more muted
+            "fill-color": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              0, "#003020",   // Darker at global view to compensate for ambient light
+              6, "#004530",   // Transition
+              10, "#006240"   // Intended color at street level
+            ],
             "fill-opacity": 0.25,
+            "fill-emissive-strength": 1, // Ensure visibility in Standard style night mode
           },
         });
 
@@ -568,6 +585,7 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
           paint: {
             "line-color": "#2fa96c", // Mint green - softer outline
             "line-width": 2,
+            "line-emissive-strength": 1, // Ensure visibility in Standard style night mode
           },
         });
 

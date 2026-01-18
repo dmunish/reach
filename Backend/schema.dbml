@@ -42,9 +42,6 @@ Table alerts {
   instruction text?
   effective_from timestamptz
   effective_until timestamptz
-  centroid geometry
-  search_vector tsvector
-  bbox geometry
 }
 
 Table alert_areas {
@@ -56,6 +53,14 @@ Table alert_areas {
   specific_urgency alert_urgency?
   specific_severity alert_severity?
   specific_instruction text?
+}
+
+Table alert_search_index {
+  alert_id uuid @pk @fk(alerts.id)
+  centroid geometry
+  bbox geometry
+  search_text text
+  last_updated_at timestamptz
 }
 
 Table documents {

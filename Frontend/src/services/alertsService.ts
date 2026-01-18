@@ -27,7 +27,8 @@ class AlertsService {
     try {
       console.log("alertsService: Calling get_alerts RPC with filters:", filters);
 
-      const { data, error } = await supabase.rpc("get_alerts", {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)("get_alerts", {
         status_filter: filters?.status_filter ?? "active",
         search_query: filters?.search_query ?? null,
         category_filter: filters?.category_filter ?? null,
@@ -46,7 +47,7 @@ class AlertsService {
         return { data: null, error: error.message, loading: false };
       }
 
-      console.log("alertsService: Fetched alerts count:", data?.length ?? 0);
+      console.log("alertsService: Fetched alerts count:", (data as AlertFromRPC[])?.length ?? 0);
       return { data: (data as AlertFromRPC[]) ?? [], error: null, loading: false };
     } catch (error) {
       console.error("Unexpected error fetching alerts:", error);
@@ -74,7 +75,8 @@ class AlertsService {
 
       console.log("alertsService: Fetching geometry for alert:", alertId);
 
-      const { data, error } = await supabase.rpc("get_alert_geometry", {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)("get_alert_geometry", {
         alert_uuid: alertId,
       });
 

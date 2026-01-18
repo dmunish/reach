@@ -199,9 +199,9 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
              <div className="flex flex-col gap-1">
               <label className="text-[10px] text-gray-400 uppercase tracking-wider">Date Range</label>
               <DateRangeSelector
-                startDate={filters.startDate || null}
-                endDate={filters.endDate || null}
-                onChange={(start, end) => {
+                initialStartDate={filters.startDate}
+                initialEndDate={filters.endDate}
+                onDateRangeChange={(start, end) => {
                   onFilterChange("startDate", start);
                   onFilterChange("endDate", end);
                 }}

@@ -20,6 +20,8 @@ export interface DetailCardProps {
   data: DetailData | null;
   onClose: () => void;
   onActionClick?: (action: string, data: DetailData) => void;
+  width: number;
+  onWidthChange: (width: number) => void;
 }
 
 export const DetailCard: React.FC<DetailCardProps> = ({
@@ -27,7 +29,32 @@ export const DetailCard: React.FC<DetailCardProps> = ({
   data,
   onClose,
   onActionClick,
+  width,
+  onWidthChange,
 }) => {
+  const [isResizing, setIsResizing] = React.useState(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const newWidth = window.innerWidth - moveEvent.clientX - 16; // 16 for right-4
+      if (newWidth > 200 && newWidth < window.innerWidth - 300) {
+        onWidthChange(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("en-US", {
       year: "numeric",
@@ -124,15 +151,19 @@ export const DetailCard: React.FC<DetailCardProps> = ({
     }
   };
 
-  const [isMoreInfoExpanded, setIsMoreInfoExpanded] = React.useState(false);
+  const [isAreasExpanded, setIsAreasExpanded] = React.useState(false);
+  const [areaSearchQuery, setAreaSearchQuery] = React.useState("");
 
-  const renderInstructionWithNewlines = (text: string) => {
-    return text.split('\n').map((line, index) => (
-      <React.Fragment key={index}>
-        {line}
-        {index < text.split('\n').length - 1 && <br />}
-      </React.Fragment>
-    ));
+  const renderInstructionList = (text: string) => {
+    return (
+      <ul className="list-none space-y-2">
+        {text.split('\n').filter(line => line.trim() !== "").map((line, index) => (
+          <li key={index} className="text-sm text-gray-300 leading-relaxed">
+            {line.trim()}
+          </li>
+        ))}
+      </ul>
+    );
   };
 
   const renderContent = () => {
@@ -158,14 +189,14 @@ export const DetailCard: React.FC<DetailCardProps> = ({
     }
 
     return (
-      <div className="space-y-5">
+      <div className="space-y-6">
         {/* Title and Effective Dates - Centered */}
-        <div className="text-center space-y-2">
-          <h1 className="text-lg font-bold text-white">
+        <div className="text-center space-y-1">
+          <h1 className="text-2xl font-bold text-white leading-tight">
             {data.title || "Alert"}
           </h1>
           {data.date && data.additionalInfo?.effectiveUntil && (
-            <div className="text-sm text-gray-400">
+            <div className="text-sm text-gray-500 font-medium">
               {data.date.toLocaleDateString("en-US", {
                 year: "numeric",
                 month: "long",
@@ -182,14 +213,64 @@ export const DetailCard: React.FC<DetailCardProps> = ({
         </div>
 
         {/* Divider */}
-        <div className="w-full h-px bg-gray-700"></div>
+        <div className="w-full h-px bg-white/10"></div>
+
+        {/* Source Button */}
+        {data.source && (
+          <div className="flex justify-center">
+            <button
+              onClick={() => {
+                if (data.documentUrl) {
+                  window.open(data.documentUrl, "_blank", "noopener,noreferrer");
+                }
+              }}
+              className={`
+                px-4 py-2 rounded-full font-semibold text-white text-sm
+                bg-bangladesh-green transition-all duration-200 border-2 border-transparent
+                ${
+                  data.documentUrl
+                    ? "hover:bg-mountain-meadow hover:border-white/20 shadow-lg hover:shadow-bangladesh-green/40 cursor-pointer"
+                    : "cursor-default opacity-90"
+                }
+              `}
+            >
+              Source: {data.source}
+            </button>
+          </div>
+        )}
+
+        {/* Details Pills (Category, Severity, Urgency) */}
+        <div className="flex flex-wrap justify-center gap-2">
+          {data.category && (
+            <div className="px-3 py-1 rounded-md bg-rich-black/50 border border-white/10 text-xs text-gray-300 flex items-center gap-1">
+              <span className="text-gray-500 font-medium">Category:</span>
+              <span className="text-white font-medium">{getCategoryFullName(data.category)}</span>
+            </div>
+          )}
+          {data.severity && (
+            <div className="px-3 py-1 rounded-md bg-rich-black/50 border border-white/10 text-xs text-gray-300 flex items-center gap-1">
+              <span className="text-gray-500 font-medium">Severity:</span>
+              <span className={`font-medium ${getSeverityColor(data.severity)}`}>
+                {data.severity}
+              </span>
+            </div>
+          )}
+          {data.urgency && (
+            <div className="px-3 py-1 rounded-md bg-rich-black/50 border border-white/10 text-xs text-gray-300 flex items-center gap-1">
+              <span className="text-gray-500 font-medium">Urgency:</span>
+              <span className={`font-medium ${getUrgencyColor(data.urgency)}`}>
+                {data.urgency}
+              </span>
+            </div>
+          )}
+        </div>
 
         {/* Description Section */}
         {data.description && (
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
               <svg
-                className="w-4 h-4 text-gray-400"
+                className="w-5 h-5 text-caribbean-green"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -202,40 +283,9 @@ export const DetailCard: React.FC<DetailCardProps> = ({
                 />
               </svg>
               Description
-            </h3>
+            </h2>
             <p className="text-sm text-gray-300 leading-relaxed">
               {data.description}
-            </p>
-          </div>
-        )}
-
-        {/* Areas Section */}
-        {data.additionalInfo?.places && data.additionalInfo.places.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-              <svg
-                className="w-4 h-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-              Affected Areas
-            </h3>
-            <p className="text-sm text-gray-300">
-              {data.additionalInfo.places.join(", ")}
             </p>
           </div>
         )}
@@ -243,9 +293,9 @@ export const DetailCard: React.FC<DetailCardProps> = ({
         {/* Instructions Section */}
         {data.instruction && (
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-caribbean-green flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
               <svg
-                className="w-4 h-4"
+                className="w-5 h-5 text-caribbean-green"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -258,24 +308,46 @@ export const DetailCard: React.FC<DetailCardProps> = ({
                 />
               </svg>
               Instructions
-            </h3>
-            <div className="bg-bangladesh-green bg-opacity-10 border border-bangladesh-green border-opacity-30 p-3 rounded-lg">
-              <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-line">
-                {renderInstructionWithNewlines(data.instruction)}
-              </p>
+            </h2>
+            <div className="bg-bangladesh-green/10 border-l-2 border-bangladesh-green p-3 rounded-r-lg">
+              {renderInstructionList(data.instruction)}
             </div>
           </div>
         )}
 
-        {/* More Info - Expandable */}
-        <div className="space-y-2 pb-4">
-          <button
-            onClick={() => setIsMoreInfoExpanded(!isMoreInfoExpanded)}
-            className="w-full flex items-center justify-between text-sm font-semibold text-gray-300 hover:text-white transition-colors"
-          >
-            <div className="flex items-center gap-2">
+        {/* Affected Areas Section */}
+        {data.additionalInfo?.places && data.additionalInfo.places.length > 0 && (
+          <div className="space-y-3">
+             <button
+              onClick={() => setIsAreasExpanded(!isAreasExpanded)}
+              className="w-full flex items-center justify-between group"
+            >
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2 group-hover:text-caribbean-green transition-colors">
+                <svg
+                  className="w-5 h-5 text-caribbean-green"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+                Affected Areas
+              </h2>
               <svg
-                className="w-4 h-4 text-gray-400"
+                className={`w-5 h-5 text-gray-400 transform transition-transform duration-200 ${
+                  isAreasExpanded ? "rotate-180" : ""
+                }`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -284,79 +356,59 @@ export const DetailCard: React.FC<DetailCardProps> = ({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth="2"
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  d="M19 9l-7 7-7-7"
                 />
               </svg>
-              More Info
-            </div>
-            <svg
-              className={`w-4 h-4 text-gray-400 transform transition-transform ${
-                isMoreInfoExpanded ? "rotate-180" : ""
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </button>
+            </button>
 
-          {isMoreInfoExpanded && (
-            <div className="space-y-2 pl-2">
-              {/* Source */}
-              {data.source && (
-                <div className="flex items-start gap-2">
-                  <span className="text-sm text-gray-500 font-medium min-w-[70px]">Source:</span>
-                  {data.documentUrl ? (
-                    <a
-                      href={data.documentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-caribbean-green hover:text-mountain-meadow underline"
-                    >
-                      {data.source}
-                    </a>
-                  ) : (
-                    <span className="text-sm text-gray-300">{data.source}</span>
-                  )}
+            {isAreasExpanded && (
+              <div className="space-y-3 animate-fadeIn">
+                {/* Search Bar */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search areas..."
+                    value={areaSearchQuery}
+                    onChange={(e) => setAreaSearchQuery(e.target.value)}
+                    className="w-full bg-rich-black/50 border border-white/10 rounded-lg px-3 py-2 pl-9 text-sm text-white focus:outline-none focus:border-caribbean-green transition-colors"
+                  />
+                  <svg
+                    className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
                 </div>
-              )}
 
-              {/* Category */}
-              {data.category && (
-                <div className="flex items-start gap-2">
-                  <span className="text-sm text-gray-500 font-medium min-w-[70px]">Category:</span>
-                  <span className="text-sm text-gray-300">{getCategoryFullName(data.category)}</span>
+                {/* Areas List */}
+                <div className="flex flex-wrap gap-1.5 p-2 bg-rich-black/30 rounded-lg max-h-40 overflow-y-auto dark-scrollbar">
+                  {data.additionalInfo.places.map((place: string, idx: number) => {
+                    const isMatch = areaSearchQuery && place.toLowerCase().includes(areaSearchQuery.toLowerCase());
+                    return (
+                      <span
+                        key={idx}
+                        className={`text-sm px-2 py-0.5 rounded transition-colors ${
+                          isMatch
+                            ? "bg-caribbean-green/30 text-white font-medium border border-caribbean-green/50"
+                            : "text-gray-400 bg-white/5"
+                        }`}
+                      >
+                        {place}
+                      </span>
+                    );
+                  })}
                 </div>
-              )}
-
-              {/* Urgency */}
-              {data.urgency && (
-                <div className="flex items-start gap-2">
-                  <span className="text-sm text-gray-500 font-medium min-w-[70px]">Urgency:</span>
-                  <span className={`text-sm font-medium ${getUrgencyColor(data.urgency)}`}>
-                    {data.urgency}
-                  </span>
-                </div>
-              )}
-
-              {/* Severity */}
-              {data.severity && (
-                <div className="flex items-start gap-2">
-                  <span className="text-sm text-gray-500 font-medium min-w-[70px]">Severity:</span>
-                  <span className={`text-sm font-medium ${getSeverityColor(data.severity)}`}>
-                    {data.severity}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -367,15 +419,26 @@ export const DetailCard: React.FC<DetailCardProps> = ({
       <div
         className={`fixed 
           bottom-4 left-4 right-4 h-80 
-          sm:top-20 sm:bottom-4 sm:h-auto sm:right-4 sm:left-auto sm:w-96 sm:max-w-96
+          sm:top-4 sm:bottom-4 sm:h-auto sm:right-4 sm:left-auto
           frosted-glass transform transition-all duration-300 ease-in-out z-40 overflow-y-auto dark-scrollbar
           ${
             isVisible
               ? "translate-y-0 opacity-100"
               : "translate-y-full opacity-0"
           }
+          ${isResizing ? "transition-none" : ""}
         `}
+        style={{
+          width: window.innerWidth < 640 ? 'auto' : `${width}px`,
+          maxWidth: window.innerWidth < 640 ? 'none' : `${width}px`
+        }}
       >
+        {/* Resize Handle - Left */}
+        <div 
+          className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-caribbean-green/50 transition-colors z-50 hidden sm:block"
+          onMouseDown={handleMouseDown}
+        />
+
         <div className="p-4 h-full flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-end mb-3">

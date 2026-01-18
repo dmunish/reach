@@ -25,6 +25,12 @@ body {
   margin: 0;
   font-family: "Josefin Sans", system-ui, Avenir, Helvetica, Arial, sans-serif;
   background: var(--basil);
+  color-scheme: dark;
+}
+
+/* Base styles for form components to ensure dark theme across browsers */
+input, select, textarea {
+  color-scheme: dark;
 }
 
 #app {

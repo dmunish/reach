@@ -99,32 +99,32 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
           <div>
             <label
               htmlFor="start-date"
-              className="block text-xs text-gray-400 font-medium mb-1"
+              className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-medium"
             >
-              From
+              Effective from
             </label>
             <input
               type="date"
               id="start-date"
               value={startDate}
               onChange={handleStartDateChange}
-              className="filter-input w-full px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mountain-meadow focus:ring-opacity-50"
+              className="filter-input w-full px-3 py-1.5 text-xs text-white bg-rich-black/50 border border-white/10 rounded-md focus:outline-none focus:ring-1 focus:ring-caribbean-green/50"
             />
           </div>
 
           <div>
             <label
               htmlFor="end-date"
-              className="block text-xs text-gray-400 font-medium mb-1"
+              className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-medium"
             >
-              To
+              Effective until
             </label>
             <input
               type="date"
               id="end-date"
               value={endDate}
               onChange={handleEndDateChange}
-              className="filter-input w-full px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mountain-meadow focus:ring-opacity-50"
+              className="filter-input w-full px-3 py-1.5 text-xs text-white bg-rich-black/50 border border-white/10 rounded-md focus:outline-none focus:ring-1 focus:ring-caribbean-green/50"
             />
           </div>
         </div>

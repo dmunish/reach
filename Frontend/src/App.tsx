@@ -43,7 +43,7 @@ function transformAlertToDetailData(alert: AlertFromRPC): DetailData {
     category: alert.category || undefined,
     severity: alert.severity || undefined,
     urgency: alert.urgency || undefined,
-    instruction: undefined, // Not returned by get_alerts RPC
+    instruction: alert.instruction || undefined,
     source: alert.source || "Unknown",
     documentUrl: alert.url || undefined,
     additionalInfo: {
@@ -65,9 +65,12 @@ export const App: React.FC = () => {
   
   // Replaced individual panel toggles with a consolidated one where appropriate
   // We'll treat 'isAlertsPanelVisible' as the visibility for the new FilterAlertsPanel
-  const [isAlertsPanelVisible, setIsAlertsPanelVisible] = useState(true);
-  
+  const [isAlertsPanelVisible, setIsAlertsPanelVisible] = useState(false);
   const [isSettingsPanelVisible, setIsSettingsPanelVisible] = useState(false);
+  
+  // Resizable panel states
+  const [alertsPanelHeight, setAlertsPanelHeight] = useState(400);
+  const [sidePanelWidth, setSidePanelWidth] = useState(384);
   
   // Filter States
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -108,6 +111,18 @@ export const App: React.FC = () => {
     setSearchQuery("");
     setDebouncedSearchQuery("");
   }, [debouncedSetSearch]);
+
+  const handleResetFilters = useCallback(() => {
+    setSearchQuery("");
+    setDebouncedSearchQuery("");
+    setDateFilters({});
+    setSeverityFilter(undefined);
+    setCategoryFilter(undefined);
+    setUrgencyFilter(undefined);
+    setStatusFilter('active');
+    setSortBy('effective_from');
+    setSortOrder('desc');
+  }, []);
 
   const handleFilterChange = useCallback((key: string, value: any) => {
     switch (key) {
@@ -374,13 +389,6 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleToggleAlerts = () => {
-    setIsAlertsPanelVisible(!isAlertsPanelVisible);
-    if (!isAlertsPanelVisible) {
-      setIsSettingsPanelVisible(false);
-    }
-  };
-
   const handleToggleDetails = () => {
     if (isDetailCardVisible) {
       handleDetailCardClose();
@@ -423,11 +431,9 @@ export const App: React.FC = () => {
       {/* Navigation Bar */}
       <Navbar
         onToggleFilter={handleToggleFilter}
-        onToggleAlerts={handleToggleAlerts}
         onToggleDetails={handleToggleDetails}
         onToggleSettings={handleToggleSettings}
-        isFilterOpen={isAlertsPanelVisible} // Reusing for both since merged
-        isAlertsOpen={isAlertsPanelVisible}
+        isFilterOpen={isAlertsPanelVisible}
         isDetailsOpen={isDetailCardVisible}
         isSettingsOpen={isSettingsPanelVisible}
       />
@@ -436,6 +442,9 @@ export const App: React.FC = () => {
       <FilterAlertsPanel
         isVisible={isAlertsPanelVisible}
         onClose={() => setIsAlertsPanelVisible(false)}
+        height={alertsPanelHeight}
+        onHeightChange={setAlertsPanelHeight}
+        sidePanelWidth={sidePanelWidth}
         alerts={currentAlerts}
         loading={loading}
         error={error}
@@ -452,6 +461,7 @@ export const App: React.FC = () => {
         }}
         onFilterChange={handleFilterChange}
         onClearSearch={handleClearSearch}
+        onResetFilters={handleResetFilters}
         onRefresh={refreshAlerts}
         onAlertClick={handleAlertClick}
         onAlertHover={handleAlertHover}
@@ -463,6 +473,8 @@ export const App: React.FC = () => {
         data={selectedAlert}
         onClose={handleDetailCardClose}
         onActionClick={handleDetailCardAction}
+        width={sidePanelWidth}
+        onWidthChange={setSidePanelWidth}
       />
 
       {/* Settings Panel (Full Screen Popup) */}

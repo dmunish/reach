@@ -88,6 +88,7 @@ export interface AlertFromRPC {
   severity: AlertSeverity | null;
   urgency: AlertUrgency | null;
   description: string | null;
+  instruction: string | null;
   source: string | null;
   url: string | null;
   effective_from: string | null;

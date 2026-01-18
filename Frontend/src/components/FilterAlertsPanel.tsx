@@ -11,6 +11,9 @@ import type { DetailData } from "./DetailCard";
 export interface FilterAlertsPanelProps {
   isVisible: boolean;
   onClose: () => void;
+  height: number;
+  onHeightChange: (height: number) => void;
+  sidePanelWidth: number;
   // Data props
   alerts: DetailData[];
   loading: boolean;
@@ -30,6 +33,7 @@ export interface FilterAlertsPanelProps {
   // Handlers
   onFilterChange: (key: string, value: any) => void;
   onClearSearch: () => void;
+  onResetFilters: () => void;
   onRefresh: () => void;
   onAlertClick: (alert: DetailData) => void;
   onAlertHover?: (alert: DetailData) => void;
@@ -51,17 +55,43 @@ const URGENCIES: AlertUrgency[] = [
 export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
   isVisible,
   onClose,
+  height,
+  onHeightChange,
+  sidePanelWidth,
   alerts,
   loading,
   error,
   filters,
   onFilterChange,
   onClearSearch,
+  onResetFilters,
   onRefresh,
   onAlertClick,
   onAlertHover
 }) => {
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(true);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const newHeight = window.innerHeight - moveEvent.clientY - 16; // 16 for bottom-4
+      if (newHeight > 100 && newHeight < window.innerHeight - 100) {
+        onHeightChange(newHeight);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
 
   const getSeverityColor = (severity?: string): string => {
     switch (severity?.toLowerCase()) {
@@ -77,21 +107,34 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
     filters.category, 
     filters.severity, 
     filters.urgency, 
-    filters.startDate
+    filters.startDate,
+    filters.endDate,
+    filters.searchQuery,
+    filters.status !== 'active' ? 'status' : null,
+    filters.sortBy !== 'effective_from' ? 'sort' : null,
+    filters.sortOrder !== 'desc' ? 'order' : null
   ].filter(Boolean).length;
 
   return (
     <div
       className={`fixed 
         bottom-4 left-4 right-4 
-        sm:left-22 sm:right-4
-        md:right-[416px]
-        lg:right-[416px]
-        h-[400px]
+        sm:left-22
         frosted-glass transform transition-all duration-300 ease-in-out z-40 flex flex-col
         ${isVisible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"}
+        ${isResizing ? "transition-none" : ""}
       `}
+      style={{
+        height: `${height}px`,
+        right: `calc(${sidePanelWidth}px + 2rem)`, // sidePanelWidth + 32px (margins)
+      }}
     >
+      {/* Resize Handle */}
+      <div 
+        className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-caribbean-green/50 transition-colors z-50"
+        onMouseDown={handleMouseDown}
+      />
+
       <div className="p-4 border-b border-white/10 bg-rich-black/30 backdrop-blur-md">
         {/* Top Bar: Title, Search, Status, Sort, Actions */}
         <div className="flex flex-col gap-3">
@@ -107,6 +150,16 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
             </div>
             
             <div className="flex items-center space-x-2">
+               {activeFilterCount > 0 && (
+                <button
+                  onClick={onResetFilters}
+                  className="p-1.5 text-[10px] uppercase tracking-wider font-semibold text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1"
+                  title="Reset all filters"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                  Reset
+                </button>
+              )}
                <button
                 onClick={() => setShowAdvanced(!showAdvanced)}
                 className={`p-1.5 rounded-md transition-colors text-xs flex items-center gap-1 ${showAdvanced || activeFilterCount > 0 ? 'bg-caribbean-green/20 text-caribbean-green' : 'text-gray-400 hover:text-white'}`}
@@ -159,21 +212,21 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
             <select 
               value={filters.status}
               onChange={(e) => onFilterChange("status", e.target.value)}
-              className="bg-rich-black/50 text-white text-xs border border-white/10 rounded-md py-1.5 px-2 focus:outline-none focus:border-caribbean-green/50"
+              className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-2 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
             >
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-              <option value="all">All Status</option>
+              <option value="active" className="bg-rich-black text-white">Active</option>
+              <option value="archived" className="bg-rich-black text-white">Archived</option>
+              <option value="all" className="bg-rich-black text-white">All Status</option>
             </select>
 
              <select 
               value={filters.sortBy}
               onChange={(e) => onFilterChange("sortBy", e.target.value)}
-              className="bg-rich-black/50 text-white text-xs border border-white/10 rounded-md py-1.5 px-2 focus:outline-none focus:border-caribbean-green/50"
+              className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-2 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
             >
-              <option value="effective_from">Date</option>
-              <option value="severity">Severity</option>
-              <option value="urgency">Urgency</option>
+              <option value="effective_from" className="bg-rich-black text-white">Date</option>
+              <option value="severity" className="bg-rich-black text-white">Severity</option>
+              <option value="urgency" className="bg-rich-black text-white">Urgency</option>
             </select>
 
             <button
@@ -213,10 +266,10 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
               <select 
                 value={filters.category || ""}
                 onChange={(e) => onFilterChange("category", e.target.value || undefined)}
-                className="bg-rich-black/50 text-white text-xs border border-white/10 rounded-md py-1 px-2 focus:outline-none focus:border-caribbean-green/50"
+                className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1 px-2 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
               >
-                <option value="">All Categories</option>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="" className="bg-rich-black text-white">All Categories</option>
+                {CATEGORIES.map(c => <option key={c} value={c} className="bg-rich-black text-white">{c}</option>)}
               </select>
             </div>
 
@@ -225,10 +278,10 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
               <select 
                 value={filters.severity || ""}
                 onChange={(e) => onFilterChange("severity", e.target.value || undefined)}
-                className="bg-rich-black/50 text-white text-xs border border-white/10 rounded-md py-1 px-2 focus:outline-none focus:border-caribbean-green/50"
+                className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1 px-2 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
               >
-                <option value="">All Severities</option>
-                {SEVERITIES.map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="" className="bg-rich-black text-white">All Severities</option>
+                {SEVERITIES.map(s => <option key={s} value={s} className="bg-rich-black text-white">{s}</option>)}
               </select>
             </div>
 
@@ -237,10 +290,10 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
               <select 
                 value={filters.urgency || ""}
                 onChange={(e) => onFilterChange("urgency", e.target.value || undefined)}
-                className="bg-rich-black/50 text-white text-xs border border-white/10 rounded-md py-1 px-2 focus:outline-none focus:border-caribbean-green/50"
+                className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1 px-2 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
               >
-                <option value="">All Urgencies</option>
-                {URGENCIES.map(u => <option key={u} value={u}>{u}</option>)}
+                <option value="" className="bg-rich-black text-white">All Urgencies</option>
+                {URGENCIES.map(u => <option key={u} value={u} className="bg-rich-black text-white">{u}</option>)}
               </select>
             </div>
           </div>

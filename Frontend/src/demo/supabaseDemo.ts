@@ -18,7 +18,7 @@ async function fetchAllAlerts() {
 
 // Example 2: Fetch active alerts only
 async function fetchActiveAlerts() {
-  const result = await alertsService.getActiveAlerts();
+  const result = await alertsService.getAlerts({ status_filter: 'active' });
   
   if (result.error) {
     console.error('Error fetching active alerts:', result.error);
@@ -31,8 +31,8 @@ async function fetchActiveAlerts() {
 // Example 3: Fetch alerts with date filter
 async function fetchAlertsInDateRange(startDate: Date, endDate: Date) {
   const result = await alertsService.getAlerts({
-    startDate,
-    endDate,
+    date_start: startDate.toISOString(),
+    date_end: endDate.toISOString(),
   });
   
   if (result.error) {

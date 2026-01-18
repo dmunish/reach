@@ -46,8 +46,8 @@ class AlertsService {
         return { data: null, error: error.message, loading: false };
       }
 
-      console.log("alertsService: Fetched alerts count:", data?.length);
-      return { data: data as AlertFromRPC[], error: null, loading: false };
+      console.log("alertsService: Fetched alerts count:", data?.length ?? 0);
+      return { data: (data as AlertFromRPC[]) ?? [], error: null, loading: false };
     } catch (error) {
       console.error("Unexpected error fetching alerts:", error);
       return {
@@ -146,7 +146,11 @@ class AlertsService {
         return { data: null, error: error.message, loading: false };
       }
 
-      const uniqueSources = [...new Set(data.map((item) => item.source))];
+      if (!data) {
+        return { data: [], error: null, loading: false };
+      }
+
+      const uniqueSources = [...new Set(data.map((item: any) => item.source))];
       return { data: uniqueSources, error: null, loading: false };
     } catch (error) {
       console.error("Unexpected error fetching alert sources:", error);
@@ -202,15 +206,17 @@ class AlertsService {
       }
 
       // Group by severity and category
-      // @ts-ignore - Suppress type errors for dynamic alert data aggregation
-      const bySeverity = allAlerts.reduce((acc, alert) => {
-        acc[alert.severity] = (acc[alert.severity] || 0) + 1;
+      const bySeverity = (allAlerts || []).reduce((acc: any, alert: any) => {
+        if (alert.severity) {
+          acc[alert.severity as AlertSeverity] = (acc[alert.severity] || 0) + 1;
+        }
         return acc;
       }, {} as Record<AlertSeverity, number>);
 
-      // @ts-ignore - Suppress type errors for dynamic alert data aggregation
-      const byCategory = allAlerts.reduce((acc, alert) => {
-        acc[alert.category] = (acc[alert.category] || 0) + 1;
+      const byCategory = (allAlerts || []).reduce((acc: any, alert: any) => {
+        if (alert.category) {
+          acc[alert.category as AlertCategory] = (acc[alert.category] || 0) + 1;
+        }
         return acc;
       }, {} as Record<AlertCategory, number>);
 

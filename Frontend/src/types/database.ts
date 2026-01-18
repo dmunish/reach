@@ -151,7 +151,28 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      get_alerts: {
+        Args: {
+          status_filter: "active" | "archived" | "all";
+          search_query: string | null;
+          category_filter: string | null;
+          severity_filter: string | null;
+          urgency_filter: string | null;
+          date_start: string | null;
+          date_end: string | null;
+          sort_by: string;
+          sort_order: string;
+          page_size: number;
+          page_offset: number;
+        };
+        Returns: AlertFromRPC[];
+      };
+      get_alert_geometry: {
+        Args: {
+          alert_uuid: string;
+        };
+        Returns: AlertGeometry | null;
+      };
     };
     Enums: {
       alert_category: AlertCategory;

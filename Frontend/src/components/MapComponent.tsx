@@ -25,7 +25,9 @@ export interface MapRef {
   flyTo: (coordinates: [number, number], zoomLevel?: number) => void;
   getMap: () => mapboxgl.Map | null;
   highlightPolygon: (geometries: any | any[]) => void;
+  highlightGeoJSON: (geometry: any) => void;
   fitToPolygons: (geometries: any | any[], padding?: number) => void;
+  fitToBbox: (bbox: { xmin: number; ymin: number; xmax: number; ymax: number }, padding?: number) => void;
   clearHighlight: () => void;
 }
 
@@ -495,12 +497,127 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       }
     };
 
+    // Function to highlight a GeoJSON geometry directly (from RPC response)
+    const highlightGeoJSON = (geometry: any) => {
+      if (!map.current) {
+        console.warn("Map not available for highlighting");
+        return;
+      }
+
+      // Don't show polygons if setting is disabled
+      if (!showPolygons) {
+        console.log("Polygon display is disabled in settings");
+        return;
+      }
+
+      // Wait for map to be fully loaded
+      if (!map.current.isStyleLoaded()) {
+        console.log("Map style not loaded yet, waiting...");
+        map.current.once("styledata", () => {
+          highlightGeoJSON(geometry);
+        });
+        return;
+      }
+
+      if (!geometry) {
+        console.warn("No geometry to highlight");
+        return;
+      }
+
+      console.log("Highlighting GeoJSON geometry:", geometry);
+
+      try {
+        // Remove existing highlight if any
+        clearHighlight();
+
+        // Check if map is still valid before adding layers
+        if (!map.current.getStyle()) {
+          console.warn("Map style not available, skipping polygon highlight");
+          return;
+        }
+
+        // Create a Feature from the geometry
+        const feature = {
+          type: "Feature",
+          geometry: geometry,
+          properties: {},
+        };
+
+        // Add the polygon as a source
+        map.current.addSource("highlighted-polygon", {
+          type: "geojson",
+          data: feature as any,
+        });
+
+        // Add fill layer
+        map.current.addLayer({
+          id: "highlighted-polygon-fill",
+          type: "fill",
+          source: "highlighted-polygon",
+          paint: {
+            "fill-color": "#006240", // Bangladesh green - more muted
+            "fill-opacity": 0.25,
+          },
+        });
+
+        // Add outline layer
+        map.current.addLayer({
+          id: "highlighted-polygon-outline",
+          type: "line",
+          source: "highlighted-polygon",
+          paint: {
+            "line-color": "#2fa96c", // Mint green - softer outline
+            "line-width": 2,
+          },
+        });
+
+        console.log("Successfully highlighted GeoJSON geometry");
+      } catch (error) {
+        console.warn(
+          "Failed to add polygon highlight (context may be lost):",
+          error
+        );
+      }
+    };
+
+    // Function to fit map bounds to a bbox (pre-computed from RPC)
+    const fitToBbox = (bbox: { xmin: number; ymin: number; xmax: number; ymax: number }, padding: number = 50) => {
+      if (!map.current) {
+        console.warn("Map not available for fitting bounds");
+        return;
+      }
+
+      const { xmin, ymin, xmax, ymax } = bbox;
+
+      // Validate bbox values
+      if (isNaN(xmin) || isNaN(ymin) || isNaN(xmax) || isNaN(ymax)) {
+        console.warn("Invalid bbox values:", bbox);
+        return;
+      }
+
+      // Create bounds and fit map
+      const bounds = new mapboxgl.LngLatBounds(
+        [xmin, ymin],
+        [xmax, ymax]
+      );
+
+      map.current.fitBounds(bounds, {
+        padding: padding,
+        maxZoom: 12, // Don't zoom in too much for small polygons
+        duration: 1000, // Smooth animation
+      });
+
+      console.log(`Fitted map to bbox: [${xmin}, ${ymin}] - [${xmax}, ${ymax}]`);
+    };
+
     // Expose map methods via ref
     useImperativeHandle(ref, () => ({
       flyTo,
       getMap: () => map.current,
       highlightPolygon,
+      highlightGeoJSON,
       fitToPolygons,
+      fitToBbox,
       clearHighlight,
     }));
 

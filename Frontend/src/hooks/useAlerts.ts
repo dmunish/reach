@@ -1,32 +1,38 @@
-import { useState, useEffect, useCallback } from "react";
-import { alertsService, type AlertsFilters } from "../services/alertsService";
-import type { AlertWithLocation } from "../types/database";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { alertsService, type AlertsRPCFilters } from "../services/alertsService";
+import type { AlertFromRPC, AlertGeometry, AlertCategory, AlertSeverity, AlertUrgency } from "../types/database";
 
 interface UseAlertsOptions {
-  filters?: AlertsFilters;
+  filters?: AlertsRPCFilters;
   autoFetch?: boolean;
-  activeOnly?: boolean;
 }
 
 export function useAlerts(options: UseAlertsOptions = {}) {
-  const { filters, autoFetch = true, activeOnly = false } = options;
+  const { filters, autoFetch = true } = options;
 
-  const [alerts, setAlerts] = useState<AlertWithLocation[]>([]);
+  const [alerts, setAlerts] = useState<AlertFromRPC[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Track the last fetched filters to avoid duplicate calls
+  const lastFetchedFilters = useRef<string>("");
 
-  const fetchAlerts = useCallback(async () => {
-    console.log("useAlerts: Fetching alerts with filters:", filters);
+  const fetchAlerts = useCallback(async (forceRefetch = false) => {
+    // Create a string representation of current filters for comparison
+    const filterString = JSON.stringify(filters);
+    
+    // Skip if already fetched with same filters (unless forced)
+    if (!forceRefetch && filterString === lastFetchedFilters.current && alerts.length > 0) {
+      console.log("useAlerts: Skipping fetch - filters unchanged");
+      return;
+    }
+
+    console.log("useAlerts: Fetching alerts with RPC filters:", filters);
     setLoading(true);
     setError(null);
 
     try {
-      let result;
-      if (activeOnly) {
-        result = await alertsService.getActiveAlerts();
-      } else {
-        result = await alertsService.getAlerts(filters);
-      }
+      const result = await alertsService.getAlerts(filters);
 
       if (result.error) {
         setError(result.error);
@@ -34,6 +40,7 @@ export function useAlerts(options: UseAlertsOptions = {}) {
       } else {
         console.log("useAlerts: Fetched alerts count:", result.data?.length);
         setAlerts(result.data || []);
+        lastFetchedFilters.current = filterString;
       }
     } catch (err) {
       const errorMessage =
@@ -44,19 +51,21 @@ export function useAlerts(options: UseAlertsOptions = {}) {
       setLoading(false);
     }
   }, [
-    filters?.startDate?.toISOString(),
-    filters?.endDate?.toISOString(),
-    filters?.severities?.join(","),
-    filters?.categories?.join(","),
-    filters?.severity,
-    filters?.category,
-    filters?.urgency,
-    filters?.source,
-    activeOnly,
+    filters?.status_filter,
+    filters?.search_query,
+    filters?.category_filter,
+    filters?.severity_filter,
+    filters?.urgency_filter,
+    filters?.date_start,
+    filters?.date_end,
+    filters?.sort_by,
+    filters?.sort_order,
+    filters?.page_size,
+    filters?.page_offset,
   ]);
 
   const refetch = useCallback(() => {
-    return fetchAlerts();
+    return fetchAlerts(true);
   }, [fetchAlerts]);
 
   useEffect(() => {
@@ -75,48 +84,63 @@ export function useAlerts(options: UseAlertsOptions = {}) {
   };
 }
 
-// Hook for fetching a single alert
-export function useAlert(id: string | null) {
-  const [alert, setAlert] = useState<AlertWithLocation | null>(null);
+// Hook for fetching alert geometry with caching
+export function useAlertGeometry() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAlert = useCallback(async (alertId: string) => {
+  const fetchGeometry = useCallback(async (alertId: string): Promise<AlertGeometry | null> => {
+    // Check cache first
+    if (alertsService.isGeometryCached(alertId)) {
+      console.log("useAlertGeometry: Returning cached geometry for:", alertId);
+      return alertsService.getCachedGeometry(alertId) ?? null;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const result = await alertsService.getAlertById(alertId);
+      const result = await alertsService.getAlertGeometry(alertId);
 
       if (result.error) {
         setError(result.error);
-        setAlert(null);
-      } else {
-        setAlert(result.data);
+        return null;
       }
+
+      return result.data;
     } catch (err) {
       const errorMessage =
-        err instanceof Error ? err.message : "Failed to fetch alert";
+        err instanceof Error ? err.message : "Failed to fetch geometry";
       setError(errorMessage);
-      setAlert(null);
+      return null;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    if (id) {
-      fetchAlert(id);
-    } else {
-      setAlert(null);
-      setError(null);
+  const prefetchGeometry = useCallback(async (alertId: string): Promise<void> => {
+    // Non-blocking prefetch for hover preloading
+    if (!alertsService.isGeometryCached(alertId)) {
+      alertsService.prefetchGeometry(alertId).catch((err) => {
+        console.warn("useAlertGeometry: Prefetch failed for:", alertId, err);
+      });
     }
-  }, [id, fetchAlert]);
+  }, []);
+
+  const isGeometryCached = useCallback((alertId: string): boolean => {
+    return alertsService.isGeometryCached(alertId);
+  }, []);
+
+  const getCachedGeometry = useCallback((alertId: string): AlertGeometry | null | undefined => {
+    return alertsService.getCachedGeometry(alertId);
+  }, []);
 
   return {
-    alert,
     loading,
     error,
-    refetch: id ? () => fetchAlert(id) : () => Promise.resolve(),
+    fetchGeometry,
+    prefetchGeometry,
+    isGeometryCached,
+    getCachedGeometry,
   };
 }

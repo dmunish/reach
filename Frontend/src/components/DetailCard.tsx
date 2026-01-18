@@ -367,7 +367,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
       <div
         className={`fixed 
           bottom-4 left-4 right-4 h-80 
-          sm:bottom-4 sm:right-4 sm:left-auto sm:w-96 sm:max-w-96
+          sm:top-20 sm:bottom-4 sm:h-auto sm:right-4 sm:left-auto sm:w-96 sm:max-w-96
           frosted-glass transform transition-all duration-300 ease-in-out z-40 overflow-y-auto dark-scrollbar
           ${
             isVisible

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React from "react";
 import type { DetailData } from "./DetailCard";
 
 export interface RecentAlertsPanelProps {
@@ -8,7 +8,11 @@ export interface RecentAlertsPanelProps {
   loading: boolean;
   error: string | null;
   onAlertClick: (alert: DetailData) => void;
+  onAlertHover?: (alert: DetailData) => void;
   onRefresh: () => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  onClearSearch: () => void;
 }
 
 export const RecentAlertsPanel: React.FC<RecentAlertsPanelProps> = ({
@@ -18,9 +22,12 @@ export const RecentAlertsPanel: React.FC<RecentAlertsPanelProps> = ({
   loading,
   error,
   onAlertClick,
+  onAlertHover,
   onRefresh,
+  searchQuery,
+  onSearchChange,
+  onClearSearch,
 }) => {
-  const [searchTerm, setSearchTerm] = useState("");
   const getSeverityColor = (severity?: string): string => {
     switch (severity?.toLowerCase()) {
       case "extreme":
@@ -51,18 +58,8 @@ export const RecentAlertsPanel: React.FC<RecentAlertsPanelProps> = ({
     }
   };
 
-  // Filter alerts based on search term
-  const filteredAlerts = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return alerts;
-    }
-    return alerts.filter((alert) =>
-      alert.location?.toLowerCase().includes(searchTerm.toLowerCase().trim())
-    );
-  }, [alerts, searchTerm]);
-
   const handleRefresh = () => {
-    setSearchTerm(""); // Clear search when refreshing
+    onClearSearch(); // Clear search when refreshing
     onRefresh();
   };
 
@@ -90,9 +87,7 @@ export const RecentAlertsPanel: React.FC<RecentAlertsPanelProps> = ({
           </div>
           <div className="flex items-center space-x-1">
             <span className="text-xs text-gray-400">
-              {searchTerm
-                ? `${filteredAlerts.length}/${alerts.length}`
-                : `Count: ${alerts.length}`}
+              {`Count: ${alerts.length}`}
             </span>
             <button
               onClick={handleRefresh}
@@ -160,14 +155,14 @@ export const RecentAlertsPanel: React.FC<RecentAlertsPanelProps> = ({
             </div>
             <input
               type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
               className="search-input w-full pl-10 pr-4 py-1.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-mountain-meadow focus:ring-opacity-50"
-              placeholder="Search by location..."
+              placeholder="Search alerts..."
             />
-            {searchTerm && (
+            {searchQuery && (
               <button
-                onClick={() => setSearchTerm("")}
+                onClick={onClearSearch}
                 className="absolute inset-y-0 right-0 pr-3 flex items-center"
               >
                 <svg
@@ -215,16 +210,16 @@ export const RecentAlertsPanel: React.FC<RecentAlertsPanelProps> = ({
 
         {/* Alerts List */}
         <div className="flex-1 overflow-y-auto dark-scrollbar">
-          {filteredAlerts.length === 0 && !loading && !error ? (
+          {alerts.length === 0 && !loading && !error ? (
             <div className="text-center text-gray-400 py-8">
               <p className="text-sm">
-                {searchTerm
-                  ? `No alerts found for "${searchTerm}"`
+                {searchQuery
+                  ? `No alerts found for "${searchQuery}"`
                   : "No alerts found"}
               </p>
-              {searchTerm && (
+              {searchQuery && (
                 <button
-                  onClick={() => setSearchTerm("")}
+                  onClick={onClearSearch}
                   className="text-xs text-bangladesh-green hover:text-mountain-meadow mt-2 underline"
                 >
                   Clear search
@@ -233,10 +228,11 @@ export const RecentAlertsPanel: React.FC<RecentAlertsPanelProps> = ({
             </div>
           ) : (
             <div className="space-y-1">
-              {filteredAlerts.map((alert, index) => (
+              {alerts.map((alert, index) => (
                 <div
                   key={alert.id || index}
                   onClick={() => onAlertClick(alert)}
+                  onMouseEnter={() => onAlertHover?.(alert)}
                   className={`grid grid-cols-12 gap-2 px-2 py-2 cursor-pointer transition-colors hover:bg-dark-green hover:bg-opacity-60 ${
                     index % 2 === 1 ? "bg-rich-black bg-opacity-30" : ""
                   }`}

@@ -5,212 +5,54 @@ import React, {
   useCallback,
   useEffect,
 } from "react";
+import { useDebouncedCallback } from "use-debounce";
 import { MapComponent, type MapRef } from "./components/MapComponent";
 import { Navbar } from "./components/Navbar";
-import { FilterPanel } from "./components/FilterPanel";
-import { RecentAlertsPanel } from "./components/RecentAlertsPanel";
+import { FilterAlertsPanel } from "./components/FilterAlertsPanel";
 import { DetailCard, type DetailData } from "./components/DetailCard";
 import { SettingsPanel, type UserSettings } from "./components/SettingsPanel";
-import { useAlerts } from "./hooks/useAlerts";
-import type { AlertWithLocation } from "./types/database";
+import { useAlerts, useAlertGeometry } from "./hooks/useAlerts";
+import type { AlertFromRPC, AlertsRPCFilters, AlertCategory, AlertSeverity, AlertUrgency } from "./types/database";
 
-// Function to calculate centroid of a polygon
-function calculatePolygonCentroid(coordinates: number[][]): [number, number] {
-  let totalLng = 0;
-  let totalLat = 0;
-  let pointCount = coordinates.length;
+// Transform RPC alert data to match our DetailData interface
+// Uses pre-computed centroids and bbox from the server
+function transformAlertToDetailData(alert: AlertFromRPC): DetailData {
+  // Use pre-computed centroid from server (already lat/lng from PostGIS)
+  const coordinates: [number, number] = 
+    alert.centroid_lng != null && alert.centroid_lat != null
+      ? [alert.centroid_lng, alert.centroid_lat]
+      : [69.3451, 30.3753]; // Default to Pakistan center
 
-  coordinates.forEach(([lng, lat]) => {
-    totalLng += lng;
-    totalLat += lat;
-  });
-
-  return [totalLng / pointCount, totalLat / pointCount];
-}
-
-// Function to extract all coordinates from a polygon geometry
-function extractAllCoordinatesFromGeometry(polygon: any): number[][] | null {
-  if (!polygon) return null;
-
-  try {
-    if (typeof polygon === "string") {
-      const polygonMatch = polygon.match(
-        /POLYGON\s*\(\s*\(\s*([\d.-\s,]+)\s*\)\s*\)/i
-      );
-      if (polygonMatch) {
-        const coordString = polygonMatch[1];
-        const coordinates: number[][] = [];
-        const coordPairs = coordString.split(",");
-        coordPairs.forEach((pair) => {
-          const coords = pair.trim().split(/\s+/);
-          if (coords.length >= 2) {
-            const lng = parseFloat(coords[0]);
-            const lat = parseFloat(coords[1]);
-            if (!isNaN(lng) && !isNaN(lat)) {
-              coordinates.push([lng, lat]);
-            }
-          }
-        });
-        return coordinates.length > 0 ? coordinates : null;
+  // Extract bbox for zoom fitting
+  const bbox = (alert.bbox_xmin != null && alert.bbox_ymin != null && 
+                alert.bbox_xmax != null && alert.bbox_ymax != null)
+    ? {
+        xmin: alert.bbox_xmin,
+        ymin: alert.bbox_ymin,
+        xmax: alert.bbox_xmax,
+        ymax: alert.bbox_ymax,
       }
-    } else if (polygon && typeof polygon === "object") {
-      if (polygon.type === "Polygon" && polygon.coordinates?.[0]) {
-        return polygon.coordinates[0];
-      }
-      if (polygon.type === "Point" && polygon.coordinates) {
-        return [polygon.coordinates];
-      }
-      if (polygon.coordinates && Array.isArray(polygon.coordinates)) {
-        if (Array.isArray(polygon.coordinates[0])) {
-          return polygon.coordinates;
-        } else {
-          return [polygon.coordinates];
-        }
-      }
-    }
-  } catch (error) {
-    console.warn("Failed to extract coordinates from geometry:", error);
-  }
-  return null;
-}
-
-// Function to calculate the center of the bounding box for multiple polygons
-function calculateBBoxCenter(polygons: any[]): [number, number] | null {
-  if (!polygons || polygons.length === 0) return null;
-
-  let minLng = Infinity;
-  let maxLng = -Infinity;
-  let minLat = Infinity;
-  let maxLat = -Infinity;
-  let hasValidCoords = false;
-
-  polygons.forEach((polygon) => {
-    const coords = extractAllCoordinatesFromGeometry(polygon);
-    if (coords) {
-      coords.forEach(([lng, lat]) => {
-        if (!isNaN(lng) && !isNaN(lat)) {
-          minLng = Math.min(minLng, lng);
-          maxLng = Math.max(maxLng, lng);
-          minLat = Math.min(minLat, lat);
-          maxLat = Math.max(maxLat, lat);
-          hasValidCoords = true;
-        }
-      });
-    }
-  });
-
-  if (!hasValidCoords) return null;
-
-  // Return the center of the bounding box
-  return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
-}
-
-// Function to extract centroid coordinates from PostGIS geometry data
-function extractCoordinatesFromGeometry(polygon: any): [number, number] | null {
-  if (!polygon) return null;
-
-  try {
-    // Handle different PostGIS geometry formats
-    if (typeof polygon === "string") {
-      // Parse WKT string like "POLYGON((lng lat, lng lat, ...))"
-      const polygonMatch = polygon.match(
-        /POLYGON\s*\(\s*\(\s*([\d.-\s,]+)\s*\)\s*\)/i
-      );
-      if (polygonMatch) {
-        const coordString = polygonMatch[1];
-        const coordinates: number[][] = [];
-
-        // Extract all coordinate pairs
-        const coordPairs = coordString.split(",");
-        coordPairs.forEach((pair) => {
-          const coords = pair.trim().split(/\s+/);
-          if (coords.length >= 2) {
-            const lng = parseFloat(coords[0]);
-            const lat = parseFloat(coords[1]);
-            if (!isNaN(lng) && !isNaN(lat)) {
-              coordinates.push([lng, lat]);
-            }
-          }
-        });
-
-        if (coordinates.length > 0) {
-          return calculatePolygonCentroid(coordinates);
-        }
-      }
-    } else if (polygon && typeof polygon === "object") {
-      // If it's a GeoJSON-like object
-      if (polygon.type === "Polygon" && polygon.coordinates?.[0]) {
-        const ringCoordinates = polygon.coordinates[0]; // Outer ring
-        if (Array.isArray(ringCoordinates) && ringCoordinates.length > 0) {
-          return calculatePolygonCentroid(ringCoordinates);
-        }
-      }
-      // If it's a Point, return it directly
-      if (polygon.type === "Point" && polygon.coordinates) {
-        const [lng, lat] = polygon.coordinates;
-        return [lng, lat];
-      }
-      // If coordinates are directly available as array
-      if (polygon.coordinates && Array.isArray(polygon.coordinates)) {
-        if (Array.isArray(polygon.coordinates[0])) {
-          // It's an array of coordinates, calculate centroid
-          return calculatePolygonCentroid(polygon.coordinates);
-        } else {
-          // It's a single coordinate pair
-          const [lng, lat] = polygon.coordinates;
-          return [lng, lat];
-        }
-      }
-    }
-  } catch (error) {
-    console.warn("Failed to parse geometry:", error);
-  }
-
-  return null;
-}
-
-// Transform Supabase alert data to match our DetailData interface
-function transformAlertToDetailData(alert: AlertWithLocation): DetailData {
-  const firstLocation = alert.alert_areas?.[0]?.place;
-
-  // Collect all polygons from all alert_areas
-  const allPolygons = alert.alert_areas?.map((area) => area.place?.polygon).filter(Boolean) || [];
-
-  // Calculate center of bounding box surrounding all polygons
-  let coordinates: [number, number];
-
-  if (allPolygons.length > 0) {
-    const bboxCenter = calculateBBoxCenter(allPolygons);
-    if (bboxCenter) {
-      coordinates = bboxCenter;
-    } else {
-      // Fallback to Pakistan center if geometry parsing fails
-      coordinates = [69.3451, 30.3753]; // Pakistan center
-    }
-  } else {
-    // Default to Pakistan center if no geometry data
-    coordinates = [69.3451, 30.3753];
-  }
+    : null;
 
   return {
     id: alert.id,
-    title: alert.event,
-    description: alert.description,
-    location: firstLocation?.name || "Unknown Location",
-    date: new Date(alert.effective_from),
-    category: alert.category,
-    severity: alert.severity,
-    urgency: alert.urgency,
-    instruction: alert.instruction,
-    source: alert.document?.source || "Unknown",
-    documentUrl: alert.document?.url || undefined,
+    title: alert.event || "Unknown Event",
+    description: alert.description || "",
+    location: alert.affected_places?.[0] || "Unknown Location",
+    date: alert.effective_from ? new Date(alert.effective_from) : new Date(),
+    category: alert.category || undefined,
+    severity: alert.severity || undefined,
+    urgency: alert.urgency || undefined,
+    instruction: undefined, // Not returned by get_alerts RPC
+    source: alert.source || "Unknown",
+    documentUrl: alert.url || undefined,
     additionalInfo: {
       coordinates,
-      effectiveUntil: new Date(alert.effective_until),
-      places:
-        alert.alert_areas?.map((area) => area.place?.name).filter(Boolean) ||
-        [],
-      polygons: alert.alert_areas?.map((area) => area.place?.polygon).filter(Boolean) || [], // Collect all polygons
+      bbox,
+      effectiveUntil: alert.effective_until ? new Date(alert.effective_until) : undefined,
+      places: alert.affected_places || [],
+      // Geometry will be loaded on-demand via hover/click
+      geometry: undefined,
     },
   };
 }
@@ -220,15 +62,27 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 export const App: React.FC = () => {
   const [selectedAlert, setSelectedAlert] = useState<DetailData | null>(null);
   const [isDetailCardVisible, setIsDetailCardVisible] = useState(false);
-  const [isFilterPanelVisible, setIsFilterPanelVisible] = useState(false);
-  const [isAlertsPanelVisible, setIsAlertsPanelVisible] = useState(false);
+  
+  // Replaced individual panel toggles with a consolidated one where appropriate
+  // We'll treat 'isAlertsPanelVisible' as the visibility for the new FilterAlertsPanel
+  const [isAlertsPanelVisible, setIsAlertsPanelVisible] = useState(true);
+  
   const [isSettingsPanelVisible, setIsSettingsPanelVisible] = useState(false);
+  
+  // Filter States
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
   const [dateFilters, setDateFilters] = useState<{
     startDate?: Date;
     endDate?: Date;
   }>({});
-  const [severityFilters, setSeverityFilters] = useState<string[]>([]);
-  const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
+  const [severityFilter, setSeverityFilter] = useState<AlertSeverity | undefined>(undefined);
+  const [categoryFilter, setCategoryFilter] = useState<AlertCategory | undefined>(undefined);
+  const [urgencyFilter, setUrgencyFilter] = useState<AlertUrgency | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'all'>('active');
+  const [sortBy, setSortBy] = useState<'effective_from' | 'severity' | 'urgency'>('effective_from');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [mapTheme, setMapTheme] = useState<string>("dark-v11");
   const [showPolygons, setShowPolygons] = useState<boolean>(true);
@@ -236,6 +90,56 @@ export const App: React.FC = () => {
   const [filtersInitialized, setFiltersInitialized] = useState(false);
   const mapRef = useRef<MapRef>(null);
   const autoRefreshInterval = useRef<number | null>(null);
+
+  // Geometry fetching hook
+  const { fetchGeometry, prefetchGeometry } = useAlertGeometry();
+
+  // Debounced search - waits 300ms after user stops typing
+  const debouncedSetSearch = useDebouncedCallback(
+    (value: string) => {
+      setDebouncedSearchQuery(value);
+    },
+    300
+  );
+
+  // Clear search
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery("");
+    setDebouncedSearchQuery("");
+  }, [debouncedSetSearch]);
+
+  const handleFilterChange = useCallback((key: string, value: any) => {
+    switch (key) {
+      case 'searchQuery':
+        setSearchQuery(value);
+        debouncedSetSearch(value);
+        break;
+      case 'status':
+        setStatusFilter(value);
+        break;
+      case 'severity':
+        setSeverityFilter(value);
+        break;
+      case 'urgency':
+        setUrgencyFilter(value);
+        break;
+      case 'category':
+        setCategoryFilter(value);
+        break;
+      case 'startDate':
+        setDateFilters(prev => ({ ...prev, startDate: value }));
+        break;
+      case 'endDate':
+        setDateFilters(prev => ({ ...prev, endDate: value }));
+        break;
+      case 'sortBy':
+        setSortBy(value);
+        break;
+      case 'sortOrder':
+        setSortOrder(value);
+        break;
+    }
+  }, [debouncedSetSearch]);
 
   // Load user settings from localStorage on mount
   useEffect(() => {
@@ -260,29 +164,42 @@ export const App: React.FC = () => {
         console.error("Failed to load user settings:", error);
       } finally {
         setSettingsLoaded(true);
+        setFiltersInitialized(true);
       }
     };
     loadUserSettings();
   }, []);
 
-  // Use the Supabase alerts hook with filters
-  const alertsFilters = useMemo(
+  // Build RPC filters from UI state (uses debounced search query)
+  const alertsFilters = useMemo<AlertsRPCFilters>(
     () => ({
-      startDate: dateFilters.startDate,
-      endDate: dateFilters.endDate,
-      ...(severityFilters.length > 0 ? { severities: severityFilters } : {}),
-      ...(categoryFilters.length > 0 ? { categories: categoryFilters } : {}),
+      status_filter: statusFilter,
+      search_query: debouncedSearchQuery || undefined,
+      category_filter: categoryFilter,
+      severity_filter: severityFilter,
+      urgency_filter: urgencyFilter,
+      date_start: dateFilters.startDate?.toISOString(),
+      date_end: dateFilters.endDate?.toISOString(),
+      sort_by: sortBy,
+      sort_order: sortOrder,
+      page_size: 100,
+      page_offset: 0,
     }),
     [
-      dateFilters.startDate,
+      debouncedSearchQuery, 
+      categoryFilter, 
+      severityFilter, 
+      urgencyFilter,
+      dateFilters.startDate, 
       dateFilters.endDate,
-      severityFilters,
-      categoryFilters,
+      statusFilter,
+      sortBy,
+      sortOrder
     ]
   );
 
   const {
-    alerts: supabaseAlerts,
+    alerts: rpcAlerts,
     loading,
     error,
     refetch,
@@ -291,39 +208,10 @@ export const App: React.FC = () => {
     autoFetch: settingsLoaded && filtersInitialized,
   });
 
-  // Transform Supabase alerts to DetailData format
+  // Transform RPC alerts to DetailData format
   const currentAlerts = useMemo(() => {
-    const transformedAlerts = supabaseAlerts.map(transformAlertToDetailData);
-    const now = new Date();
-    
-    // First, get active alerts (effective_until is in the future)
-    const activeAlerts = transformedAlerts.filter(alert => 
-      alert.additionalInfo?.effectiveUntil && 
-      new Date(alert.additionalInfo.effectiveUntil) > now
-    );
-    
-    // If we have at least 10 active alerts, return them
-    if (activeAlerts.length >= 10) {
-      return activeAlerts;
-    }
-    
-    // Otherwise, get past alerts to backfill
-    const pastAlerts = transformedAlerts.filter(alert => 
-      !alert.additionalInfo?.effectiveUntil || 
-      new Date(alert.additionalInfo.effectiveUntil) <= now
-    );
-    
-    // Sort past alerts by effective_until (most recent first)
-    pastAlerts.sort((a, b) => {
-      const dateA = a.additionalInfo?.effectiveUntil ? new Date(a.additionalInfo.effectiveUntil).getTime() : 0;
-      const dateB = b.additionalInfo?.effectiveUntil ? new Date(b.additionalInfo.effectiveUntil).getTime() : 0;
-      return dateB - dateA;
-    });
-    
-    // Combine active and past alerts to ensure at least 10 total
-    const neededCount = Math.max(0, 10 - activeAlerts.length);
-    return [...activeAlerts, ...pastAlerts.slice(0, neededCount)];
-  }, [supabaseAlerts]);
+    return rpcAlerts.map(transformAlertToDetailData);
+  }, [rpcAlerts]);
 
   const getSeverityColor = (severity?: string): string => {
     switch (severity?.toLowerCase()) {
@@ -340,48 +228,36 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleMapClick = (coordinates: [number, number], event: any) => {
-    // Map clicks are now only used for marker interactions
-    // No action needed for regular map clicks
-  };
+  // Handle hover on alert - prefetch geometry only (no map movement)
+  const handleAlertHover = useCallback(async (alert: DetailData) => {
+    if (alert.id) {
+      // Start prefetching geometry asynchronously
+      prefetchGeometry(alert.id);
+    }
+  }, [prefetchGeometry]);
 
-  const handleDateRangeChange = useCallback(
-    (startDate: Date | null, endDate: Date | null) => {
-      setDateFilters({
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-      });
-    },
-    []
-  );
-
-  const handleFiltersChange = useCallback(
-    (filters: { severities: string[]; categories: string[] }) => {
-      setSeverityFilters(filters.severities);
-      setCategoryFilters(filters.categories);
-      setFiltersInitialized(true);
-    },
-    []
-  );
-
-  const handleAlertClick = (alert: DetailData) => {
+  const handleAlertClick = useCallback(async (alert: DetailData) => {
     setSelectedAlert(alert);
     setIsDetailCardVisible(true);
 
-    // Highlight all polygons and fit map to show them all
-    if (mapRef.current) {
-      if (alert.additionalInfo?.polygons && alert.additionalInfo.polygons.length > 0) {
-        // Highlight the polygons
-        mapRef.current.highlightPolygon(alert.additionalInfo.polygons);
-        // Fit map to show all polygons with padding
-        mapRef.current.fitToPolygons(alert.additionalInfo.polygons, 60);
+    if (mapRef.current && alert.id) {
+      // First, zoom to bbox if available
+      if (alert.additionalInfo?.bbox) {
+        mapRef.current.fitToBbox(alert.additionalInfo.bbox, 60);
       } else if (alert.additionalInfo?.coordinates) {
-        // Fallback to flyTo if no polygons available
         const [lng, lat] = alert.additionalInfo.coordinates;
-        mapRef.current.flyTo([lng, lat], 7);
+        mapRef.current.flyTo([lng, lat], 8);
+      }
+
+      // Fetch geometry (will use cache if available from hover)
+      const geometry = await fetchGeometry(alert.id);
+      
+      if (geometry && mapRef.current) {
+        // Highlight the geometry on the map
+        mapRef.current.highlightGeoJSON(geometry);
       }
     }
-  };
+  }, [fetchGeometry]);
 
   const handleDetailCardClose = () => {
     setIsDetailCardVisible(false);
@@ -403,7 +279,7 @@ export const App: React.FC = () => {
       case "share":
         if (navigator.share) {
           navigator.share({
-            title: data.title,
+            title: data.title || "",
             text: data.description,
             url: window.location.href,
           });
@@ -456,7 +332,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Prepare markers for map - hide other pins when an alert is focused
+  // Prepare markers for map using pre-computed centroids
   const mapMarkers = currentAlerts
     .filter((alert) => alert.additionalInfo?.coordinates)
     .filter((alert) => !selectedAlert || alert.id === selectedAlert.id) // Only show selected alert's pin when focused
@@ -482,8 +358,9 @@ export const App: React.FC = () => {
 
   // Panel toggle handlers
   const handleToggleFilter = () => {
-    setIsFilterPanelVisible(!isFilterPanelVisible);
-    if (!isFilterPanelVisible) {
+    // Both toggle the same panel now as they are merged
+    setIsAlertsPanelVisible(!isAlertsPanelVisible);
+    if (!isAlertsPanelVisible) {
       setIsSettingsPanelVisible(false);
     }
   };
@@ -508,7 +385,6 @@ export const App: React.FC = () => {
 
     if (newVisibility) {
       // Close other panels when settings is opened
-      setIsFilterPanelVisible(false);
       setIsAlertsPanelVisible(false);
       setIsDetailCardVisible(false);
     }
@@ -524,7 +400,6 @@ export const App: React.FC = () => {
           center={[69.3451, 30.3753]}
           theme={mapTheme}
           showPolygons={showPolygons}
-          // zoom={6}
           markers={mapMarkers}
           className="w-full h-full"
         />
@@ -536,35 +411,38 @@ export const App: React.FC = () => {
         onToggleAlerts={handleToggleAlerts}
         onToggleDetails={handleToggleDetails}
         onToggleSettings={handleToggleSettings}
-        isFilterOpen={isFilterPanelVisible}
+        isFilterOpen={isAlertsPanelVisible} // Reusing for both since merged
         isAlertsOpen={isAlertsPanelVisible}
         isDetailsOpen={isDetailCardVisible}
         isSettingsOpen={isSettingsPanelVisible}
       />
 
-      {/* Filter Panel (Top Right) */}
-      <FilterPanel
-        isVisible={isFilterPanelVisible}
-        onClose={() => setIsFilterPanelVisible(false)}
-        onDateRangeChange={handleDateRangeChange}
-        onFiltersChange={handleFiltersChange}
-        defaultSeverity={userSettings?.minSeverity}
-        defaultTimeRange={userSettings?.defaultTimeRange}
-        isLoading={!settingsLoaded}
-      />
-
-      {/* Recent Alerts Panel (Bottom Left - Full Width) */}
-      <RecentAlertsPanel
+      {/* Combined Filter & Alerts Panel (Bottom Left - Full Width) */}
+      <FilterAlertsPanel
         isVisible={isAlertsPanelVisible}
         onClose={() => setIsAlertsPanelVisible(false)}
         alerts={currentAlerts}
         loading={loading}
         error={error}
-        onAlertClick={handleAlertClick}
+        filters={{
+          searchQuery,
+          status: statusFilter,
+          severity: severityFilter,
+          category: categoryFilter,
+          urgency: urgencyFilter,
+          startDate: dateFilters.startDate,
+          endDate: dateFilters.endDate,
+          sortBy,
+          sortOrder
+        }}
+        onFilterChange={handleFilterChange}
+        onClearSearch={handleClearSearch}
         onRefresh={refreshAlerts}
+        onAlertClick={handleAlertClick}
+        onAlertHover={handleAlertHover}
       />
 
-      {/* Detail Card (Bottom Right) */}
+      {/* Detail Card (Right Side Full Height) */}
       <DetailCard
         isVisible={isDetailCardVisible}
         data={selectedAlert}

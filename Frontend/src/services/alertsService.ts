@@ -1,22 +1,11 @@
-// @ts-nocheck
 import { supabase } from "../lib/supabase";
 import type {
-  AlertWithLocation,
+  AlertFromRPC,
+  AlertGeometry,
+  AlertsRPCFilters,
   AlertCategory,
   AlertSeverity,
-  AlertUrgency,
 } from "../types/database";
-
-export interface AlertsFilters {
-  startDate?: Date;
-  endDate?: Date;
-  category?: AlertCategory;
-  categories?: string[];
-  severity?: AlertSeverity;
-  severities?: string[];
-  urgency?: AlertUrgency;
-  source?: string;
-}
 
 export interface AlertsServiceResult<T> {
   data: T | null;
@@ -24,176 +13,122 @@ export interface AlertsServiceResult<T> {
   loading: boolean;
 }
 
-class AlertsService {
-  private get baseQuery() {
-    return supabase.from("alerts").select(
-      `
-        *,
-        document:documents!document_id(*),
-        alert_areas(
-          *,
-          place:places(*)
-        )
-      `
-    );
-  }
+// Geometry cache to avoid redundant fetches
+const geometryCache = new Map<string, AlertGeometry | null>();
 
+class AlertsService {
   /**
-   * Fetch all alerts with optional filtering and pagination
+   * Fetch alerts using the get_alerts() RPC function
+   * All filtering, sorting, and pagination is handled server-side
    */
   async getAlerts(
-    filters?: AlertsFilters,
-    limit = 1000,
-    offset = 0
-  ): Promise<AlertsServiceResult<AlertWithLocation[]>> {
+    filters?: AlertsRPCFilters
+  ): Promise<AlertsServiceResult<AlertFromRPC[]>> {
     try {
-      let query = this.baseQuery
-        .order("effective_from", { ascending: false })
-        .range(offset, offset + limit - 1);
+      console.log("alertsService: Calling get_alerts RPC with filters:", filters);
 
-      // Apply filters
-      if (filters?.startDate) {
-        console.log("Applying startDate filter:", filters.startDate);
-        query = query.gte("effective_until", filters.startDate.toISOString());
-      }
-
-      if (filters?.endDate) {
-        console.log("Applying endDate filter:", filters.endDate);
-        query = query.lte("effective_from", filters.endDate.toISOString());
-      }
-
-      if (filters?.category) {
-        console.log("Applying category filter:", filters.category);
-        query = query.eq("category", filters.category);
-      }
-
-      if (filters?.categories && filters.categories.length > 0) {
-        console.log("Applying categories filter:", filters.categories);
-        query = query.in("category", filters.categories);
-      }
-
-      if (filters?.severity) {
-        console.log("Applying severity filter:", filters.severity);
-        query = query.eq("severity", filters.severity);
-      }
-
-      if (filters?.severities && filters.severities.length > 0) {
-        console.log("Applying severities filter:", filters.severities);
-        query = query.in("severity", filters.severities);
-      }
-
-      if (filters?.urgency) {
-        console.log("Applying urgency filter:", filters.urgency);
-        query = query.eq("urgency", filters.urgency);
-      }
-
-      console.log("Executing query with filters:", filters);
-      const { data, error } = await query;
-      console.log("Query result - data count:", data?.length, "error:", error);
+      const { data, error } = await supabase.rpc("get_alerts", {
+        status_filter: filters?.status_filter ?? "active",
+        search_query: filters?.search_query ?? null,
+        category_filter: filters?.category_filter ?? null,
+        severity_filter: filters?.severity_filter ?? null,
+        urgency_filter: filters?.urgency_filter ?? null,
+        date_start: filters?.date_start ?? null,
+        date_end: filters?.date_end ?? null,
+        sort_by: filters?.sort_by ?? "effective_from",
+        sort_order: filters?.sort_order ?? "desc",
+        page_size: filters?.page_size ?? 100,
+        page_offset: filters?.page_offset ?? 0,
+      });
 
       if (error) {
-        console.error("Error fetching alerts:", error);
+        console.error("Error fetching alerts via RPC:", error);
         return { data: null, error: error.message, loading: false };
       }
 
-      return { data: data as AlertWithLocation[], error: null, loading: false };
+      console.log("alertsService: Fetched alerts count:", data?.length);
+      return { data: data as AlertFromRPC[], error: null, loading: false };
     } catch (error) {
       console.error("Unexpected error fetching alerts:", error);
       return {
         data: null,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        error: error instanceof Error ? error.message : "Unknown error occurred",
         loading: false,
       };
     }
   }
 
   /**
-   * Fetch a single alert by ID with full details
+   * Fetch geometry for an alert using get_alert_geometry() RPC function
+   * Results are cached to avoid redundant fetches
    */
-  async getAlertById(
-    id: string
-  ): Promise<AlertsServiceResult<AlertWithLocation>> {
+  async getAlertGeometry(
+    alertId: string
+  ): Promise<AlertsServiceResult<AlertGeometry | null>> {
     try {
-      const { data, error } = await this.baseQuery.eq("id", id).single();
-
-      if (error) {
-        console.error("Error fetching alert by ID:", error);
-        return { data: null, error: error.message, loading: false };
+      // Check cache first
+      if (geometryCache.has(alertId)) {
+        console.log("alertsService: Returning cached geometry for alert:", alertId);
+        return { data: geometryCache.get(alertId) ?? null, error: null, loading: false };
       }
 
-      return { data: data as AlertWithLocation, error: null, loading: false };
-    } catch (error) {
-      console.error("Unexpected error fetching alert by ID:", error);
-      return {
-        data: null,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
-        loading: false,
-      };
-    }
-  }
+      console.log("alertsService: Fetching geometry for alert:", alertId);
 
-  /**
-   * Fetch alerts by geographic bounds (for map display)
-   */
-  async getAlertsByBounds(
-    _north: number,
-    _south: number,
-    _east: number,
-    _west: number
-  ): Promise<AlertsServiceResult<AlertWithLocation[]>> {
-    try {
-      // This would require a PostGIS function to check if alert areas intersect with bounds
-      // For now, we'll fetch all alerts and let the frontend filter
-      const { data, error } = await this.baseQuery.order("effective_from", {
-        ascending: false,
+      const { data, error } = await supabase.rpc("get_alert_geometry", {
+        alert_uuid: alertId,
       });
 
       if (error) {
-        console.error("Error fetching alerts by bounds:", error);
+        console.error("Error fetching alert geometry via RPC:", error);
         return { data: null, error: error.message, loading: false };
       }
 
-      return { data: data as AlertWithLocation[], error: null, loading: false };
+      // Cache the result (even if null)
+      const geometry = data as AlertGeometry | null;
+      geometryCache.set(alertId, geometry);
+
+      console.log("alertsService: Fetched and cached geometry for alert:", alertId);
+      return { data: geometry, error: null, loading: false };
     } catch (error) {
-      console.error("Unexpected error fetching alerts by bounds:", error);
+      console.error("Unexpected error fetching alert geometry:", error);
       return {
         data: null,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        error: error instanceof Error ? error.message : "Unknown error occurred",
         loading: false,
       };
     }
   }
 
   /**
-   * Fetch active alerts (currently effective)
+   * Check if geometry is already cached for an alert
    */
-  async getActiveAlerts(): Promise<AlertsServiceResult<AlertWithLocation[]>> {
-    try {
-      const now = new Date().toISOString();
+  isGeometryCached(alertId: string): boolean {
+    return geometryCache.has(alertId);
+  }
 
-      const { data, error } = await this.baseQuery
-        .lte("effective_from", now)
-        .gte("effective_until", now)
-        .order("effective_from", { ascending: false });
+  /**
+   * Get cached geometry without fetching
+   */
+  getCachedGeometry(alertId: string): AlertGeometry | null | undefined {
+    return geometryCache.get(alertId);
+  }
 
-      if (error) {
-        console.error("Error fetching active alerts:", error);
-        return { data: null, error: error.message, loading: false };
-      }
-
-      return { data: data as AlertWithLocation[], error: null, loading: false };
-    } catch (error) {
-      console.error("Unexpected error fetching active alerts:", error);
-      return {
-        data: null,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
-        loading: false,
-      };
+  /**
+   * Pre-fetch geometry for an alert (for hover preloading)
+   * Returns a promise that resolves when the geometry is cached
+   */
+  async prefetchGeometry(alertId: string): Promise<void> {
+    if (!geometryCache.has(alertId)) {
+      await this.getAlertGeometry(alertId);
     }
+  }
+
+  /**
+   * Clear the geometry cache (useful for testing or memory management)
+   */
+  clearGeometryCache(): void {
+    geometryCache.clear();
+    console.log("alertsService: Geometry cache cleared");
   }
 
   /**
@@ -217,8 +152,7 @@ class AlertsService {
       console.error("Unexpected error fetching alert sources:", error);
       return {
         data: null,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        error: error instanceof Error ? error.message : "Unknown error occurred",
         loading: false,
       };
     }
@@ -294,8 +228,7 @@ class AlertsService {
       console.error("Unexpected error fetching alert statistics:", error);
       return {
         data: null,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        error: error instanceof Error ? error.message : "Unknown error occurred",
         loading: false,
       };
     }
@@ -304,3 +237,6 @@ class AlertsService {
 
 // Export a singleton instance
 export const alertsService = new AlertsService();
+
+// Re-export types for convenience
+export type { AlertsRPCFilters };

@@ -71,12 +71,55 @@ export interface AlertArea {
   specific_instruction: string | null;
 }
 
-// Combined view type for displaying alerts with location information
+// Combined view type for displaying alerts with location information (legacy)
 export interface AlertWithLocation extends Alert {
   document?: Document;
   alert_areas?: (AlertArea & {
     place?: Place;
   })[];
+}
+
+// New type for alerts returned by get_alerts() RPC function
+// Contains pre-computed centroids and bbox for performance
+export interface AlertFromRPC {
+  id: string;
+  category: AlertCategory | null;
+  event: string | null;
+  severity: AlertSeverity | null;
+  urgency: AlertUrgency | null;
+  description: string | null;
+  source: string | null;
+  url: string | null;
+  effective_from: string | null;
+  effective_until: string | null;
+  affected_places: string[] | null;
+  centroid_lat: number | null;
+  centroid_lng: number | null;
+  bbox_xmin: number | null;
+  bbox_ymin: number | null;
+  bbox_xmax: number | null;
+  bbox_ymax: number | null;
+}
+
+// GeoJSON geometry type returned by get_alert_geometry()
+export interface AlertGeometry {
+  type: string;
+  coordinates: number[][][] | number[][][][];
+}
+
+// Filter parameters for get_alerts() RPC function
+export interface AlertsRPCFilters {
+  status_filter?: 'active' | 'archived' | 'all';
+  search_query?: string;
+  category_filter?: AlertCategory;
+  severity_filter?: AlertSeverity;
+  urgency_filter?: AlertUrgency;
+  date_start?: string;
+  date_end?: string;
+  sort_by?: 'effective_from' | 'severity' | 'urgency';
+  sort_order?: 'asc' | 'desc';
+  page_size?: number;
+  page_offset?: number;
 }
 
 // Database schema type for Supabase client

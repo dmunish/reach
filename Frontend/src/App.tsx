@@ -238,14 +238,17 @@ export const App: React.FC = () => {
   }, [prefetchGeometry]);
 
   const handleAlertClick = useCallback(async (alert: DetailData) => {
+    // Capture alert ID at the start to use in async checks
+    const clickedAlertId = alert.id;
+    
     setSelectedAlert(alert);
     setIsDetailCardVisible(true);
 
-    if (alert.id) {
-      activeAlertIdRef.current = alert.id;
+    if (clickedAlertId) {
+      activeAlertIdRef.current = clickedAlertId;
     }
 
-    if (mapRef.current && alert.id) {
+    if (mapRef.current && clickedAlertId) {
       // Clear any existing highlight immediately
       mapRef.current.clearHighlight();
 
@@ -258,9 +261,12 @@ export const App: React.FC = () => {
       }
 
       // Fetch geometry (will use cache if available from hover)
-      const geometry = await fetchGeometry(alert.id);
+      const geometry = await fetchGeometry(clickedAlertId);
       
-      if (activeAlertIdRef.current === alert.id && geometry && mapRef.current) {
+      // Only highlight if:
+      // 1. The ref is still set (card hasn't been closed)
+      // 2. The ref matches this specific alert (user hasn't clicked another)
+      if (activeAlertIdRef.current && activeAlertIdRef.current === clickedAlertId && geometry && mapRef.current) {
         // Highlight the geometry on the map
         mapRef.current.highlightGeoJSON(geometry);
       }

@@ -90,6 +90,7 @@ export const App: React.FC = () => {
   const [filtersInitialized, setFiltersInitialized] = useState(false);
   const mapRef = useRef<MapRef>(null);
   const autoRefreshInterval = useRef<number | null>(null);
+  const activeAlertIdRef = useRef<string | null>(null);
 
   // Geometry fetching hook
   const { fetchGeometry, prefetchGeometry } = useAlertGeometry();
@@ -240,7 +241,14 @@ export const App: React.FC = () => {
     setSelectedAlert(alert);
     setIsDetailCardVisible(true);
 
+    if (alert.id) {
+      activeAlertIdRef.current = alert.id;
+    }
+
     if (mapRef.current && alert.id) {
+      // Clear any existing highlight immediately
+      mapRef.current.clearHighlight();
+
       // First, zoom to bbox if available
       if (alert.additionalInfo?.bbox) {
         mapRef.current.fitToBbox(alert.additionalInfo.bbox, 60);
@@ -252,7 +260,7 @@ export const App: React.FC = () => {
       // Fetch geometry (will use cache if available from hover)
       const geometry = await fetchGeometry(alert.id);
       
-      if (geometry && mapRef.current) {
+      if (activeAlertIdRef.current === alert.id && geometry && mapRef.current) {
         // Highlight the geometry on the map
         mapRef.current.highlightGeoJSON(geometry);
       }
@@ -262,6 +270,7 @@ export const App: React.FC = () => {
   const handleDetailCardClose = () => {
     setIsDetailCardVisible(false);
     setSelectedAlert(null);
+    activeAlertIdRef.current = null;
 
     // Clear polygon highlight when closing detail card
     if (mapRef.current) {

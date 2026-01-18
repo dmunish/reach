@@ -138,7 +138,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             transform: "rotate(180deg)",
           }}
         >
-          Team REACH © 2025
+          Team REACH © 2026
         </div>
       </div>
     </div>

@@ -27,7 +27,7 @@ export interface FilterAlertsPanelProps {
     category?: AlertCategory;
     startDate?: Date;
     endDate?: Date;
-    sortBy: 'effective_from' | 'severity' | 'urgency';
+    sortBy: 'effective_from' | 'posted_date' | 'severity' | 'urgency';
     sortOrder: 'asc' | 'desc';
   };
   // Handlers
@@ -38,6 +38,46 @@ export interface FilterAlertsPanelProps {
   onAlertClick: (alert: DetailData) => void;
   onAlertHover?: (alert: DetailData) => void;
 }
+
+const CategoryIcon: React.FC<{ category?: string }> = ({ category }) => {
+  const size = "w-5 h-5";
+  const props = {
+    className: `${size} text-white`,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round" as "round", 
+    strokeLinejoin: "round" as "round"
+  };
+
+  switch (category?.toLowerCase()) {
+    case "geo":
+      return <svg {...props}><path d="M21 12h-4l-3 9L7 3l-3 9H2" /></svg>;
+    case "met":
+      return <svg {...props}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" /><path d="M16 14v6" /><path d="M8 14v6" /><path d="M12 16v6" /></svg>;
+    case "safety":
+      return <svg {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>;
+    case "security":
+      return <svg {...props}><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>;
+    case "rescue":
+      return <svg {...props}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="4" /><line x1="4.93" y1="4.93" x2="9.17" y2="9.17" /><line x1="14.83" y1="14.83" x2="19.07" y2="19.07" /><line x1="14.83" y1="9.17" x2="19.07" y2="4.93" /><line x1="4.93" y1="19.07" x2="9.17" y2="14.83" /></svg>;
+    case "fire":
+      return <svg {...props}><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" /></svg>;
+    case "health":
+      return <svg {...props}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.505 4.046 3 5.5L12 21l7-7Z" /></svg>;
+    case "env":
+      return <svg {...props}><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" /><path d="M2 21c0-3 1.85-5.36 5.08-6C10.9 14.51 12 13 13 12" /></svg>;
+    case "transport":
+      return <svg {...props}><rect x="1" y="3" width="15" height="13" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>;
+    case "infra":
+      return <svg {...props}><rect x="4" y="2" width="16" height="20" rx="2" ry="2" /><path d="M9 22v-4h6v4" /><path d="M8 6h.01" /><path d="M16 6h.01" /><path d="M8 10h.01" /><path d="M16 10h.01" /><path d="M8 14h.01" /><path d="M16 14h.01" /></svg>;
+    case "cbrne":
+      return <svg {...props}><circle cx="12" cy="12" r="10" /><path d="m11 12 1-1 3 3" /><path d="m7 12 1-1 3 3" /><path d="m15 12 1-1 3 3" /></svg>;
+    default:
+      return <svg {...props}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>;
+  }
+};
 
 const CATEGORIES: AlertCategory[] = [
   "Geo", "Met", "Safety", "Security", "Rescue", "Fire", 
@@ -69,7 +109,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
   onAlertClick,
   onAlertHover
 }) => {
-  const [showAdvanced, setShowAdvanced] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -93,13 +133,13 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
     window.addEventListener("mouseup", handleMouseUp);
   };
 
-  const getSeverityColor = (severity?: string): string => {
+  const getSeverityColorRGBA = (severity?: string, alpha: number = 1): string => {
     switch (severity?.toLowerCase()) {
-      case "extreme": return "text-red-400";
-      case "severe": return "text-orange-400";
-      case "moderate": return "text-yellow-400";
-      case "minor": return "text-green-400";
-      default: return "text-gray-400";
+      case "extreme": return `rgba(180, 0, 255, ${alpha})`;
+      case "severe": return `rgba(220, 20, 60, ${alpha})`;
+      case "moderate": return `rgba(255, 140, 0, ${alpha})`;
+      case "minor": return `rgba(255, 215, 0, ${alpha})`;
+      default: return `rgba(30, 144, 255, ${alpha})`;
     }
   };
 
@@ -111,7 +151,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
     filters.endDate,
     filters.searchQuery,
     filters.status !== 'active' ? 'status' : null,
-    filters.sortBy !== 'effective_from' ? 'sort' : null,
+    filters.sortBy !== 'posted_date' ? 'sort' : null,
     filters.sortOrder !== 'desc' ? 'order' : null
   ].filter(Boolean).length;
 
@@ -140,7 +180,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <h3 className="text-base font-medium text-white">Alerts</h3>
+              <h3 className="text-xl font-semibold text-white">Alerts</h3>
               <span className="text-xs text-gray-400 bg-white/10 px-2 py-0.5 rounded-full">
                 {alerts.length}
               </span>
@@ -189,22 +229,22 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
             <div className="relative flex-1 min-w-[200px]">
               <input
                 type="text"
-                placeholder="Search alerts..."
+                placeholder="Search titles, descriptions, places..."
                 value={filters.searchQuery}
                 onChange={(e) => onFilterChange("searchQuery", e.target.value)}
-                className="w-full bg-rich-black/50 text-white text-sm border border-white/10 rounded-md py-1.5 pl-8 pr-8 focus:outline-none focus:border-caribbean-green/50 placeholder-gray-500"
+                className="w-full bg-rich-black/50 text-white text-sm border border-white/10 rounded-md py-2 pl-9 pr-8 focus:outline-none focus:border-caribbean-green/50 placeholder-gray-500"
               />
               <svg 
-                className="absolute left-2.5 top-2 w-3.5 h-3.5 text-gray-500"
+                className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-500"
                 xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
               {filters.searchQuery && (
                 <button
                   onClick={onClearSearch}
-                  className="absolute right-2 top-2 p-0.5 hover:text-white text-gray-500"
+                  className="absolute right-2 top-2.5 p-0.5 hover:text-white text-gray-500"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
               )}
             </div>
@@ -212,7 +252,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
             <select 
               value={filters.status}
               onChange={(e) => onFilterChange("status", e.target.value)}
-              className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-2 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+              className="bg-rich-black/50 backdrop-blur-md text-white text-sm border border-white/10 rounded-md py-2 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
             >
               <option value="active" className="bg-rich-black text-white">Active</option>
               <option value="archived" className="bg-rich-black text-white">Archived</option>
@@ -222,9 +262,10 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
              <select 
               value={filters.sortBy}
               onChange={(e) => onFilterChange("sortBy", e.target.value)}
-              className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-2 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+              className="bg-rich-black/50 backdrop-blur-md text-white text-sm border border-white/10 rounded-md py-2 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
             >
-              <option value="effective_from" className="bg-rich-black text-white">Date</option>
+              <option value="posted_date" className="bg-rich-black text-white">Posted Date</option>
+              <option value="effective_from" className="bg-rich-black text-white">Event Date</option>
               <option value="severity" className="bg-rich-black text-white">Severity</option>
               <option value="urgency" className="bg-rich-black text-white">Urgency</option>
             </select>
@@ -249,8 +290,8 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
           ${showAdvanced ? "max-h-40 opacity-100 pt-3 pb-1" : "max-h-0 opacity-0"}
         `}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-             <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-gray-400 uppercase tracking-wider">Date Range</label>
+             <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-gray-400 uppercase tracking-wider font-medium">Date Range</label>
               <DateRangeSelector
                 initialStartDate={filters.startDate}
                 initialEndDate={filters.endDate}
@@ -261,36 +302,36 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-gray-400 uppercase tracking-wider">Category</label>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-gray-400 uppercase tracking-wider font-medium">Category</label>
               <select 
                 value={filters.category || ""}
                 onChange={(e) => onFilterChange("category", e.target.value || undefined)}
-                className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1 px-2 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                className="bg-rich-black/50 backdrop-blur-md text-white text-sm border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
               >
                 <option value="" className="bg-rich-black text-white">All Categories</option>
                 {CATEGORIES.map(c => <option key={c} value={c} className="bg-rich-black text-white">{c}</option>)}
               </select>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-gray-400 uppercase tracking-wider">Severity</label>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-gray-400 uppercase tracking-wider font-medium">Severity</label>
               <select 
                 value={filters.severity || ""}
                 onChange={(e) => onFilterChange("severity", e.target.value || undefined)}
-                className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1 px-2 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                className="bg-rich-black/50 backdrop-blur-md text-white text-sm border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
               >
                 <option value="" className="bg-rich-black text-white">All Severities</option>
                 {SEVERITIES.map(s => <option key={s} value={s} className="bg-rich-black text-white">{s}</option>)}
               </select>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-gray-400 uppercase tracking-wider">Urgency</label>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-gray-400 uppercase tracking-wider font-medium">Urgency</label>
               <select 
                 value={filters.urgency || ""}
                 onChange={(e) => onFilterChange("urgency", e.target.value || undefined)}
-                className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1 px-2 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                className="bg-rich-black/50 backdrop-blur-md text-white text-sm border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
               >
                 <option value="" className="bg-rich-black text-white">All Urgencies</option>
                 {URGENCIES.map(u => <option key={u} value={u} className="bg-rich-black text-white">{u}</option>)}
@@ -312,38 +353,44 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
             {loading ? "Loading..." : "No alerts found matching your filters."}
           </div>
         ) : (
-          <div className="divide-y divide-white/10">
+          <div className="divide-y divide-white/5">
             {alerts.map((alert) => (
               <div
                 key={alert.id}
                 onClick={() => onAlertClick(alert)}
                 onMouseEnter={() => onAlertHover?.(alert)}
-                className="p-3 hover:bg-white/5 cursor-pointer transition-colors group border-l-2 border-transparent hover:border-caribbean-green"
+                className="p-3.5 hover:bg-white/10 cursor-pointer transition-all duration-200 group border-l-4 border-transparent hover:border-caribbean-green relative"
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-4">
+                  {/* Left Side: Android-style Notification Icon */}
+                  <div 
+                    className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center shadow-lg ring-1 ring-white/10 transition-transform duration-200 group-hover:scale-105"
+                    style={{ backgroundColor: getSeverityColorRGBA(alert.severity, 0.25) }}
+                  >
+                    <CategoryIcon category={alert.category} />
+                  </div>
+                  
+                  {/* Right Side: Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/5 uppercase ${getSeverityColor(alert.severity)}`}>
-                        {alert.severity || "Unknown"}
-                      </span>
-                      <span className="text-[10px] text-gray-400">
-                        {alert.date.toLocaleDateString()}
+                    <div className="flex justify-between items-start gap-4">
+                      <h4 className="text-base font-bold text-white truncate group-hover:text-caribbean-green transition-colors leading-tight">
+                        {alert.title}
+                      </h4>
+                      <span className="text-sm text-gray-500 font-medium whitespace-nowrap pt-0.5 transition-colors group-hover:text-gray-400">
+                        {(() => {
+                          const d = alert.postedDate || alert.date;
+                          if (!d) return "";
+                          const day = String(d.getDate()).padStart(2, '0');
+                          const month = String(d.getMonth() + 1).padStart(2, '0');
+                          const year = String(d.getFullYear()).slice(-2);
+                          return `${day}/${month}/${year}`;
+                        })()}
                       </span>
                     </div>
-                    <h4 className="text-sm font-medium text-white truncate group-hover:text-caribbean-green transition-colors">
-                      {alert.title}
-                    </h4>
-                    <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">
+                    <p className="text-sm text-gray-400 mt-1 line-clamp-1 leading-snug font-medium opacity-80 group-hover:opacity-100 transition-opacity">
                       {alert.description}
                     </p>
                   </div>
-                  {/* Arrow Icon */}
-                  <svg 
-                    className="w-4 h-4 text-gray-600 group-hover:text-white transition-colors" 
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
                 </div>
               </div>
             ))}
@@ -351,7 +398,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
              {/* Simple footer since we have page_size=100 default and rpc handles pagination but UI doesn't requested explicit pagination controls yet. 
                  If the user scrolls we might want to load more, but for now just showing what we have. 
              */}
-             <div className="p-2 text-center text-xs text-gray-500 border-t border-white/5">
+             <div className="p-3 text-center text-[10px] uppercase tracking-widest font-semibold text-gray-500 border-t border-white/5 bg-black/20">
                 Showing {alerts.length} alerts
              </div>
           </div>

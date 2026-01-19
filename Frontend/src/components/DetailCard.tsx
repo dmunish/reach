@@ -6,6 +6,7 @@ export interface DetailData {
   description: string;
   location?: string;
   date?: Date;
+  postedDate?: Date;
   category?: string;
   severity?: string;
   urgency?: string;
@@ -389,21 +390,23 @@ export const DetailCard: React.FC<DetailCardProps> = ({
 
                 {/* Areas List */}
                 <div className="flex flex-wrap gap-1.5 p-2 bg-rich-black/30 rounded-lg max-h-40 overflow-y-auto dark-scrollbar">
-                  {data.additionalInfo.places.map((place: string, idx: number) => {
-                    const isMatch = areaSearchQuery && place.toLowerCase().includes(areaSearchQuery.toLowerCase());
-                    return (
-                      <span
-                        key={idx}
-                        className={`text-sm px-2 py-0.5 rounded transition-colors ${
-                          isMatch
-                            ? "bg-caribbean-green/30 text-white font-medium border border-caribbean-green/50"
-                            : "text-gray-400 bg-white/5"
-                        }`}
-                      >
-                        {place}
-                      </span>
-                    );
-                  })}
+                  {data.additionalInfo.places
+                    .filter((p: string) => !areaSearchQuery || p.toLowerCase().includes(areaSearchQuery.toLowerCase()))
+                    .map((place: string, idx: number) => {
+                      const isMatch = areaSearchQuery && place.toLowerCase().includes(areaSearchQuery.toLowerCase());
+                      return (
+                        <span
+                          key={idx}
+                          className={`text-sm px-2 py-0.5 rounded transition-colors ${
+                            isMatch
+                              ? "bg-caribbean-green/30 text-white font-medium border border-caribbean-green/50"
+                              : "text-gray-400 bg-white/5"
+                          }`}
+                        >
+                          {place}
+                        </span>
+                      );
+                    })}
                 </div>
               </div>
             )}

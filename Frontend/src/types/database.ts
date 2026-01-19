@@ -93,6 +93,7 @@ export interface AlertFromRPC {
   url: string | null;
   effective_from: string | null;
   effective_until: string | null;
+  posted_date: string | null;
   affected_places: string[] | null;
   centroid_lat: number | null;
   centroid_lng: number | null;
@@ -117,7 +118,7 @@ export interface AlertsRPCFilters {
   urgency_filter?: AlertUrgency;
   date_start?: string;
   date_end?: string;
-  sort_by?: 'effective_from' | 'severity' | 'urgency';
+  sort_by?: 'effective_from' | 'posted_date' | 'severity' | 'urgency';
   sort_order?: 'asc' | 'desc';
   page_size?: number;
   page_offset?: number;

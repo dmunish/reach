@@ -40,6 +40,7 @@ function transformAlertToDetailData(alert: AlertFromRPC): DetailData {
     description: alert.description || "",
     location: alert.affected_places?.[0] || "Unknown Location",
     date: alert.effective_from ? new Date(alert.effective_from) : new Date(),
+    postedDate: alert.posted_date ? new Date(alert.posted_date) : undefined,
     category: alert.category || undefined,
     severity: alert.severity || undefined,
     urgency: alert.urgency || undefined,
@@ -83,7 +84,7 @@ export const App: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<AlertCategory | undefined>(undefined);
   const [urgencyFilter, setUrgencyFilter] = useState<AlertUrgency | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'all'>('active');
-  const [sortBy, setSortBy] = useState<'effective_from' | 'severity' | 'urgency'>('effective_from');
+  const [sortBy, setSortBy] = useState<'effective_from' | 'posted_date' | 'severity' | 'urgency'>('posted_date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
@@ -97,6 +98,46 @@ export const App: React.FC = () => {
 
   // Geometry fetching hook
   const { fetchGeometry, prefetchGeometry } = useAlertGeometry();
+
+  // Calculate map padding based on active panels
+  // This ensures the polygon is centered in the visible area
+  const calculateMapPadding = useCallback(() => {
+    // Base padding for comfortable viewing
+    const basePadding = 40;
+    // Navbar width on desktop (72px) + some margin
+    const navbarOffset = window.innerWidth >= 640 ? 72 : 0;
+    // Top offset for mobile navbar
+    const topNavbarOffset = window.innerWidth < 640 ? 64 : 0;
+    
+    let padding = {
+      top: basePadding + topNavbarOffset,
+      bottom: basePadding,
+      left: basePadding + navbarOffset,
+      right: basePadding,
+    };
+
+    // Add padding for FilterAlertsPanel (bottom panel)
+    if (isAlertsPanelVisible) {
+      // Panel height + margin (16px bottom-4)
+      padding.bottom = alertsPanelHeight + 16 + basePadding;
+    }
+
+    // Add padding for DetailCard (right panel)
+    if (isDetailCardVisible) {
+      // Panel width + margin (16px right-4)
+      padding.right = sidePanelWidth + 16 + basePadding;
+    }
+
+    return padding;
+  }, [isAlertsPanelVisible, isDetailCardVisible, alertsPanelHeight, sidePanelWidth]);
+
+  // Function to fit map to selected alert's bbox with panel-aware padding
+  const fitMapToSelectedAlert = useCallback(() => {
+    if (!selectedAlert?.additionalInfo?.bbox || !mapRef.current) return;
+    
+    const padding = calculateMapPadding();
+    mapRef.current.fitToBboxWithOffset(selectedAlert.additionalInfo.bbox, padding);
+  }, [selectedAlert, calculateMapPadding]);
 
   // Debounced search - waits 300ms after user stops typing
   const debouncedSetSearch = useDebouncedCallback(
@@ -120,7 +161,7 @@ export const App: React.FC = () => {
     setCategoryFilter(undefined);
     setUrgencyFilter(undefined);
     setStatusFilter('active');
-    setSortBy('effective_from');
+    setSortBy('posted_date');
     setSortOrder('desc');
   }, []);
 
@@ -264,9 +305,22 @@ export const App: React.FC = () => {
       // Clear any existing highlight immediately
       mapRef.current.clearHighlight();
 
-      // First, zoom to bbox if available
+      // Calculate padding accounting for panels that will be visible
+      // Detail card will be visible after this click, and alerts panel may also be visible
+      const basePadding = 40;
+      const navbarOffset = window.innerWidth >= 640 ? 72 : 0;
+      const topNavbarOffset = window.innerWidth < 640 ? 64 : 0;
+      
+      const padding = {
+        top: basePadding + topNavbarOffset,
+        bottom: isAlertsPanelVisible ? alertsPanelHeight + 16 + basePadding : basePadding,
+        left: basePadding + navbarOffset,
+        right: sidePanelWidth + 16 + basePadding, // Detail card will be visible
+      };
+
+      // Fit to bbox with panel-aware padding if available
       if (alert.additionalInfo?.bbox) {
-        mapRef.current.fitToBbox(alert.additionalInfo.bbox, 60);
+        mapRef.current.fitToBboxWithOffset(alert.additionalInfo.bbox, padding);
       } else if (alert.additionalInfo?.coordinates) {
         const [lng, lat] = alert.additionalInfo.coordinates;
         mapRef.current.flyTo([lng, lat], 8);
@@ -280,7 +334,7 @@ export const App: React.FC = () => {
         mapRef.current.highlightGeoJSON(geometry);
       }
     }
-  }, [fetchGeometry]);
+  }, [fetchGeometry, isAlertsPanelVisible, alertsPanelHeight, sidePanelWidth]);
 
   const handleDetailCardClose = () => {
     setIsDetailCardVisible(false);
@@ -355,6 +409,27 @@ export const App: React.FC = () => {
       }
     };
   }, []);
+
+  // Re-fit map when panel dimensions change (resize) while an alert is selected
+  useEffect(() => {
+    if (selectedAlert?.additionalInfo?.bbox && (isDetailCardVisible || isAlertsPanelVisible)) {
+      // Use a small timeout to allow the panel resize to complete
+      const timeoutId = setTimeout(() => {
+        fitMapToSelectedAlert();
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [alertsPanelHeight, sidePanelWidth, fitMapToSelectedAlert, selectedAlert, isDetailCardVisible, isAlertsPanelVisible]);
+
+  // Re-fit map when panels are toggled while an alert is selected
+  useEffect(() => {
+    if (selectedAlert?.additionalInfo?.bbox) {
+      // Only re-fit if at least one panel is visible
+      if (isDetailCardVisible || isAlertsPanelVisible) {
+        fitMapToSelectedAlert();
+      }
+    }
+  }, [isDetailCardVisible, isAlertsPanelVisible, selectedAlert, fitMapToSelectedAlert]);
 
   // Prepare markers for map using pre-computed centroids
   const mapMarkers = currentAlerts

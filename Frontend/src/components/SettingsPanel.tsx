@@ -506,7 +506,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span>Last Updated</span>
-                    <span className="text-white">Dec 2025</span>
+                    <span className="text-white">Jan 2026</span>
                   </div>
                   <button
                     onClick={() => setShowChangelog(true)}

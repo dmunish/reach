@@ -28,6 +28,10 @@ export interface MapRef {
   highlightGeoJSON: (geometry: any) => void;
   fitToPolygons: (geometries: any | any[], padding?: number) => void;
   fitToBbox: (bbox: { xmin: number; ymin: number; xmax: number; ymax: number }, padding?: number) => void;
+  fitToBboxWithOffset: (
+    bbox: { xmin: number; ymin: number; xmax: number; ymax: number },
+    padding: { top: number; bottom: number; left: number; right: number }
+  ) => void;
   clearHighlight: () => void;
 }
 
@@ -628,6 +632,81 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       console.log(`Fitted map to bbox: [${xmin}, ${ymin}] - [${xmax}, ${ymax}]`);
     };
 
+    // Function to fit map bounds to a bbox with directional padding offsets
+    // Used to center the polygon in the visible area when panels are open
+    const fitToBboxWithOffset = (
+      bbox: { xmin: number; ymin: number; xmax: number; ymax: number },
+      padding: { top: number; bottom: number; left: number; right: number }
+    ) => {
+      if (!map.current) {
+        console.warn("Map not available for fitting bounds");
+        return;
+      }
+
+      const { xmin, ymin, xmax, ymax } = bbox;
+
+      // Validate bbox values - must be valid coordinates
+      if (isNaN(xmin) || isNaN(ymin) || isNaN(xmax) || isNaN(ymax)) {
+        console.warn("Invalid bbox values:", bbox);
+        return;
+      }
+
+      // Validate coordinates are within valid ranges to prevent rendering issues
+      const clampLng = (lng: number) => Math.max(-180, Math.min(180, lng));
+      const clampLat = (lat: number) => Math.max(-85, Math.min(85, lat));
+
+      const validXmin = clampLng(xmin);
+      const validXmax = clampLng(xmax);
+      const validYmin = clampLat(ymin);
+      const validYmax = clampLat(ymax);
+
+      // Get the map container dimensions
+      const container = map.current.getContainer();
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+
+      // Safeguard: Ensure padding doesn't exceed container dimensions
+      // This prevents the green fringe issue caused by excessive padding
+      const maxHorizontalPadding = Math.max(0, (containerWidth - 100) / 2);
+      const maxVerticalPadding = Math.max(0, (containerHeight - 100) / 2);
+
+      const safePadding = {
+        top: Math.min(Math.max(0, padding.top), maxVerticalPadding),
+        bottom: Math.min(Math.max(0, padding.bottom), maxVerticalPadding),
+        left: Math.min(Math.max(0, padding.left), maxHorizontalPadding),
+        right: Math.min(Math.max(0, padding.right), maxHorizontalPadding),
+      };
+
+      // Ensure we have at least 100px visible area after padding
+      const visibleWidth = containerWidth - safePadding.left - safePadding.right;
+      const visibleHeight = containerHeight - safePadding.top - safePadding.bottom;
+
+      if (visibleWidth < 100 || visibleHeight < 100) {
+        console.warn("Insufficient visible area after padding, using default padding");
+        fitToBbox(bbox, 50);
+        return;
+      }
+
+      // Create bounds with validated coordinates
+      const bounds = new mapboxgl.LngLatBounds(
+        [validXmin, validYmin],
+        [validXmax, validYmax]
+      );
+
+      try {
+        map.current.fitBounds(bounds, {
+          padding: safePadding,
+          maxZoom: 12, // Don't zoom in too much for small polygons
+          duration: 800, // Smooth animation
+        });
+
+        console.log(`Fitted map to bbox with offset padding:`, safePadding);
+      } catch (error) {
+        console.warn("fitBounds failed, falling back to default:", error);
+        fitToBbox(bbox, 50);
+      }
+    };
+
     // Expose map methods via ref
     useImperativeHandle(ref, () => ({
       flyTo,
@@ -636,6 +715,7 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       highlightGeoJSON,
       fitToPolygons,
       fitToBbox,
+      fitToBboxWithOffset,
       clearHighlight,
     }));
 

@@ -36,7 +36,7 @@ class AlertsService {
         urgency_filter: filters?.urgency_filter ?? null,
         date_start: filters?.date_start ?? null,
         date_end: filters?.date_end ?? null,
-        sort_by: filters?.sort_by ?? "effective_from",
+        sort_by: filters?.sort_by ?? "posted_date",
         sort_order: filters?.sort_order ?? "desc",
         page_size: filters?.page_size ?? 100,
         page_offset: filters?.page_offset ?? 0,

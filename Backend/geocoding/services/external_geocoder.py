@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import logging
 import asyncio
 
+from .redis_cache import get_redis_cache
+
 logger = logging.getLogger(__name__)
 
 class ExternalGeocoder:
@@ -12,7 +14,7 @@ class ExternalGeocoder:
     External geocoding service client with intelligent caching and disambiguation.
     
     Optimizations:
-    - In-memory LRU-style cache with TTL to minimize API calls
+    - Redis distributed cache with TTL to minimize API calls
     - Connection pooling via shared httpx.AsyncClient
     - Batch request support for parallel geocoding
     - Spatial disambiguation using centroid calculation
@@ -21,9 +23,8 @@ class ExternalGeocoder:
     def __init__(self, api_key: str, base_url: str, cache_ttl_days: int = 30, max_cache_size: int = 1000):
         self.api_key = api_key
         self.base_url = base_url
-        self.cache_ttl = timedelta(days=cache_ttl_days)
-        self.max_cache_size = max_cache_size
-        self._cache: Dict[str, Tuple[List[Tuple[float, float]], datetime]] = {}
+        self.cache_ttl_seconds = int(cache_ttl_days * 86400)  # Convert to seconds for Redis
+        self.max_cache_size = max_cache_size  # Not used with Redis but kept for compatibility
         self._client: Optional[httpx.AsyncClient] = None
         
     async def __aenter__(self):
@@ -40,30 +41,7 @@ class ExternalGeocoder:
     def _get_cache_key(self, location: str, country_filter: str = "pk") -> str:
         """Generate cache key from location string and country filter"""
         # Include country in cache key to handle different country queries
-        cache_input = f"{location.lower()}:{country_filter}"
-        return hashlib.md5(cache_input.encode()).hexdigest()
-    
-    def _evict_old_cache_entries(self):
-        """Evict expired cache entries and maintain max cache size (LRU-style)"""
-        now = datetime.now()
-        
-        # Remove expired entries
-        expired_keys = [
-            key for key, (_, cached_at) in self._cache.items()
-            if now - cached_at >= self.cache_ttl
-        ]
-        for key in expired_keys:
-            del self._cache[key]
-        
-        # If still over limit, remove oldest entries
-        if len(self._cache) > self.max_cache_size:
-            # Sort by timestamp and keep only newest max_cache_size entries
-            sorted_items = sorted(
-                self._cache.items(),
-                key=lambda x: x[1][1],  # Sort by timestamp
-                reverse=True
-            )
-            self._cache = dict(sorted_items[:self.max_cache_size])
+        return f"{location.lower()}:{country_filter}"
     
     async def geocode(
         self, 
@@ -72,6 +50,7 @@ class ExternalGeocoder:
     ) -> List[Tuple[float, float]]:
         """
         Geocode a location string to coordinates.
+        NOW WITH REDIS CACHING.
         
         Args:
             location: Place name to geocode
@@ -80,13 +59,16 @@ class ExternalGeocoder:
         Returns:
             List of (longitude, latitude) tuples, ordered by relevance
         """
-        # Check cache
+        # Try Redis cache first
+        cache = get_redis_cache()
         cache_key = self._get_cache_key(location, country_filter)
-        if cache_key in self._cache:
-            coords, cached_at = self._cache[cache_key]
-            if datetime.now() - cached_at < self.cache_ttl:
-                logger.debug(f"Cache hit for '{location}'")
-                return coords
+        
+        if cache:
+            cached_result = await cache.get("external_geocode", cache_key)
+            if cached_result is not None:
+                logger.debug(f"✅ External geocode cache HIT for '{location}'")
+                # Convert list of lists back to list of tuples
+                return [tuple(coord) for coord in cached_result]
         
         # Make API request
         try:
@@ -114,12 +96,12 @@ class ExternalGeocoder:
                 # Extract coordinates (lon, lat)
                 coords = [(float(r['lon']), float(r['lat'])) for r in data if 'lon' in r and 'lat' in r]
                 
-                # Cache results
-                self._cache[cache_key] = (coords, datetime.now())
-                
-                # Periodic cache maintenance
-                if len(self._cache) > self.max_cache_size * 1.2:
-                    self._evict_old_cache_entries()
+                # Cache results in Redis
+                if cache and coords:
+                    # Convert tuples to lists for JSON serialization
+                    coords_serializable = [list(coord) for coord in coords]
+                    await cache.set("external_geocode", cache_key, coords_serializable, ttl_seconds=self.cache_ttl_seconds)
+                    logger.debug(f"💾 External geocode cache SET for '{location}'")
                 
                 return coords
                 

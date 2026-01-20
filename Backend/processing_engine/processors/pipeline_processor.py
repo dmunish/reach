@@ -3,8 +3,9 @@ from pydantic import ValidationError
 from typing import List
 from processing_engine.processor_utils.llm_client import AsyncLLMClient
 from processing_engine.processor_utils.pipeline_prompts import messages
-from processing_engine.processor_utils.doc_utils import url_to_b64_strings
 from processing_engine.models.schemas import QueueJob, Alert, AlertArea, StructuredAlert
+import os
+from httpx import AsyncClient
 
 
 class PipelineProcessor():
@@ -76,4 +77,18 @@ class PipelineProcessor():
             raise ValueError(f"JSON doesn't match expected schema: {e}")
         
     async def _geocode(self, places: List[str]) -> List[str]:        
-        return ""
+        url = os.getenv("MODAL_GEOCODER")
+        auth_token = os.getenv("SECRET_KEY")
+        
+        async with AsyncClient(timeout=120.0) as http_client:
+            response = await http_client.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {auth_token}",
+                    "Content-Type": "application/json"
+                },
+                json={"locations": places}
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data.get("place_ids", [])

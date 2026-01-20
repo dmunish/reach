@@ -50,19 +50,18 @@ class QueueWorker:
             json_response["processing_time"] = f"{time.time() - start_time:.2f}"
             json_response["processing_model"] = LLM
             self.logger.info(f"Job {msg_id}: Transform complete in {json_response['processing_time']}s")
-            print(json_response)
 
-            # # Step 2: Upload to database (atomic transaction)
-            # if not await self._upload(json_response, alert, alert_areas):
-            #     self.logger.error(f"Job {msg_id}: Upload failed, keeping in queue for retry")
-            #     return False
+            # Step 2: Upload to database (atomic transaction)
+            if not await self._upload(json_response, alert, alert_areas):
+                self.logger.error(f"Job {msg_id}: Upload failed, keeping in queue for retry")
+                return False
 
-            # # Step 3: Remove from queue only after successful upload
-            # if not await self._mark_complete(msg_id):
-            #     # Data is uploaded but queue removal failed - log but don't fail
-            #     # Job will be reprocessed but upsert will handle idempotency
-            #     self.logger.warning(f"Job {msg_id}: Upload succeeded but queue removal failed")
-            #     return True
+            # Step 3: Remove from queue only after successful upload
+            if not await self._mark_complete(msg_id):
+                # Data is uploaded but queue removal failed - log but don't fail
+                # Job will be reprocessed but upsert will handle idempotency
+                self.logger.warning(f"Job {msg_id}: Upload succeeded but queue removal failed")
+                return True
 
             self.logger.info(f"Job {msg_id}: Completed successfully")
             return True
@@ -103,9 +102,9 @@ class QueueWorker:
             "queue_name": "processing_queue",
             "message_id": msg_id
         }).execute()
-        if response.data and not response.error:
+        if response.data:
             self.logger.info(f"Successfully removed job {msg_id} from queue")
             return True
         else:
-            self.logger.error(f"Error removing job {msg_id}: {response.error}")
+            self.logger.error(f"Error removing job {msg_id}: {response.data}")
             return False

@@ -10,5 +10,5 @@ PyMuPDF
 pillow
 rapidfuzz
 geopy
-redis
+redis[hiredis]
 pydantic-settings

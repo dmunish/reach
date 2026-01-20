@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 import logging
 
 from geocoding.api import router
-from geocoding.dependencies import cleanup_services
+from geocoding.dependencies import cleanup_services, get_redis_cache
 from geocoding.config import get_settings
 
 # Configure logging
@@ -34,6 +34,7 @@ async def lifespan(app: FastAPI):
     Lifespan context manager for startup and shutdown events.
     
     Startup:
+    - Initialize Redis cache
     - Log configuration
     - Verify settings loaded
     
@@ -47,6 +48,21 @@ async def lifespan(app: FastAPI):
     logger.info(f"Supabase URL: {settings.supabase_url}")
     logger.info(f"LocationIQ API configured: {'Yes' if settings.locationiq_api_key else 'No'}")
     logger.info(f"Fuzzy match threshold: {settings.fuzzy_match_threshold}")
+    
+    # Initialize Redis cache
+    if settings.redis_enabled:
+        logger.info(f"Redis enabled: {settings.redis_host}:{settings.redis_port} (db={settings.redis_db})")
+        try:
+            cache = await get_redis_cache()
+            if cache and await cache.is_connected():
+                logger.info("✅ Redis cache connected and ready")
+            else:
+                logger.warning("⚠️  Redis cache unavailable - running without cache")
+        except Exception as e:
+            logger.warning(f"⚠️  Redis initialization failed: {e} - running without cache")
+    else:
+        logger.info("Redis caching disabled")
+    
     logger.info("Service ready to accept requests")
     
     yield

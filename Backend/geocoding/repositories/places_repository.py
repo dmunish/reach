@@ -163,6 +163,29 @@ class PlacesRepository:
     base_place_ids: List[UUID],
     direction: str
     ) -> List[Dict[str, Any]]:
+        """
+        Find all places in a directional region using PostgreSQL function.
+        NOW WITH REDIS CACHING for massive performance boost.
+        
+        Args:
+            base_place_ids: Base place IDs defining the region
+            direction: Directional indicator (e.g., 'north', 'central')
+            
+        Returns:
+            List of places in the directional grid intersection
+        """
+        # Try Redis cache first
+        cache = get_redis_cache()
+        if cache:
+            # Sort IDs for consistent cache key
+            sorted_ids = sorted(str(pid) for pid in base_place_ids)
+            cache_key = f"{','.join(sorted_ids)}:{direction}"
+            
+            cached_result = await cache.get("directional", cache_key)
+            if cached_result is not None:
+                logger.info(f"✅ Directional cache HIT: {direction} ({len(cached_result)} places)")
+                return cached_result
+        
         try:
             logger.info(f"Calling find_places_in_direction with ids: {base_place_ids}, direction: {direction}")
             
@@ -186,7 +209,19 @@ class PlacesRepository:
                     logger.info(f"First item: {first_item}")
                     if isinstance(first_item, dict):
                         logger.info(f"First item keys: {first_item.keys()}")
-                return cast(List[Dict[str, Any]], data_list)
+                
+                result_data = cast(List[Dict[str, Any]], data_list)
+                
+                # Cache the result
+                if cache:
+                    from ..config import get_settings
+                    settings = get_settings()
+                    sorted_ids = sorted(str(pid) for pid in base_place_ids)
+                    cache_key = f"{','.join(sorted_ids)}:{direction}"
+                    await cache.set("directional", cache_key, result_data, ttl_seconds=settings.redis_ttl_directional)
+                    logger.info(f"💾 Directional cache SET: {direction} ({len(result_data)} places)")
+                
+                return result_data
             return []
         except Exception as e:
             logger.error(f"Directional search failed for {direction}: {e}")

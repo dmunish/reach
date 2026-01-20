@@ -2,6 +2,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from pathlib import Path
+from typing import Optional
 
 class Settings(BaseSettings):
     """
@@ -22,6 +23,18 @@ class Settings(BaseSettings):
     
     # Caching
     cache_ttl_days: int = 30
+    
+    # Redis configuration
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+    redis_password: Optional[str] = None
+    redis_enabled: bool = True  # Enable/disable Redis caching
+    
+    # Redis cache TTLs (in seconds)
+    redis_ttl_directional: int = 3600  # 1 hour for directional queries
+    redis_ttl_fuzzy: int = 7200  # 2 hours for fuzzy name searches
+    redis_ttl_external: int = 86400 * 30  # 30 days for external API results
     
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).parent.parent / ".env"),

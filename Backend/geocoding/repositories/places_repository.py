@@ -2,6 +2,10 @@ from typing import List, Optional, Dict, Any, cast
 from uuid import UUID
 from supabase import Client
 import logging
+import hashlib
+import json
+
+from ..services.redis_cache import get_redis_cache
 
 logger = logging.getLogger(__name__)
 
@@ -9,6 +13,7 @@ class PlacesRepository:
     """
     Repository for database operations on the places table.
     Provides abstraction over Supabase client with proper type handling.
+    Now includes Redis caching for expensive queries.
     """
     
     def __init__(self, supabase_client: Client):
@@ -22,6 +27,7 @@ class PlacesRepository:
         """
         Search places using fuzzy name matching via PostgreSQL function.
         Uses trigram similarity for efficient fuzzy matching.
+        NOW WITH REDIS CACHING.
         
         Args:
             name: Location name to search for
@@ -30,6 +36,14 @@ class PlacesRepository:
         Returns:
             List of matching places with similarity scores
         """
+        # Try Redis cache first
+        cache = get_redis_cache()
+        if cache:
+            cache_key = f"fuzzy:{name}:{threshold}"
+            cached_result = await cache.get("fuzzy_search", cache_key)
+            if cached_result is not None:
+                return cached_result
+        
         try:
             result = self.client.rpc(
                 'search_places_fuzzy',
@@ -41,7 +55,16 @@ class PlacesRepository:
             
             # Type guard: ensure result.data is a list
             if result.data and isinstance(result.data, list):
-                return cast(List[Dict[str, Any]], result.data)
+                data = cast(List[Dict[str, Any]], result.data)
+                
+                # Cache the result
+                if cache:
+                    from ..config import get_settings
+                    settings = get_settings()
+                    cache_key = f"fuzzy:{name}:{threshold}"
+                    await cache.set("fuzzy_search", cache_key, data, ttl_seconds=settings.redis_ttl_fuzzy)
+                
+                return data
             return []
         except Exception as e:
             logger.error(f"Fuzzy search failed for '{name}': {e}")

@@ -8,8 +8,48 @@ from .services.name_matcher import NameMatcher
 from .services.external_geocoder import ExternalGeocoder
 from .services.directional_parser import DirectionalParser
 from .services.geocoding_service import GeocodingService
+from .services.redis_cache import RedisCache, set_redis_cache
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Redis Cache Dependency
+# ============================================================================
+
+_redis_cache: RedisCache = None
+
+async def get_redis_cache() -> RedisCache:
+    """
+    Get Redis cache singleton.
+    
+    Initializes on first call and reuses for subsequent requests.
+    Handles connection lifecycle automatically.
+    
+    Returns:
+        RedisCache instance (or None if Redis disabled/unavailable)
+    """
+    global _redis_cache
+    
+    settings = get_settings()
+    
+    if not settings.redis_enabled:
+        logger.info("Redis caching disabled in settings")
+        return None
+    
+    if _redis_cache is None:
+        _redis_cache = RedisCache(
+            host=settings.redis_host,
+            port=settings.redis_port,
+            db=settings.redis_db,
+            password=settings.redis_password,
+            default_ttl_seconds=settings.redis_ttl_directional
+        )
+        await _redis_cache.connect()
+        set_redis_cache(_redis_cache)  # Set global instance
+        logger.info("✅ Redis cache initialized")
+    
+    return _redis_cache
 
 
 # ============================================================================
@@ -148,6 +188,12 @@ async def cleanup_services():
     Called on app shutdown to close connections, flush caches, etc.
     """
     logger.info("Cleaning up services...")
+    
+    # Disconnect Redis
+    global _redis_cache
+    if _redis_cache:
+        await _redis_cache.disconnect()
+        _redis_cache = None
     
     # Clear caches
     get_settings.cache_clear()

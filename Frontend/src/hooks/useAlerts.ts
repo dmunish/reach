@@ -62,6 +62,9 @@ export function useAlerts(options: UseAlertsOptions = {}) {
     filters?.sort_order,
     filters?.page_size,
     filters?.page_offset,
+    filters?.user_lat,
+    filters?.user_lng,
+    filters?.radius_km,
   ]);
 
   const refetch = useCallback(() => {

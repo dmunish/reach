@@ -40,6 +40,9 @@ class AlertsService {
         sort_order: filters?.sort_order ?? "desc",
         page_size: filters?.page_size ?? 100,
         page_offset: filters?.page_offset ?? 0,
+        user_lat: filters?.user_lat ?? null,
+        user_lng: filters?.user_lng ?? null,
+        radius_km: filters?.radius_km ?? 20,
       });
 
       if (error) {

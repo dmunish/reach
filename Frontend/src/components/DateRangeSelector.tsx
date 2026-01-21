@@ -94,60 +94,37 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
 
   return (
     <div className={className}>
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label
-              htmlFor="start-date"
-              className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-medium"
-            >
-              Effective from
-            </label>
-            <input
-              type="date"
-              id="start-date"
-              value={startDate}
-              onChange={handleStartDateChange}
-              className="filter-input w-full px-3 py-1.5 text-xs text-white bg-rich-black/50 border border-white/10 rounded-md focus:outline-none focus:ring-1 focus:ring-caribbean-green/50"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="end-date"
-              className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-medium"
-            >
-              Effective until
-            </label>
-            <input
-              type="date"
-              id="end-date"
-              value={endDate}
-              onChange={handleEndDateChange}
-              className="filter-input w-full px-3 py-1.5 text-xs text-white bg-rich-black/50 border border-white/10 rounded-md focus:outline-none focus:ring-1 focus:ring-caribbean-green/50"
-            />
-          </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label
+            htmlFor="start-date"
+            className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-medium"
+          >
+            Effective from
+          </label>
+          <input
+            type="date"
+            id="start-date"
+            value={startDate}
+            onChange={handleStartDateChange}
+            className="filter-input w-full px-3 py-1.5 text-xs text-white bg-rich-black/50 border border-white/10 rounded-md focus:outline-none focus:ring-1 focus:ring-caribbean-green/50"
+          />
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            onClick={clearDates}
-            className="px-2 py-1 text-xs border border-stone text-stone hover:bg-stone hover:text-dark-green rounded-md transition-colors font-medium"
+        <div>
+          <label
+            htmlFor="end-date"
+            className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-medium"
           >
-            Clear
-          </button>
-          <button
-            onClick={setLast7Days}
-            className="px-2 py-1 text-xs bg-bangladesh-green hover:bg-mountain-meadow text-white hover:text-dark-green rounded-md transition-colors font-medium"
-          >
-            7 Days
-          </button>
-          <button
-            onClick={setLast30Days}
-            className="px-2 py-1 text-xs bg-bangladesh-green hover:bg-mountain-meadow text-white hover:text-dark-green rounded-md transition-colors font-medium"
-          >
-            30 Days
-          </button>
+            Effective until
+          </label>
+          <input
+            type="date"
+            id="end-date"
+            value={endDate}
+            onChange={handleEndDateChange}
+            className="filter-input w-full px-3 py-1.5 text-xs text-white bg-rich-black/50 border border-white/10 rounded-md focus:outline-none focus:ring-1 focus:ring-caribbean-green/50"
+          />
         </div>
       </div>
     </div>

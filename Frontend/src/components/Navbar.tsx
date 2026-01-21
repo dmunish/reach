@@ -57,8 +57,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           }`}
           title="Toggle Filter Panel"
         >
-          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M3 7V5a2 2 0 012-2h14a2 2 0 012 2v2l-8 8v6l-4-2v-4L3 7z" />
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            strokeWidth="2"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </button>
 

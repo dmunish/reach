@@ -29,6 +29,7 @@ export interface FilterAlertsPanelProps {
     endDate?: Date;
     sortBy: 'effective_from' | 'posted_date' | 'severity' | 'urgency';
     sortOrder: 'asc' | 'desc';
+    scope: 'nationwide' | 'local';
   };
   // Handlers
   onFilterChange: (key: string, value: any) => void;
@@ -84,6 +85,21 @@ const CATEGORIES: AlertCategory[] = [
   "Health", "Env", "Transport", "Infra", "CBRNE", "Other"
 ];
 
+const CATEGORY_LABELS: Record<string, string> = {
+  Geo: "Geological",
+  Met: "Meteorological",
+  Safety: "Safety",
+  Security: "Security",
+  Rescue: "Rescue",
+  Fire: "Fire",
+  Health: "Health",
+  Env: "Environmental",
+  Transport: "Transportation",
+  Infra: "Infrastructure",
+  CBRNE: "CBRNE",
+  Other: "Other"
+};
+
 const SEVERITIES: AlertSeverity[] = [
   "Extreme", "Severe", "Moderate", "Minor", "Unknown"
 ];
@@ -109,7 +125,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
   onAlertClick,
   onAlertHover
 }) => {
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -152,7 +168,8 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
     filters.searchQuery,
     filters.status !== 'active' ? 'status' : null,
     filters.sortBy !== 'posted_date' ? 'sort' : null,
-    filters.sortOrder !== 'desc' ? 'order' : null
+    filters.sortOrder !== 'desc' ? 'order' : null,
+    filters.scope !== 'nationwide' ? 'scope' : null
   ].filter(Boolean).length;
 
   return (
@@ -176,166 +193,178 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
       />
 
       <div className="p-4 border-b border-white/10 bg-rich-black/30 backdrop-blur-md">
-        {/* Top Bar: Title, Search, Status, Sort, Actions */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <h3 className="text-xl font-semibold text-white">Alerts</h3>
-              <span className="text-xs text-gray-400 bg-white/10 px-2 py-0.5 rounded-full">
-                {alerts.length}
-              </span>
-              {loading && (
-                <div className="animate-spin h-4 w-4 border-2 border-caribbean-green border-t-transparent rounded-full"></div>
-              )}
-            </div>
-            
-            <div className="flex items-center space-x-2">
-               {activeFilterCount > 0 && (
-                <button
-                  onClick={onResetFilters}
-                  className="p-1.5 text-[10px] uppercase tracking-wider font-semibold text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1"
-                  title="Reset all filters"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                  Reset
-                </button>
-              )}
-               <button
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className={`p-1.5 rounded-md transition-colors text-xs flex items-center gap-1 ${showAdvanced || activeFilterCount > 0 ? 'bg-caribbean-green/20 text-caribbean-green' : 'text-gray-400 hover:text-white'}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-                Filters {activeFilterCount > 0 && `(${activeFilterCount})`}
-              </button>
-              <div className="h-4 w-[1px] bg-white/10 mx-1"></div>
-              <button
-                onClick={onRefresh}
-                disabled={loading}
-                className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
-                title="Refresh"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
-              </button>
-              <button
-                onClick={onClose}
-                className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-              </button>
-            </div>
+        {/* Header Row: Title, Global Actions */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <h3 className="text-xl font-semibold text-white">Alerts</h3>
+            <span className="text-xs text-gray-400 bg-white/10 px-2 py-0.5 rounded-full">
+              {alerts.length}
+            </span>
+            {loading && (
+              <div className="animate-spin h-4 w-4 border-2 border-caribbean-green border-t-transparent rounded-full"></div>
+            )}
           </div>
-
-          <div className="flex gap-2 items-center flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
-              <input
-                type="text"
-                placeholder="Search titles, descriptions, places..."
-                value={filters.searchQuery}
-                onChange={(e) => onFilterChange("searchQuery", e.target.value)}
-                className="w-full bg-rich-black/50 text-white text-sm border border-white/10 rounded-md py-2 pl-9 pr-8 focus:outline-none focus:border-caribbean-green/50 placeholder-gray-500"
-              />
-              <svg 
-                className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-500"
-                xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-              {filters.searchQuery && (
-                <button
-                  onClick={onClearSearch}
-                  className="absolute right-2 top-2.5 p-0.5 hover:text-white text-gray-500"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-              )}
-            </div>
-
-            <select 
-              value={filters.status}
-              onChange={(e) => onFilterChange("status", e.target.value)}
-              className="bg-rich-black/50 backdrop-blur-md text-white text-sm border border-white/10 rounded-md py-2 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
-            >
-              <option value="active" className="bg-rich-black text-white">Active</option>
-              <option value="archived" className="bg-rich-black text-white">Archived</option>
-              <option value="all" className="bg-rich-black text-white">All Status</option>
-            </select>
-
-             <select 
-              value={filters.sortBy}
-              onChange={(e) => onFilterChange("sortBy", e.target.value)}
-              className="bg-rich-black/50 backdrop-blur-md text-white text-sm border border-white/10 rounded-md py-2 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
-            >
-              <option value="posted_date" className="bg-rich-black text-white">Posted Date</option>
-              <option value="effective_from" className="bg-rich-black text-white">Event Date</option>
-              <option value="severity" className="bg-rich-black text-white">Severity</option>
-              <option value="urgency" className="bg-rich-black text-white">Urgency</option>
-            </select>
-
+          
+          <div className="flex items-center space-x-2">
+             {activeFilterCount > 0 && (
+              <button
+                onClick={onResetFilters}
+                className="p-1.5 text-[10px] uppercase tracking-wider font-semibold text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1"
+                title="Reset all filters"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                Reset
+              </button>
+            )}
             <button
-              onClick={() => onFilterChange("sortOrder", filters.sortOrder === 'asc' ? 'desc' : 'asc')}
-              className="p-1.5 bg-rich-black/50 border border-white/10 rounded-md text-gray-400 hover:text-white hover:border-white/30"
-              title={filters.sortOrder === 'asc' ? "Sort Ascending" : "Sort Descending"}
+              onClick={() => setShowFilters(!showFilters)}
+              className={`p-1.5 flex items-center gap-1.5 rounded-md transition-colors text-xs font-medium ${showFilters ? 'bg-caribbean-green/20 text-caribbean-green' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+              title="Toggle filter options"
             >
-              {filters.sortOrder === 'asc' ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="bg-caribbean-green text-rich-black text-[10px] px-1 rounded-full min-w-[14px] flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
               )}
+            </button>
+            <button
+              onClick={onRefresh}
+              disabled={loading}
+              className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
+              title="Refresh"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
           </div>
         </div>
 
-        {/* Advanced Filters (Collapsible) */}
-        <div className={`
-          overflow-hidden transition-all duration-300 ease-in-out border-t border-white/5 mt-3
-          ${showAdvanced ? "max-h-40 opacity-100 pt-3 pb-1" : "max-h-0 opacity-0"}
-        `}>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-gray-400 uppercase tracking-wider font-medium">Date Range</label>
-              <DateRangeSelector
-                initialStartDate={filters.startDate}
-                initialEndDate={filters.endDate}
-                onDateRangeChange={(start, end) => {
-                  onFilterChange("startDate", start);
-                  onFilterChange("endDate", end);
-                }}
-              />
+        {/* Filter Layout */}
+        <div className="flex flex-col gap-3">
+          {/* Row 1: Searchbar */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search titles, descriptions, places..."
+              value={filters.searchQuery}
+              onChange={(e) => onFilterChange("searchQuery", e.target.value)}
+              className="w-full bg-rich-black/50 text-white text-sm border border-white/10 rounded-md py-2 pl-9 pr-8 focus:outline-none focus:border-caribbean-green/50 placeholder-gray-500"
+            />
+            <svg 
+              className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-500"
+              xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            {filters.searchQuery && (
+              <button
+                onClick={onClearSearch}
+                className="absolute right-2 top-2.5 p-0.5 hover:text-white text-gray-500"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            )}
+          </div>
+
+          <div className={`flex flex-col gap-3 transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[500px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+            {/* Row 2: Date Range, Status, Sort */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">Date Range</label>
+                <DateRangeSelector
+                  initialStartDate={filters.startDate}
+                  initialEndDate={filters.endDate}
+                  onDateRangeChange={(start, end) => {
+                    onFilterChange("startDate", start);
+                    onFilterChange("endDate", end);
+                  }}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">Status</label>
+                <select 
+                  value={filters.status}
+                  onChange={(e) => onFilterChange("status", e.target.value)}
+                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                >
+                  <option value="active" className="bg-rich-black text-white">Active</option>
+                  <option value="archived" className="bg-rich-black text-white">Archived</option>
+                  <option value="all" className="bg-rich-black text-white">All Status</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">Sort</label>
+                <div className="flex gap-2">
+                  <select 
+                    value={filters.sortBy}
+                    onChange={(e) => onFilterChange("sortBy", e.target.value)}
+                    className="flex-1 bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                  >
+                    <option value="posted_date" className="bg-rich-black text-white">Posted Date</option>
+                    <option value="effective_from" className="bg-rich-black text-white">Event Date</option>
+                    <option value="severity" className="bg-rich-black text-white">Severity</option>
+                    <option value="urgency" className="bg-rich-black text-white">Urgency</option>
+                  </select>
+                  <button
+                    onClick={() => onFilterChange("sortOrder", filters.sortOrder === 'asc' ? 'desc' : 'asc')}
+                    className="p-1.5 bg-rich-black/50 border border-white/10 rounded-md text-gray-400 hover:text-white hover:border-white/30 transition-all flex items-center justify-center min-w-[34px]"
+                    title={filters.sortOrder === 'asc' ? "Sort Ascending" : "Sort Descending"}
+                  >
+                    {filters.sortOrder === 'asc' ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-gray-400 uppercase tracking-wider font-medium">Category</label>
-              <select 
-                value={filters.category || ""}
-                onChange={(e) => onFilterChange("category", e.target.value || undefined)}
-                className="bg-rich-black/50 backdrop-blur-md text-white text-sm border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
-              >
-                <option value="" className="bg-rich-black text-white">All Categories</option>
-                {CATEGORIES.map(c => <option key={c} value={c} className="bg-rich-black text-white">{c}</option>)}
-              </select>
-            </div>
+            {/* Row 3: Category, Severity, Scope */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">Category</label>
+                <select 
+                  value={filters.category || ""}
+                  onChange={(e) => onFilterChange("category", e.target.value || undefined)}
+                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                >
+                  <option value="" className="bg-rich-black text-white">All Categories</option>
+                  {CATEGORIES.map(c => <option key={c} value={c} className="bg-rich-black text-white">{CATEGORY_LABELS[c] || c}</option>)}
+                </select>
+              </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-gray-400 uppercase tracking-wider font-medium">Severity</label>
-              <select 
-                value={filters.severity || ""}
-                onChange={(e) => onFilterChange("severity", e.target.value || undefined)}
-                className="bg-rich-black/50 backdrop-blur-md text-white text-sm border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
-              >
-                <option value="" className="bg-rich-black text-white">All Severities</option>
-                {SEVERITIES.map(s => <option key={s} value={s} className="bg-rich-black text-white">{s}</option>)}
-              </select>
-            </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">Severity</label>
+                <select 
+                  value={filters.severity || ""}
+                  onChange={(e) => onFilterChange("severity", e.target.value || undefined)}
+                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                >
+                  <option value="" className="bg-rich-black text-white">All Severities</option>
+                  {SEVERITIES.map(s => <option key={s} value={s} className="bg-rich-black text-white">{s}</option>)}
+                </select>
+              </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-gray-400 uppercase tracking-wider font-medium">Urgency</label>
-              <select 
-                value={filters.urgency || ""}
-                onChange={(e) => onFilterChange("urgency", e.target.value || undefined)}
-                className="bg-rich-black/50 backdrop-blur-md text-white text-sm border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
-              >
-                <option value="" className="bg-rich-black text-white">All Urgencies</option>
-                {URGENCIES.map(u => <option key={u} value={u} className="bg-rich-black text-white">{u}</option>)}
-              </select>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">Scope</label>
+                <select 
+                  value={filters.scope}
+                  onChange={(e) => onFilterChange("scope", e.target.value)}
+                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                >
+                  <option value="nationwide" className="bg-rich-black text-white">Nationwide</option>
+                  <option value="local" className="bg-rich-black text-white">Local</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>

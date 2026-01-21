@@ -69,15 +69,15 @@ export const DetailCard: React.FC<DetailCardProps> = ({
   const getSeverityColor = (severity?: string) => {
     switch (severity?.toLowerCase()) {
       case "extreme":
-        return "text-red-400";
+        return "text-[#b400ff]";
       case "severe":
-        return "text-orange-400";
+        return "text-[#dc143c]";
       case "moderate":
-        return "text-yellow-400";
+        return "text-[#ff8c00]";
       case "minor":
-        return "text-green-400";
+        return "text-[#ffd700]";
       default:
-        return "text-gray-400";
+        return "text-[#1e90ff]";
     }
   };
 
@@ -152,7 +152,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
     }
   };
 
-  const [isAreasExpanded, setIsAreasExpanded] = React.useState(false);
+  const [isAreasExpanded, setIsAreasExpanded] = React.useState(true);
   const [areaSearchQuery, setAreaSearchQuery] = React.useState("");
 
   const renderInstructionList = (text: string) => {

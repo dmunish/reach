@@ -122,6 +122,9 @@ export interface AlertsRPCFilters {
   sort_order?: 'asc' | 'desc';
   page_size?: number;
   page_offset?: number;
+  user_lat?: number;
+  user_lng?: number;
+  radius_km?: number;
 }
 
 // Database schema type for Supabase client

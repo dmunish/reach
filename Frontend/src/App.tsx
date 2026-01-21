@@ -71,9 +71,11 @@ export const App: React.FC = () => {
   
   // Resizable panel states
   const [alertsPanelHeight, setAlertsPanelHeight] = useState(400);
-  const [sidePanelWidth, setSidePanelWidth] = useState(384);
+  const [sidePanelWidth, setSidePanelWidth] = useState(576); // Increased by 50% from 384
   
   // Filter States
+  const [scope, setScope] = useState<'nationwide' | 'local'>('nationwide');
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
   const [dateFilters, setDateFilters] = useState<{
@@ -99,46 +101,6 @@ export const App: React.FC = () => {
   // Geometry fetching hook
   const { fetchGeometry, prefetchGeometry } = useAlertGeometry();
 
-  // Calculate map padding based on active panels
-  // This ensures the polygon is centered in the visible area
-  const calculateMapPadding = useCallback(() => {
-    // Base padding for comfortable viewing
-    const basePadding = 40;
-    // Navbar width on desktop (72px) + some margin
-    const navbarOffset = window.innerWidth >= 640 ? 72 : 0;
-    // Top offset for mobile navbar
-    const topNavbarOffset = window.innerWidth < 640 ? 64 : 0;
-    
-    let padding = {
-      top: basePadding + topNavbarOffset,
-      bottom: basePadding,
-      left: basePadding + navbarOffset,
-      right: basePadding,
-    };
-
-    // Add padding for FilterAlertsPanel (bottom panel)
-    if (isAlertsPanelVisible) {
-      // Panel height + margin (16px bottom-4)
-      padding.bottom = alertsPanelHeight + 16 + basePadding;
-    }
-
-    // Add padding for DetailCard (right panel)
-    if (isDetailCardVisible) {
-      // Panel width + margin (16px right-4)
-      padding.right = sidePanelWidth + 16 + basePadding;
-    }
-
-    return padding;
-  }, [isAlertsPanelVisible, isDetailCardVisible, alertsPanelHeight, sidePanelWidth]);
-
-  // Function to fit map to selected alert's bbox with panel-aware padding
-  const fitMapToSelectedAlert = useCallback(() => {
-    if (!selectedAlert?.additionalInfo?.bbox || !mapRef.current) return;
-    
-    const padding = calculateMapPadding();
-    mapRef.current.fitToBboxWithOffset(selectedAlert.additionalInfo.bbox, padding);
-  }, [selectedAlert, calculateMapPadding]);
-
   // Debounced search - waits 300ms after user stops typing
   const debouncedSetSearch = useDebouncedCallback(
     (value: string) => {
@@ -153,6 +115,30 @@ export const App: React.FC = () => {
     setDebouncedSearchQuery("");
   }, [debouncedSetSearch]);
 
+  const handleRequestLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser");
+      setScope('nationwide');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ lat: latitude, lng: longitude });
+        if (mapRef.current) {
+          mapRef.current.flyTo([longitude, latitude], 10);
+        }
+      },
+      (error) => {
+        console.error("Error getting location:", error);
+        alert("Unable to retrieve your location. Reverting to nationwide scope.");
+        setScope('nationwide');
+        setUserLocation(null);
+      }
+    );
+  }, []);
+
   const handleResetFilters = useCallback(() => {
     setSearchQuery("");
     setDebouncedSearchQuery("");
@@ -163,10 +149,20 @@ export const App: React.FC = () => {
     setStatusFilter('active');
     setSortBy('posted_date');
     setSortOrder('desc');
+    setScope('nationwide');
+    setUserLocation(null);
   }, []);
 
   const handleFilterChange = useCallback((key: string, value: any) => {
     switch (key) {
+      case 'scope':
+        setScope(value);
+        if (value === 'local') {
+          handleRequestLocation();
+        } else {
+          setUserLocation(null);
+        }
+        break;
       case 'searchQuery':
         setSearchQuery(value);
         debouncedSetSearch(value);
@@ -196,7 +192,7 @@ export const App: React.FC = () => {
         setSortOrder(value);
         break;
     }
-  }, [debouncedSetSearch]);
+  }, [debouncedSetSearch, handleRequestLocation]);
 
   // Load user settings from localStorage on mount
   useEffect(() => {
@@ -241,6 +237,9 @@ export const App: React.FC = () => {
       sort_order: sortOrder,
       page_size: 100,
       page_offset: 0,
+      user_lat: scope === 'local' ? userLocation?.lat : undefined,
+      user_lng: scope === 'local' ? userLocation?.lng : undefined,
+      radius_km: scope === 'local' ? 20 : undefined,
     }),
     [
       debouncedSearchQuery, 
@@ -251,7 +250,9 @@ export const App: React.FC = () => {
       dateFilters.endDate,
       statusFilter,
       sortBy,
-      sortOrder
+      sortOrder,
+      scope,
+      userLocation
     ]
   );
 
@@ -305,22 +306,9 @@ export const App: React.FC = () => {
       // Clear any existing highlight immediately
       mapRef.current.clearHighlight();
 
-      // Calculate padding accounting for panels that will be visible
-      // Detail card will be visible after this click, and alerts panel may also be visible
-      const basePadding = 40;
-      const navbarOffset = window.innerWidth >= 640 ? 72 : 0;
-      const topNavbarOffset = window.innerWidth < 640 ? 64 : 0;
-      
-      const padding = {
-        top: basePadding + topNavbarOffset,
-        bottom: isAlertsPanelVisible ? alertsPanelHeight + 16 + basePadding : basePadding,
-        left: basePadding + navbarOffset,
-        right: sidePanelWidth + 16 + basePadding, // Detail card will be visible
-      };
-
-      // Fit to bbox with panel-aware padding if available
+      // First, zoom to bbox if available
       if (alert.additionalInfo?.bbox) {
-        mapRef.current.fitToBboxWithOffset(alert.additionalInfo.bbox, padding);
+        mapRef.current.fitToBbox(alert.additionalInfo.bbox, 60);
       } else if (alert.additionalInfo?.coordinates) {
         const [lng, lat] = alert.additionalInfo.coordinates;
         mapRef.current.flyTo([lng, lat], 8);
@@ -334,7 +322,7 @@ export const App: React.FC = () => {
         mapRef.current.highlightGeoJSON(geometry);
       }
     }
-  }, [fetchGeometry, isAlertsPanelVisible, alertsPanelHeight, sidePanelWidth]);
+  }, [fetchGeometry]);
 
   const handleDetailCardClose = () => {
     setIsDetailCardVisible(false);
@@ -410,50 +398,51 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Re-fit map when panel dimensions change (resize) while an alert is selected
-  useEffect(() => {
-    if (selectedAlert?.additionalInfo?.bbox && (isDetailCardVisible || isAlertsPanelVisible)) {
-      // Use a small timeout to allow the panel resize to complete
-      const timeoutId = setTimeout(() => {
-        fitMapToSelectedAlert();
-      }, 50);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [alertsPanelHeight, sidePanelWidth, fitMapToSelectedAlert, selectedAlert, isDetailCardVisible, isAlertsPanelVisible]);
-
-  // Re-fit map when panels are toggled while an alert is selected
-  useEffect(() => {
-    if (selectedAlert?.additionalInfo?.bbox) {
-      // Only re-fit if at least one panel is visible
-      if (isDetailCardVisible || isAlertsPanelVisible) {
-        fitMapToSelectedAlert();
-      }
-    }
-  }, [isDetailCardVisible, isAlertsPanelVisible, selectedAlert, fitMapToSelectedAlert]);
-
   // Prepare markers for map using pre-computed centroids
-  const mapMarkers = currentAlerts
-    .filter((alert) => alert.additionalInfo?.coordinates)
-    .filter((alert) => !selectedAlert || alert.id === selectedAlert.id) // Only show selected alert's pin when focused
-    .map((alert) => ({
-      coordinates: alert.additionalInfo!.coordinates as [number, number],
-      severity: alert.severity,
-      popupContent: `
-        <div class="p-3" style="background: var(--rich-black); color: var(--anti-flash-white);">
-          <h3 class="font-semibold text-sm text-white mb-2">${alert.title}</h3>
-          <p class="text-xs text-gray-300 mt-1 mb-2">${alert.description.substring(
-            0,
-            100
-          )}...</p>
-          <div class="mt-2">
-            <span class="px-2 py-1 text-xs rounded-full ${getSeverityColor(
-              alert.severity
-            )}">${alert.severity}</span>
+  const mapMarkers = useMemo(() => {
+    const markers = currentAlerts
+      .filter((alert) => alert.additionalInfo?.coordinates)
+      .filter((alert) => !selectedAlert || alert.id === selectedAlert.id)
+      .map((alert) => ({
+        coordinates: alert.additionalInfo!.coordinates as [number, number],
+        severity: alert.severity,
+        popupContent: `
+          <div class="p-3" style="background: var(--rich-black); color: var(--anti-flash-white);">
+            <h3 class="font-semibold text-sm text-white mb-2">${alert.title}</h3>
+            <p class="text-xs text-gray-300 mt-1 mb-2">${alert.description.substring(
+              0,
+              100
+            )}...</p>
+            <div class="mt-2">
+              <span class="px-2 py-1 text-xs rounded-full ${getSeverityColor(
+                alert.severity
+              )}">${alert.severity}</span>
+            </div>
           </div>
-        </div>
-      `,
-      onClick: () => handleAlertClick(alert),
-    }));
+        `,
+        onClick: () => handleAlertClick(alert),
+      }));
+
+    // Add user location marker if available
+    if (userLocation) {
+      markers.push({
+        coordinates: [userLocation.lng, userLocation.lat],
+        severity: "user",
+        popupContent: `
+          <div class="p-2 bg-rich-black text-white rounded shadow-lg border border-white/10">
+            <p class="text-xs font-semibold">Your Location</p>
+          </div>
+        `,
+        onClick: async () => {
+          if (mapRef.current) {
+            mapRef.current.flyTo([userLocation.lng, userLocation.lat], 10);
+          }
+        },
+      });
+    }
+
+    return markers;
+  }, [currentAlerts, selectedAlert, userLocation, handleAlertClick]);
 
   // Panel toggle handlers
   const handleToggleFilter = () => {
@@ -532,7 +521,8 @@ export const App: React.FC = () => {
           startDate: dateFilters.startDate,
           endDate: dateFilters.endDate,
           sortBy,
-          sortOrder
+          sortOrder,
+          scope
         }}
         onFilterChange={handleFilterChange}
         onClearSearch={handleClearSearch}

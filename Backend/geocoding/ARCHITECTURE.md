@@ -175,7 +175,7 @@ The repository now includes batch operations to reduce database round-trips:
 
 **Key Features:**
 
--   **LRU Cache**: In-memory cache with TTL (30 days default) and max size (1000 entries)
+-   **Redis Cache**: Distributed cache with TTL (30 days) for coordinates
 -   **Connection Pooling**: Shared `httpx.AsyncClient` via context manager
 -   **Batch Support**: `geocode_batch()` for parallel requests
 -   **Spatial Disambiguation**: Centroid-based selection for multi-result queries
@@ -186,8 +186,8 @@ The repository now includes batch operations to reduce database round-trips:
 # Cache key includes location + country for uniqueness
 cache_key = md5(f"{location}:{country_filter}")
 
-# Eviction strategy: Remove expired + LRU-style for size limit
-def _evict_old_cache_entries()
+# Redis caching with 30-day TTL
+cached = await redis_cache.get("external_geocode", cache_key)
 
 # Batch processing with connection pooling
 async with self:  # Shared client
@@ -196,6 +196,38 @@ async with self:  # Shared client
 ```
 
 **Time Complexity**: O(1) cache hit, O(n) for network request
+
+#### 3. `redis_cache.py` (NEW)
+
+**Responsibility**: Distributed caching layer for all query types
+
+**Key Features:**
+
+-   **Async Operations**: All Redis operations use `redis.asyncio`
+-   **Connection Pooling**: Single Redis client instance with connection reuse
+-   **Namespace Isolation**: Separate namespaces for different cache types
+-   **Batch Operations**: `get_many()`, `set_many()` for efficient multi-key access
+-   **TTL Management**: Automatic expiration per namespace
+-   **Graceful Degradation**: Service continues if Redis unavailable
+
+**Methods:**
+
+```python
+async def get(namespace: str, key: str) -> Optional[Dict[str, Any]]
+async def set(namespace: str, key: str, value: Dict, ttl: int)
+async def delete(namespace: str, key: str)
+async def clear_namespace(namespace: str)
+async def get_many(namespace: str, keys: List[str]) -> Dict[str, Any]
+async def set_many(namespace: str, items: Dict[str, Dict], ttl: int)
+```
+
+**Key Optimizations:**
+- MD5 hash for cache keys >100 chars
+- JSON serialization for complex objects
+- Cursor-based SCAN for safe namespace clearing
+- Connection lifecycle management
+
+**Time Complexity**: O(1) for single operations, O(k) for batch operations
 
 #### 3. `directional_parser.py`
 
@@ -264,10 +296,18 @@ CREATE INDEX idx_places_hierarchy ON places(hierarchy_level);
 
 #### 2. Caching Strategy
 
-| Component            | Cache Type          | TTL        | Max Size | Key Strategy          |
-| -------------------- | ------------------- | ---------- | -------- | --------------------- |
-| `external_geocoder`  | In-memory LRU       | 30 days    | 1000     | MD5(location:country) |
-| `directional_parser` | functools.lru_cache | Indefinite | 256      | Raw string            |
+| Component            | Cache Type     | TTL        | Max Size | Key Strategy                 |
+| -------------------- | -------------- | ---------- | -------- | ---------------------------- |
+| `directional_parser` | LRU (functools)| Indefinite | 256      | Raw string                   |
+| `directional`        | Redis          | 1 hour     | N/A      | MD5(sorted_place_ids:dir)    |
+| `directional_aggregated` | Redis      | 1 hour     | N/A      | MD5(sorted_place_ids:dir)    |
+| `fuzzy_search`       | Redis          | 2 hours    | N/A      | MD5(name:threshold)          |
+| `external_geocode`   | Redis          | 30 days    | N/A      | MD5(location:country)        |
+
+**Two-Level Caching for Directional Queries:**
+- **Level 1**: Raw spatial query results (~75 places, saves ~7s database query)
+- **Level 2**: Aggregated final results (~18 places, saves ~20s total including aggregation)
+- **Critical**: Level 2 is essential as hierarchical aggregation is the actual bottleneck
 
 #### 3. Connection Pooling
 
@@ -449,17 +489,19 @@ Response: {
 -   ✅ **Type Safety**: Centralized type casting for Supabase responses
 -   ❌ **Abstraction Cost**: One extra layer (minimal overhead)
 
-### 4. Why In-Memory Cache vs. Redis?
+### 4. Why Redis for Distributed Caching?
 
-**Decision**: Use in-memory LRU cache for external geocoding
+**Decision**: Use Redis for distributed caching across all query types
 
 **Justification:**
 
--   ✅ **Simplicity**: No external dependency (Redis)
--   ✅ **Speed**: O(1) cache access, no network hop
--   ✅ **Sufficient**: 1000 entries covers most use cases
--   ❌ **No Sharing**: Each instance has separate cache
--   **When to switch to Redis**: If deploying multiple instances and cache hit rate matters
+-   ✅ **Performance**: 20-100x faster for repeated queries (e.g., 22.5s → 12ms)
+-   ✅ **Shared Cache**: All service instances benefit from cached results
+-   ✅ **TTL Management**: Automatic expiration for different data types
+-   ✅ **Scalability**: Handles high-volume production workloads
+-   ✅ **Graceful Degradation**: Service continues without Redis (database-only mode)
+-   ❌ **External Dependency**: Requires Redis server setup
+-   **Implementation**: Two-level caching for directional queries (raw + aggregated results)
 
 ### 5. Why Delegate Fuzzy Matching to PostgreSQL?
 
@@ -509,29 +551,25 @@ Response: {
 
 ## Future Optimizations (When Needed)
 
-### If Performance Degrades:
+### If Performance Degrades Further:
 
-1. **Add Redis for Shared Cache**
+1. **Query Result Caching Enhancement**
 
-    - Share geocoding cache across instances
-    - Use Redis Sorted Sets for LRU eviction
+    - Add caching for complex batch queries
+    - Implement cache warming strategies
+    - Use Redis Sorted Sets for advanced LRU
 
-2. **Implement Query Result Caching**
-
-    - Cache common fuzzy search results
-    - Invalidate on places table updates
-
-3. **Add Full-Text Search (FTS)**
+2. **Add Full-Text Search (FTS)**
 
     - PostgreSQL `tsvector` for better name variants
     - Combine with trigram for hybrid approach
 
-4. **Parallel Directional Processing**
+3. **Parallel Directional Processing**
 
     - Process multiple base places concurrently
-    - Use `asyncio.gather()` for parallel DB calls
+    - Already uses `asyncio.gather()` for child operations
 
-5. **Add Materialized View for Hot Paths**
+4. **Add Materialized Views for Hot Paths**
     - Pre-compute common directional grids
     - Refresh periodically
 

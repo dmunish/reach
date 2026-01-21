@@ -223,12 +223,15 @@ class GeocodingService:
     ) -> GeocodeResult:
         """
         Process directional description (e.g., "Central Sindh and Balochistan").
+        NOW WITH FULL RESULT CACHING (includes aggregation).
         
         Workflow:
-        1. Match each base place name (e.g., Sindh, Balochistan)
-        2. Get place IDs for base regions
-        3. Query database for places in directional grid
-        4. Apply hierarchical aggregation
+        1. Check Redis cache for final aggregated result
+        2. Match each base place name (e.g., Sindh, Balochistan)
+        3. Get place IDs for base regions
+        4. Query database for places in directional grid
+        5. Apply hierarchical aggregation
+        6. Cache final result
         
         Time Complexity: O(k * log n + m) where:
             k = number of base places
@@ -287,6 +290,32 @@ class GeocodingService:
         
         if failed_matches:
             logger.warning(f"Some base places not matched: {', '.join(failed_matches)}")
+        
+        # Step 1.5: Check cache for FINAL AGGREGATED result
+        # This caches the complete result including aggregation (much faster!)
+        from .redis_cache import get_redis_cache
+        from ..config import get_settings
+        
+        cache = get_redis_cache()
+        if cache:
+            # Create cache key from sorted base place IDs + direction
+            sorted_ids = sorted(str(pid) for pid in base_place_ids)
+            cache_key = f"aggregated:{','.join(sorted_ids)}:{direction.value}"
+            
+            cached_result = await cache.get("directional_aggregated", cache_key)
+            if cached_result is not None:
+                logger.info(f"✅ Aggregated result cache HIT: {direction.value} ({len(cached_result)} places)")
+                # Convert cached data back to MatchedPlace objects
+                matched_places = [
+                    MatchedPlace(**place_data)
+                    for place_data in cached_result
+                ]
+                return GeocodeResult(
+                    input=original_input,
+                    matched_places=matched_places,
+                    regions_processed=list(matched_base_names),
+                    direction=direction.value
+                )
         
         # Step 2: Query for places in directional region
         logger.info(f"Querying directional region: {direction.value} of {matched_base_names}")
@@ -358,6 +387,32 @@ class GeocodingService:
             except Exception as e:
                 logger.error(f"Error creating MatchedPlace from {place}: {e}")
                 continue
+        
+        # Step 5: Cache the final aggregated result
+        if cache and matched_places:
+            # Convert MatchedPlace objects to serializable dicts
+            serializable_places = [
+                {
+                    'id': str(place.id),
+                    'name': place.name,
+                    'hierarchy_level': place.hierarchy_level,
+                    'match_method': place.match_method,
+                    'confidence': place.confidence
+                }
+                for place in matched_places
+            ]
+            
+            settings = get_settings()
+            sorted_ids = sorted(str(pid) for pid in base_place_ids)
+            cache_key = f"aggregated:{','.join(sorted_ids)}:{direction.value}"
+            
+            await cache.set(
+                "directional_aggregated", 
+                cache_key, 
+                serializable_places,
+                ttl_seconds=settings.redis_ttl_directional
+            )
+            logger.info(f"💾 Aggregated result cache SET: {direction.value} ({len(matched_places)} places)")
         
         return GeocodeResult(
             input=original_input,

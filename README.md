@@ -35,17 +35,18 @@ Pakistan faces a critical disconnect in its disaster management infrastructure. 
     </td>
     <td width="33%" valign="top">
       <h3 align="center"><img src="Assets\snail-green.svg" width="20" height="20" style="vertical-align: middle;"> Latency & Jargon</h3>
-      <p align="center">Reports are often verbose, technical, and require manual parsing, leading to dangerous delays in dissemination.</p>
+      <p align="center">Reports are often verbose, technical, and require manual parsing, leading to dangerous delays in dissemination.<br></p>
     </td>
     <td width="33%" valign="top">
       <h3 align="center"><img src="Assets\locate-fixed-green.svg" width="20" height="20" style="vertical-align: middle;"> Zero Targeting</h3>
-      <p align="center">Warnings are broadcast at the national level, causing alert fatigue. Faulty systems to deliver geofenced alerts.</p>
+      <p align="center">Warnings are broadcast at the national level, causing alert fatigue. Faulty systems to deliver geofenced alerts.<br><br></p>
     </td>
   </tr>
 </table>
 
-
-## <img src="Assets\cpu.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> The Solution
+<br>
+<br>
+## <img src="Assets\cpu.svg" width="24" height="24" style="vertical-align: middle;"> The Solution
 REACH is an automated pipeline that ingests raw government data and transforms it into precision-targeted, actionable alerts. We treat disaster alerts as **spatial data problems**, not just text problems.
 
 ### How it works

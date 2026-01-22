@@ -52,7 +52,7 @@ REACH is an automated pipeline that ingests raw government data and transforms i
 
 ### How it works
 <p align="center">
-  <img src="Assets\REACH Architecture.png" width="auto" height="400" alt="Architecture Diagram" />
+  <img src="Assets\REACH-Architecture.png" width="auto" height="400" alt="Architecture Diagram" />
 </p>
 
 1.  **Ingestion:** Scrapers check bulletins (NDMA, NEOC, PMD) every 10 minutes for updates.

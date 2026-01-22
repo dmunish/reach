@@ -19,10 +19,6 @@
 
 </div>
 
-<p align="center">
-  <img src="https://via.placeholder.com/800x450.png?text=App+Dashboard+Demo+(Map+Visualization)" alt="REACH Dashboard Demo" width="100%" style="border-radius: 10px; box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);" />
-</p>
-
 <br>
 
 ## <img src="Assets\telescope.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> The Problem
@@ -69,16 +65,18 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 | :----------------------- | :--------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------- |
 | **Frontend**             | <img src="https://skillicons.dev/icons?i=react,ts,tailwind" valign="middle" />                                         | React, TypeScript, and Mapbox for web app.                                          |
 | **Services**             | <img src="https://skillicons.dev/icons?i=python,fastapi" valign="middle" />                                            | Python microservices handling business logic and scraping.                          |
-| **AI Engine**            | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/google-gemini.svg" width="40" valign="middle" /> | Gemini-3-Flash for high-speed inference for document parsing and entity extraction. |
 | **Backend and Database** | <img src="https://skillicons.dev/icons?i=supabase,postgres" valign="middle" />                                         | **Supabase** for storing alerts, geometries, cron jobs and message queues           |
+| **AI Engine**            | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/google-gemini.svg" width="40" valign="middle" /> | Gemini-3-Flash for high-speed inference for document parsing and entity extraction. |
 
 <br>
 
 ## <img src="Assets\images.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Visuals
 
-|                               **Alert Polygon Visualization**                               |                                  **Search & Filtering**                                  |
-| :-----------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------: |
-| <img src="https://via.placeholder.com/400x250.png?text=Geospatial+Polygons" width="100%" /> | <img src="https://via.placeholder.com/400x250.png?text=Filter+Interface" width="100%" /> |
+|                               **Alert Polygon and Centroid Visualization**                               |                               **Searching Historical Alerts**                               |
+| :-----------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------: |
+| <img src="Assets/Screenshot-Polygon-Centroid.png" width="100%" /> |  <img src="Assets/Screenshot-Searching.png" width="100%" />   |
+|                                  **Filtering By Location**                                  |                                       **Signup Page**                                       |
+| <img src="Assets/Screenshot-Filtering-Location.png" width="100%" /> | <img src="Assets/Screenshot-Singup-Page.png" width="100%" /> |
 
 <br>
 

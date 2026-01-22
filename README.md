@@ -98,6 +98,7 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 ## <img src="Assets\heart-handshake.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Acknowledgements
 - NDMA, NEOC, and PMD for their tireless work in disaster monitoring
 - The open-source community for incredible tools and libraries
+- Render, Modal, Supabase and Netlify for allowing us to host our app's services for free
 - Communities affected by the 2025 floods - this is for you
 
 <br>

@@ -39,7 +39,7 @@ Pakistan faces a critical disconnect in its disaster management infrastructure. 
     </td>
     <td width="33%" valign="top">
       <h3 align="center"><img src="Assets\locate-fixed-green.svg" width="20" height="20" style="vertical-align: middle;"> Zero Targeting</h3>
-      <p align="center">Warnings are broadcast at the national level, causing alert fatigue. There is no proper system to notify <i>only</i> the specific region at risk. The few systems that do exist for this targeting are faulty.</p>
+      <p align="center">Warnings are broadcast at the national level, causing alert fatigue. Faulty systems to deliver geofenced alerts.</p>
     </td>
   </tr>
 </table>
@@ -70,7 +70,7 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 | **Backend and Database** | <img src="https://skillicons.dev/icons?i=supabase,postgres" valign="middle" />                                         | **Supabase** for storing alerts, geometries, cron jobs and message queues           |
 
 
-## <img src="https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/wallpaper.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Visuals
+## <img src="Assets\images.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Visuals
 
 |                               **Alert Polygon Visualization**                               |                                  **Search & Filtering**                                  |
 | :-----------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------: |

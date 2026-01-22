@@ -52,12 +52,12 @@ REACH is an automated pipeline that ingests raw government data and transforms i
 
 ### How it works
 <p align="center">
-  <img src="https://via.placeholder.com/700x300.png?text=Scraper+%E2%86%92+Message+Queue+%E2%86%92+Gemini+Flash+%E2%86%92+Geocoder+%E2%86%92+Supabase" alt="Architecture Diagram" />
+  <img src="Assets\REACH Architecture.png" width="auto" height="400" alt="Architecture Diagram" />
 </p>
 
-1.  **Ingestion:** Microservice scrapers monitor endpoints (NDMA, NEOC, PMD) every 10 minutes.
-2.  **Normalization:** AI processes unstructured text and PDFs in under 30 seconds to extract severity, timeline, description, etc. and convert to a CAP-compliant schema.
-3.  **Geocoding:** A custom engine resolves location names to polygons. It handles complex directional variants (e.g., "North Khyber Pakhtunkhwa") using grid intersection logic over administrative boundaries.
+1.  **Ingestion:** Scrapers check bulletins (NDMA, NEOC, PMD) every 10 minutes for updates.
+2.  **Normalization:** AI processes fetched documents in under 30 seconds to extract severity, timeline, description, etc. and convert it to a CAP (Common Alerting Protocol)-inspired schema.
+3.  **Geocoding:** A custom service resolves location names to polygons. It handles complex directional variants (e.g., "North Khyber Pakhtunkhwa") using grid intersection logic over administrative boundaries.
 4.  **Distribution:** Normalized data is stored in our database and served via web app for visualization and filtering.
 
 <br>

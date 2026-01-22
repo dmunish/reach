@@ -23,6 +23,7 @@
   <img src="https://via.placeholder.com/800x450.png?text=App+Dashboard+Demo+(Map+Visualization)" alt="REACH Dashboard Demo" width="100%" style="border-radius: 10px; box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);" />
 </p>
 
+<br>
 
 ## <img src="Assets\telescope.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> The Problem
 Pakistan faces a critical disconnect in its disaster management infrastructure. While agencies like NDMA and PMD generate vital data, the "last mile" of communication is broken.
@@ -45,7 +46,6 @@ Pakistan faces a critical disconnect in its disaster management infrastructure. 
 </table>
 
 <br>
-<br>
 
 ## <img src="Assets\cpu.svg" width="24" height="24" style="vertical-align: middle;"> The Solution
 REACH is an automated pipeline that ingests raw government data and transforms it into precision-targeted, actionable alerts. We treat disaster alerts as **spatial data problems**, not just text problems.
@@ -61,7 +61,6 @@ REACH is an automated pipeline that ingests raw government data and transforms i
 4.  **Distribution:** Normalized data is stored in our database and served via web app for visualization and filtering.
 
 <br>
-<br>
 
 ## <img src="Assets\layers.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Tech Stack
 Our architecture is built for speed, resilience, and geospatial accuracy.
@@ -74,7 +73,6 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 | **Backend and Database** | <img src="https://skillicons.dev/icons?i=supabase,postgres" valign="middle" />                                         | **Supabase** for storing alerts, geometries, cron jobs and message queues           |
 
 <br>
-<br>
 
 ## <img src="Assets\images.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Visuals
 
@@ -82,7 +80,6 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 | :-----------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------: |
 | <img src="https://via.placeholder.com/400x250.png?text=Geospatial+Polygons" width="100%" /> | <img src="https://via.placeholder.com/400x250.png?text=Filter+Interface" width="100%" /> |
 
-<br>
 <br>
 
 ## <img src="Assets\map.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Roadmap
@@ -99,14 +96,12 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 - [ ] **Data Expansion:** Integrating social media firehose (validated) and international weather APIs
 
 <br>
-<br>
 
 ## <img src="Assets\heart-handshake.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Acknowledgements
 - NDMA, NEOC, and PMD for their tireless work in disaster monitoring
 - The open-source community for incredible tools and libraries
 - Communities affected by the 2025 floods - this is for you
 
-<br>
 <br>
 
 <p align="center">

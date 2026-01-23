@@ -75,8 +75,8 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 |                               **Alert Polygon and Centroid Visualization**                               |                               **Searching Historical Alerts**                               |
 | :-----------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------: |
 | <img src="Assets/Screenshot-Polygon-Centroid.png" width="100%" /> |  <img src="Assets/Screenshot-Searching.png" width="100%" />   |
-|                                  **Filtering By Location**                                  |                                       **Signup Page**                                       |
-| <img src="Assets/Screenshot-Filtering-Location.png" width="100%" /> | <img src="Assets/Screenshot-Singup-Page.png" width="100%" /> |
+|                                  **Filtering By Location**                                  |                                       **User Guide**                                       |
+| <img src="Assets/Screenshot-Filtering-Location.png" width="100%" /> | <img src="Assets/Screenshot-User-Guide.png" width="100%" /> |
 
 <br>
 

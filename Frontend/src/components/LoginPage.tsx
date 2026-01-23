@@ -161,7 +161,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             <div className="relative z-10">
               <h1 className="text-3xl font-bold text-white mb-2">REACH</h1>
               <p className="text-stone text-sm">
-                Real-time Emergency Alert & Communication Hub
+                Real-time Emergency Alert Collection Hub
               </p>
             </div>
 

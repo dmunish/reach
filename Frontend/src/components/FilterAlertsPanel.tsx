@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { DateRangeSelector } from "./DateRangeSelector";
+import React, { useState, useRef } from "react";
+import { format } from "date-fns";
 import type { 
   AlertSeverity, 
   AlertCategory, 
@@ -108,6 +108,72 @@ const URGENCIES: AlertUrgency[] = [
   "Immediate", "Expected", "Future", "Past", "Unknown"
 ];
 
+const DateButton: React.FC<{ 
+  value?: Date; 
+  label: string; 
+  onChange: (date: Date | null) => void;
+}> = ({ value, label, onChange }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  const handleContainerClick = () => {
+    if (inputRef.current) {
+      if ('showPicker' in HTMLInputElement.prototype) {
+        try {
+          inputRef.current.showPicker();
+        } catch (e) {
+          inputRef.current.focus();
+        }
+      } else {
+        inputRef.current.focus();
+      }
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val) {
+      const [year, month, day] = val.split('-').map(Number);
+      onChange(new Date(year, month - 1, day));
+    } else {
+      onChange(null);
+    }
+  };
+
+  const formattedDate = value ? format(value, "MM/dd/yy") : label;
+
+  return (
+    <div 
+      onClick={handleContainerClick}
+      className="relative flex items-center justify-between bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 hover:bg-white/5 transition-all cursor-pointer h-[34px] flex-1 group"
+    >
+      <span className={value ? "text-white" : "text-gray-500"}>
+        {formattedDate}
+      </span>
+      <svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        width="14" height="14" 
+        viewBox="0 0 24 24" fill="none" 
+        stroke="currentColor" strokeWidth="2" 
+        strokeLinecap="round" strokeLinejoin="round"
+        className="text-gray-500 group-hover:text-caribbean-green transition-colors"
+      >
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      <input
+        ref={inputRef}
+        type="date"
+        value={value ? format(value, "yyyy-MM-dd") : ""}
+        onChange={handleInputChange}
+        className="absolute inset-0 opacity-0 pointer-events-none"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+};
+
 export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
   isVisible,
   onClose,
@@ -209,7 +275,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
              {activeFilterCount > 0 && (
               <button
                 onClick={onResetFilters}
-                className="p-1.5 text-[10px] uppercase tracking-wider font-semibold text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1"
+                className="p-1.5 text-[10px] uppercase tracking-wider font-semibold text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1 cursor-pointer"
                 title="Reset all filters"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
@@ -218,10 +284,10 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
             )}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`p-1.5 flex items-center gap-1.5 rounded-md transition-colors text-xs font-medium ${showFilters ? 'bg-caribbean-green/20 text-caribbean-green' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+              className={`p-2 flex items-center gap-1.5 rounded-md transition-colors text-xs font-medium border border-white/10 cursor-pointer ${showFilters ? 'bg-caribbean-green/20 text-caribbean-green border-caribbean-green/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
               title="Toggle filter options"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
               <span>Filters</span>
               {activeFilterCount > 0 && (
                 <span className="bg-caribbean-green text-rich-black text-[10px] px-1 rounded-full min-w-[14px] flex items-center justify-center">
@@ -232,16 +298,16 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
             <button
               onClick={onRefresh}
               disabled={loading}
-              className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
+              className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors cursor-pointer"
               title="Refresh"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
+              className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors cursor-pointer"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
           </div>
         </div>
@@ -265,7 +331,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
             {filters.searchQuery && (
               <button
                 onClick={onClearSearch}
-                className="absolute right-2 top-2.5 p-0.5 hover:text-white text-gray-500"
+                className="absolute right-2 top-2.5 p-0.5 hover:text-white text-gray-500 cursor-pointer"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
@@ -277,14 +343,18 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">Date Range</label>
-                <DateRangeSelector
-                  initialStartDate={filters.startDate}
-                  initialEndDate={filters.endDate}
-                  onDateRangeChange={(start, end) => {
-                    onFilterChange("startDate", start);
-                    onFilterChange("endDate", end);
-                  }}
-                />
+                <div className="flex gap-2">
+                  <DateButton 
+                    value={filters.startDate} 
+                    label="From" 
+                    onChange={(date) => onFilterChange("startDate", date)} 
+                  />
+                  <DateButton 
+                    value={filters.endDate} 
+                    label="Until" 
+                    onChange={(date) => onFilterChange("endDate", date)} 
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col gap-1">
@@ -292,7 +362,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                 <select 
                   value={filters.status}
                   onChange={(e) => onFilterChange("status", e.target.value)}
-                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all cursor-pointer"
                 >
                   <option value="active" className="bg-rich-black text-white">Active</option>
                   <option value="archived" className="bg-rich-black text-white">Archived</option>
@@ -306,7 +376,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                   <select 
                     value={filters.sortBy}
                     onChange={(e) => onFilterChange("sortBy", e.target.value)}
-                    className="flex-1 bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                    className="flex-1 bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all cursor-pointer"
                   >
                     <option value="posted_date" className="bg-rich-black text-white">Posted Date</option>
                     <option value="effective_from" className="bg-rich-black text-white">Event Date</option>
@@ -315,7 +385,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                   </select>
                   <button
                     onClick={() => onFilterChange("sortOrder", filters.sortOrder === 'asc' ? 'desc' : 'asc')}
-                    className="p-1.5 bg-rich-black/50 border border-white/10 rounded-md text-gray-400 hover:text-white hover:border-white/30 transition-all flex items-center justify-center min-w-[34px]"
+                    className="p-1.5 bg-rich-black/50 border border-white/10 rounded-md text-gray-400 hover:text-white hover:border-white/30 transition-all flex items-center justify-center min-w-[34px] cursor-pointer"
                     title={filters.sortOrder === 'asc' ? "Sort Ascending" : "Sort Descending"}
                   >
                     {filters.sortOrder === 'asc' ? (
@@ -335,7 +405,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                 <select 
                   value={filters.category || ""}
                   onChange={(e) => onFilterChange("category", e.target.value || undefined)}
-                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all cursor-pointer"
                 >
                   <option value="" className="bg-rich-black text-white">All Categories</option>
                   {CATEGORIES.map(c => <option key={c} value={c} className="bg-rich-black text-white">{CATEGORY_LABELS[c] || c}</option>)}
@@ -347,7 +417,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                 <select 
                   value={filters.severity || ""}
                   onChange={(e) => onFilterChange("severity", e.target.value || undefined)}
-                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all cursor-pointer"
                 >
                   <option value="" className="bg-rich-black text-white">All Severities</option>
                   {SEVERITIES.map(s => <option key={s} value={s} className="bg-rich-black text-white">{s}</option>)}
@@ -359,7 +429,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                 <select 
                   value={filters.scope}
                   onChange={(e) => onFilterChange("scope", e.target.value)}
-                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all"
+                  className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all cursor-pointer"
                 >
                   <option value="nationwide" className="bg-rich-black text-white">Nationwide</option>
                   <option value="local" className="bg-rich-black text-white">Local</option>

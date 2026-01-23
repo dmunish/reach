@@ -21,7 +21,7 @@
 
 <br>
 
-## <img src="Assets\telescope.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> The Problem
+## <img src="Assets\telescope-green.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> The Problem
 Pakistan faces a critical disconnect in its disaster management infrastructure. While agencies like NDMA and PMD generate vital data, the "last mile" of communication is broken.
 
 <table width="100%">
@@ -43,7 +43,7 @@ Pakistan faces a critical disconnect in its disaster management infrastructure. 
 
 <br>
 
-## <img src="Assets\cpu.svg" width="24" height="24" style="vertical-align: middle;"> The Solution
+## <img src="Assets\cpu-green.svg" width="24" height="24" style="vertical-align: middle;"> The Solution
 REACH is an automated pipeline that ingests raw government data and transforms it into precision-targeted, actionable alerts. We treat disaster alerts as **spatial data problems**, not just text problems.
 
 ### How it works
@@ -58,7 +58,7 @@ REACH is an automated pipeline that ingests raw government data and transforms i
 
 <br>
 
-## <img src="Assets\layers.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Tech Stack
+## <img src="Assets\layers-green.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Tech Stack
 Our architecture is built for speed, resilience, and geospatial accuracy.
 
 | **Component**            | **Technology**                                                                                                         | **Description**                                                                     |
@@ -70,7 +70,7 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 
 <br>
 
-## <img src="Assets\images.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Visuals
+## <img src="Assets\images-green.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Visuals
 
 |                               **Alert Polygon and Centroid Visualization**                               |                               **Searching Historical Alerts**                               |
 | :-----------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------: |
@@ -80,7 +80,7 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 
 <br>
 
-## <img src="Assets\map.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Roadmap
+## <img src="Assets\map-green.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Roadmap
 - [x] **Scrapers:** Automated bots hitting NDMA, NEOC, and PMD public sources on a 10-minute cron
 - [x] **AI Pipeline:** Document processing pipeline achieving <30s latency per report using Gemini 3 Flash
 - [x] **Spatial Engine:** Heuristic geocoder capable of parsing admin regions and directional descriptors into polygons
@@ -95,7 +95,7 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 
 <br>
 
-## <img src="Assets\heart-handshake.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Acknowledgements
+## <img src="Assets\heart-handshake-green.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Acknowledgements
 - NDMA, NEOC, and PMD for their tireless work in disaster monitoring
 - The open-source community for incredible tools and libraries
 - Render, Modal, Supabase and Netlify for allowing us to host our app's services for free

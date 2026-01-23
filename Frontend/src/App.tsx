@@ -11,6 +11,7 @@ import { Navbar } from "./components/Navbar";
 import { FilterAlertsPanel } from "./components/FilterAlertsPanel";
 import { DetailCard, type DetailData } from "./components/DetailCard";
 import { SettingsPanel, type UserSettings } from "./components/SettingsPanel";
+import { UserGuide } from "./components/UserGuide";
 import { useAlerts, useAlertGeometry } from "./hooks/useAlerts";
 import type { AlertFromRPC, AlertsRPCFilters, AlertCategory, AlertSeverity, AlertUrgency } from "./types/database";
 
@@ -68,6 +69,7 @@ export const App: React.FC = () => {
   // We'll treat 'isAlertsPanelVisible' as the visibility for the new FilterAlertsPanel
   const [isAlertsPanelVisible, setIsAlertsPanelVisible] = useState(false);
   const [isSettingsPanelVisible, setIsSettingsPanelVisible] = useState(false);
+  const [isUserGuideVisible, setIsUserGuideVisible] = useState(false);
   
   // Resizable panel states
   const [alertsPanelHeight, setAlertsPanelHeight] = useState(400);
@@ -196,6 +198,12 @@ export const App: React.FC = () => {
 
   // Load user settings from localStorage on mount
   useEffect(() => {
+    // Check if it's the first time the user is visiting
+    const hasSeenGuide = localStorage.getItem("reach_has_seen_guide");
+    if (!hasSeenGuide) {
+      setIsUserGuideVisible(true);
+    }
+
     const loadUserSettings = async () => {
       try {
         const {
@@ -221,6 +229,15 @@ export const App: React.FC = () => {
       }
     };
     loadUserSettings();
+  }, []);
+
+  const handleCloseUserGuide = useCallback(() => {
+    setIsUserGuideVisible(false);
+    localStorage.setItem("reach_has_seen_guide", "true");
+  }, []);
+
+  const handleOpenUserGuide = useCallback(() => {
+    setIsUserGuideVisible(true);
   }, []);
 
   // Build RPC filters from UI state (uses debounced search query)
@@ -547,6 +564,12 @@ export const App: React.FC = () => {
         isVisible={isSettingsPanelVisible}
         onClose={() => setIsSettingsPanelVisible(false)}
         onSettingsChange={handleSettingsChange}
+        onOpenUserGuide={handleOpenUserGuide}
+      />
+
+      <UserGuide
+        isVisible={isUserGuideVisible}
+        onClose={handleCloseUserGuide}
       />
     </div>
   );

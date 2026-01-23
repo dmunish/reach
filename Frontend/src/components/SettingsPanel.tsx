@@ -7,6 +7,7 @@ export interface SettingsPanelProps {
   isVisible: boolean;
   onClose: () => void;
   onSettingsChange?: (settings: UserSettings) => void;
+  onOpenUserGuide: () => void;
 }
 
 // Export UserSettings type
@@ -36,6 +37,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   isVisible,
   onClose,
   onSettingsChange,
+  onOpenUserGuide,
 }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -207,6 +209,29 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto dark-scrollbar p-4">
+          <div className="max-w-2xl mx-auto space-y-4 mb-4">
+               {/* User Guide Entry */}
+               <button
+                onClick={onOpenUserGuide}
+                className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-bangladesh-green/20 cursor-pointer transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-bangladesh-green/20 rounded-lg group-hover:bg-bangladesh-green/30 transition-colors">
+                    <svg className="w-5 h-5 text-bangladesh-green" fill="none" stroke="currentColor" viewBox="0 0 24 24" >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.73 5.832 18.247 7.5 18.247s3.332.483 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.73 18.247 18.247 16.5 18.247s-3.332.483-4.5 1.253" />
+                    </svg>
+                  </div>
+                  <div className="text-left">
+                    <h4 className="text-white font-semibold text-sm">User Guide</h4>
+                    <p className="text-stone text-xs">Learn how to use the REACH dashboard</p>
+                  </div>
+                </div>
+                <svg className="w-5 h-5 text-bangladesh-green transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+          </div>
+
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <div className="animate-spin h-6 w-6 border-2 border-caribbean-green border-t-transparent rounded-full"></div>

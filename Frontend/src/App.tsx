@@ -87,7 +87,7 @@ export const App: React.FC = () => {
   const [severityFilter, setSeverityFilter] = useState<AlertSeverity | undefined>(undefined);
   const [categoryFilter, setCategoryFilter] = useState<AlertCategory | undefined>(undefined);
   const [urgencyFilter, setUrgencyFilter] = useState<AlertUrgency | undefined>(undefined);
-  const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'all'>('active');
+  const [statusFilter, setStatusFilter] = useState<'active' | 'all'>('active');
   const [sortBy, setSortBy] = useState<'effective_from' | 'posted_date' | 'severity' | 'urgency'>('posted_date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 

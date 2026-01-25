@@ -111,7 +111,7 @@ export interface AlertGeometry {
 
 // Filter parameters for get_alerts() RPC function
 export interface AlertsRPCFilters {
-  status_filter?: 'active' | 'archived' | 'all';
+  status_filter?: 'active' | 'all';
   search_query?: string;
   category_filter?: AlertCategory;
   severity_filter?: AlertSeverity;
@@ -158,7 +158,7 @@ export interface Database {
     Functions: {
       get_alerts: {
         Args: {
-          status_filter: "active" | "archived" | "all";
+          status_filter: "active" | "all";
           search_query: string | null;
           category_filter: string | null;
           severity_filter: string | null;

@@ -21,7 +21,7 @@ export interface FilterAlertsPanelProps {
   // Filter state props
   filters: {
     searchQuery: string;
-    status: 'active' | 'archived' | 'all';
+    status: 'active' | 'all';
     severity?: AlertSeverity;
     urgency?: AlertUrgency;
     category?: AlertCategory;
@@ -365,8 +365,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                   className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all cursor-pointer"
                 >
                   <option value="active" className="bg-rich-black text-white">Active</option>
-                  <option value="archived" className="bg-rich-black text-white">Archived</option>
-                  <option value="all" className="bg-rich-black text-white">All Status</option>
+                  <option value="all" className="bg-rich-black text-white">All</option>
                 </select>
               </div>
 

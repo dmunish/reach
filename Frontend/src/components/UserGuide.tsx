@@ -227,7 +227,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
                   </div>
                   <div className="p-4 bg-rich-black/40 border border-white/5">
                     <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">Date Range & Status</span>
-                    <span className="text-gray-300 text-base">Filter by active alerts, archived history, or specific date ranges.</span>
+                    <span className="text-gray-300 text-base">Filter alerts by active status, all, or specific date ranges.</span>
                   </div>
                   <div className="p-4 bg-rich-black/40 border border-white/5">
                     <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">Category & Severity</span>

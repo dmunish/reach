@@ -101,6 +101,8 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 - Render, Modal, Supabase and Netlify for allowing us to host our app's services for free
 - Communities affected by the 2025 floods - this is for you
 
+And the [![Featured on Awesome README](https://awesome.re/badge-flat.svg)](https://github.com/matiassingers/awesome-readme) project for featuring us.
+
 <br>
 
 <p align="center">

@@ -155,7 +155,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
                   <div className="flex flex-col gap-4">
                       <div className="p-4 bg-rich-black/40 border border-white/5">
                           <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">Markers</span>
-                          <span className="text-gray-300 text-base">Each pin represents the center of an alert area. The color of the pin indicates the severity level.</span>
+                          <span className="text-gray-300 text-base">Each pin represents the geographical center of an alert's affected area (though not meant to highlight any particular region). The color of the pin indicates the severity level.</span>
                       </div>
                       <div className="p-4 bg-rich-black/40 border border-white/5">
                           <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">Interaction</span>
@@ -238,6 +238,13 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
                     <span className="text-gray-300 text-base">Switch between "Nationwide" to see everything, or "Local" to see alerts near your current GPS location.</span>
                   </div>
                 </div>
+              </div>
+            </section>
+
+            {/* Section 4: CLosing */}
+            <section className="space-y-6">
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <span className="text-base text-gray-300 font-medium tracking-wider">This guide is available anytime in the <strong>Settings</strong> tab</span>
               </div>
             </section>
           </div>

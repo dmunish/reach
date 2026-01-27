@@ -34,6 +34,14 @@ export const DetailCard: React.FC<DetailCardProps> = ({
   onWidthChange,
 }) => {
   const [isResizing, setIsResizing] = React.useState(false);
+  const [mobileHeight, setMobileHeight] = React.useState(320);
+  const [isMobile, setIsMobile] = React.useState(window.innerWidth < 640);
+
+  React.useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -54,6 +62,48 @@ export const DetailCard: React.FC<DetailCardProps> = ({
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleMobileMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const newHeight = window.innerHeight - moveEvent.clientY - 16;
+      if (newHeight > 200 && newHeight < window.innerHeight - 100) {
+        setMobileHeight(newHeight);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleMobileTouchStart = (e: React.TouchEvent) => {
+    setIsResizing(true);
+    
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      const touch = moveEvent.touches[0];
+      const newHeight = window.innerHeight - touch.clientY - 16;
+      if (newHeight > 200 && newHeight < window.innerHeight - 100) {
+        setMobileHeight(newHeight);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      setIsResizing(false);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+
+    window.addEventListener("touchmove", handleTouchMove);
+    window.addEventListener("touchend", handleTouchEnd);
   };
 
   const formatDate = (date: Date) => {
@@ -371,7 +421,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
                     placeholder="Search areas..."
                     value={areaSearchQuery}
                     onChange={(e) => setAreaSearchQuery(e.target.value)}
-                    className="w-full bg-rich-black/50 border border-white/10 rounded-lg px-3 py-2 pl-9 text-sm text-white focus:outline-none focus:border-caribbean-green transition-colors"
+                    className="w-full bg-white/10 border border-white/10 rounded-none px-3 py-2 pl-9 text-sm text-white focus:outline-none focus:border-caribbean-green transition-colors"
                   />
                   <svg
                     className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2"
@@ -421,7 +471,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
       {/* Detail card */}
       <div
         className={`fixed 
-          bottom-4 left-4 right-4 h-80 
+          bottom-4 left-4 right-4 
           sm:top-4 sm:bottom-4 sm:h-auto sm:right-4 sm:left-auto
           frosted-glass transform transition-all duration-300 ease-in-out z-40 overflow-y-auto dark-scrollbar
           ${
@@ -432,14 +482,22 @@ export const DetailCard: React.FC<DetailCardProps> = ({
           ${isResizing ? "transition-none" : ""}
         `}
         style={{
-          width: window.innerWidth < 640 ? 'auto' : `${width}px`,
-          maxWidth: window.innerWidth < 640 ? 'none' : `${width}px`
+          width: isMobile ? 'auto' : `${width}px`,
+          maxWidth: isMobile ? 'none' : `${width}px`,
+          height: isMobile ? `${mobileHeight}px` : 'auto'
         }}
       >
-        {/* Resize Handle - Left */}
+        {/* Resize Handle - Left (Desktop) */}
         <div 
           className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-caribbean-green/50 transition-colors z-50 hidden sm:block"
           onMouseDown={handleMouseDown}
+        />
+
+        {/* Resize Handle - Top (Mobile) */}
+        <div 
+          className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-caribbean-green/50 transition-colors z-50 block sm:hidden"
+          onMouseDown={handleMobileMouseDown}
+          onTouchStart={handleMobileTouchStart}
         />
 
         <div className="p-4 h-full flex flex-col">

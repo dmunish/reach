@@ -215,6 +215,27 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
     window.addEventListener("mouseup", handleMouseUp);
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsResizing(true);
+    
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      const touch = moveEvent.touches[0];
+      const newHeight = window.innerHeight - touch.clientY - 16;
+      if (newHeight > 100 && newHeight < window.innerHeight - 100) {
+        onHeightChange(newHeight);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      setIsResizing(false);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+
+    window.addEventListener("touchmove", handleTouchMove);
+    window.addEventListener("touchend", handleTouchEnd);
+  };
+
   const getSeverityColorRGBA = (severity?: string, alpha: number = 1): string => {
     switch (severity?.toLowerCase()) {
       case "extreme": return `rgba(180, 0, 255, ${alpha})`;
@@ -256,6 +277,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
       <div 
         className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-caribbean-green/50 transition-colors z-50"
         onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
       />
 
       <div className="p-4 border-b border-white/10 bg-rich-black/30 backdrop-blur-md">

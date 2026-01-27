@@ -4,6 +4,7 @@ export interface NavbarProps {
   onToggleFilter: () => void;
   onToggleDetails: () => void;
   onToggleSettings: () => void;
+  onTeamClick?: () => void; // Optional to avoid breaking build before parent update
   isFilterOpen: boolean;
   isDetailsOpen: boolean;
   isSettingsOpen: boolean;
@@ -13,6 +14,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleFilter,
   onToggleDetails,
   onToggleSettings,
+  onTeamClick,
   isFilterOpen,
   isDetailsOpen,
   isSettingsOpen,
@@ -118,8 +120,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Copyright Text - Hidden on Mobile */}
       <div className="mt-auto hidden sm:block">
-        <div
-          className="text-white text-xs tracking-wide text-shine-vertical"
+        <button
+          onClick={onTeamClick}
+          className="text-white text-xs tracking-wide text-shine-vertical cursor-pointer hover:opacity-80 transition-opacity focus:outline-none"
           style={{
             writingMode: "vertical-rl",
             textOrientation: "mixed",
@@ -127,7 +130,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           }}
         >
           Team REACH © 2026
-        </div>
+        </button>
       </div>
     </div>
   );

@@ -12,28 +12,38 @@ import { FilterAlertsPanel } from "./components/FilterAlertsPanel";
 import { DetailCard, type DetailData } from "./components/DetailCard";
 import { SettingsPanel, type UserSettings } from "./components/SettingsPanel";
 import { UserGuide } from "./components/UserGuide";
+import { TeamPopup } from "./components/TeamPopup";
 import { useAlerts, useAlertGeometry } from "./hooks/useAlerts";
-import type { AlertFromRPC, AlertsRPCFilters, AlertCategory, AlertSeverity, AlertUrgency } from "./types/database";
+import type {
+  AlertFromRPC,
+  AlertsRPCFilters,
+  AlertCategory,
+  AlertSeverity,
+  AlertUrgency,
+} from "./types/database";
 
 // Transform RPC alert data to match our DetailData interface
 // Uses pre-computed centroids and bbox from the server
 function transformAlertToDetailData(alert: AlertFromRPC): DetailData {
   // Use pre-computed centroid from server (already lat/lng from PostGIS)
-  const coordinates: [number, number] = 
+  const coordinates: [number, number] =
     alert.centroid_lng != null && alert.centroid_lat != null
       ? [alert.centroid_lng, alert.centroid_lat]
       : [69.3451, 30.3753]; // Default to Pakistan center
 
   // Extract bbox for zoom fitting
-  const bbox = (alert.bbox_xmin != null && alert.bbox_ymin != null && 
-                alert.bbox_xmax != null && alert.bbox_ymax != null)
-    ? {
-        xmin: alert.bbox_xmin,
-        ymin: alert.bbox_ymin,
-        xmax: alert.bbox_xmax,
-        ymax: alert.bbox_ymax,
-      }
-    : null;
+  const bbox =
+    alert.bbox_xmin != null &&
+    alert.bbox_ymin != null &&
+    alert.bbox_xmax != null &&
+    alert.bbox_ymax != null
+      ? {
+          xmin: alert.bbox_xmin,
+          ymin: alert.bbox_ymin,
+          xmax: alert.bbox_xmax,
+          ymax: alert.bbox_ymax,
+        }
+      : null;
 
   return {
     id: alert.id,
@@ -51,7 +61,9 @@ function transformAlertToDetailData(alert: AlertFromRPC): DetailData {
     additionalInfo: {
       coordinates,
       bbox,
-      effectiveUntil: alert.effective_until ? new Date(alert.effective_until) : undefined,
+      effectiveUntil: alert.effective_until
+        ? new Date(alert.effective_until)
+        : undefined,
       places: alert.affected_places || [],
       // Geometry will be loaded on-demand via hover/click
       geometry: undefined,
@@ -64,32 +76,44 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 export const App: React.FC = () => {
   const [selectedAlert, setSelectedAlert] = useState<DetailData | null>(null);
   const [isDetailCardVisible, setIsDetailCardVisible] = useState(false);
-  
+
   // Replaced individual panel toggles with a consolidated one where appropriate
   // We'll treat 'isAlertsPanelVisible' as the visibility for the new FilterAlertsPanel
   const [isAlertsPanelVisible, setIsAlertsPanelVisible] = useState(false);
   const [isSettingsPanelVisible, setIsSettingsPanelVisible] = useState(false);
   const [isUserGuideVisible, setIsUserGuideVisible] = useState(false);
-  
+  const [isTeamPopupVisible, setIsTeamPopupVisible] = useState(false);
+
   // Resizable panel states
   const [alertsPanelHeight, setAlertsPanelHeight] = useState(400);
   const [sidePanelWidth, setSidePanelWidth] = useState(576); // Increased by 50% from 384
-  
+
   // Filter States
-  const [scope, setScope] = useState<'nationwide' | 'local'>('nationwide');
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [scope, setScope] = useState<"nationwide" | "local">("nationwide");
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
   const [dateFilters, setDateFilters] = useState<{
     startDate?: Date;
     endDate?: Date;
   }>({});
-  const [severityFilter, setSeverityFilter] = useState<AlertSeverity | undefined>(undefined);
-  const [categoryFilter, setCategoryFilter] = useState<AlertCategory | undefined>(undefined);
-  const [urgencyFilter, setUrgencyFilter] = useState<AlertUrgency | undefined>(undefined);
-  const [statusFilter, setStatusFilter] = useState<'active' | 'all'>('active');
-  const [sortBy, setSortBy] = useState<'effective_from' | 'posted_date' | 'severity' | 'urgency'>('posted_date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [severityFilter, setSeverityFilter] = useState<
+    AlertSeverity | undefined
+  >(undefined);
+  const [categoryFilter, setCategoryFilter] = useState<
+    AlertCategory | undefined
+  >(undefined);
+  const [urgencyFilter, setUrgencyFilter] = useState<AlertUrgency | undefined>(
+    undefined
+  );
+  const [statusFilter, setStatusFilter] = useState<"active" | "all">("active");
+  const [sortBy, setSortBy] = useState<
+    "effective_from" | "posted_date" | "severity" | "urgency"
+  >("posted_date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [mapTheme, setMapTheme] = useState<string>("dark-v11");
@@ -104,12 +128,9 @@ export const App: React.FC = () => {
   const { fetchGeometry, prefetchGeometry } = useAlertGeometry();
 
   // Debounced search - waits 300ms after user stops typing
-  const debouncedSetSearch = useDebouncedCallback(
-    (value: string) => {
-      setDebouncedSearchQuery(value);
-    },
-    300
-  );
+  const debouncedSetSearch = useDebouncedCallback((value: string) => {
+    setDebouncedSearchQuery(value);
+  }, 300);
 
   // Clear search
   const handleClearSearch = useCallback(() => {
@@ -120,7 +141,7 @@ export const App: React.FC = () => {
   const handleRequestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       alert("Geolocation is not supported by your browser");
-      setScope('nationwide');
+      setScope("nationwide");
       return;
     }
 
@@ -134,8 +155,10 @@ export const App: React.FC = () => {
       },
       (error) => {
         console.error("Error getting location:", error);
-        alert("Unable to retrieve your location. Reverting to nationwide scope.");
-        setScope('nationwide');
+        alert(
+          "Unable to retrieve your location. Reverting to nationwide scope."
+        );
+        setScope("nationwide");
         setUserLocation(null);
       }
     );
@@ -148,53 +171,56 @@ export const App: React.FC = () => {
     setSeverityFilter(undefined);
     setCategoryFilter(undefined);
     setUrgencyFilter(undefined);
-    setStatusFilter('active');
-    setSortBy('posted_date');
-    setSortOrder('desc');
-    setScope('nationwide');
+    setStatusFilter("active");
+    setSortBy("posted_date");
+    setSortOrder("desc");
+    setScope("nationwide");
     setUserLocation(null);
   }, []);
 
-  const handleFilterChange = useCallback((key: string, value: any) => {
-    switch (key) {
-      case 'scope':
-        setScope(value);
-        if (value === 'local') {
-          handleRequestLocation();
-        } else {
-          setUserLocation(null);
-        }
-        break;
-      case 'searchQuery':
-        setSearchQuery(value);
-        debouncedSetSearch(value);
-        break;
-      case 'status':
-        setStatusFilter(value);
-        break;
-      case 'severity':
-        setSeverityFilter(value);
-        break;
-      case 'urgency':
-        setUrgencyFilter(value);
-        break;
-      case 'category':
-        setCategoryFilter(value);
-        break;
-      case 'startDate':
-        setDateFilters(prev => ({ ...prev, startDate: value }));
-        break;
-      case 'endDate':
-        setDateFilters(prev => ({ ...prev, endDate: value }));
-        break;
-      case 'sortBy':
-        setSortBy(value);
-        break;
-      case 'sortOrder':
-        setSortOrder(value);
-        break;
-    }
-  }, [debouncedSetSearch, handleRequestLocation]);
+  const handleFilterChange = useCallback(
+    (key: string, value: any) => {
+      switch (key) {
+        case "scope":
+          setScope(value);
+          if (value === "local") {
+            handleRequestLocation();
+          } else {
+            setUserLocation(null);
+          }
+          break;
+        case "searchQuery":
+          setSearchQuery(value);
+          debouncedSetSearch(value);
+          break;
+        case "status":
+          setStatusFilter(value);
+          break;
+        case "severity":
+          setSeverityFilter(value);
+          break;
+        case "urgency":
+          setUrgencyFilter(value);
+          break;
+        case "category":
+          setCategoryFilter(value);
+          break;
+        case "startDate":
+          setDateFilters((prev) => ({ ...prev, startDate: value }));
+          break;
+        case "endDate":
+          setDateFilters((prev) => ({ ...prev, endDate: value }));
+          break;
+        case "sortBy":
+          setSortBy(value);
+          break;
+        case "sortOrder":
+          setSortOrder(value);
+          break;
+      }
+    },
+    [debouncedSetSearch, handleRequestLocation]
+  );
 
   // Load user settings from localStorage on mount
   useEffect(() => {
@@ -254,22 +280,22 @@ export const App: React.FC = () => {
       sort_order: sortOrder,
       page_size: 100,
       page_offset: 0,
-      user_lat: scope === 'local' ? userLocation?.lat : undefined,
-      user_lng: scope === 'local' ? userLocation?.lng : undefined,
-      radius_km: scope === 'local' ? 20 : undefined,
+      user_lat: scope === "local" ? userLocation?.lat : undefined,
+      user_lng: scope === "local" ? userLocation?.lng : undefined,
+      radius_km: scope === "local" ? 20 : undefined,
     }),
     [
-      debouncedSearchQuery, 
-      categoryFilter, 
-      severityFilter, 
+      debouncedSearchQuery,
+      categoryFilter,
+      severityFilter,
       urgencyFilter,
-      dateFilters.startDate, 
+      dateFilters.startDate,
       dateFilters.endDate,
       statusFilter,
       sortBy,
       sortOrder,
       scope,
-      userLocation
+      userLocation,
     ]
   );
 
@@ -304,42 +330,52 @@ export const App: React.FC = () => {
   };
 
   // Handle hover on alert - prefetch geometry only (no map movement)
-  const handleAlertHover = useCallback(async (alert: DetailData) => {
-    if (alert.id) {
-      // Start prefetching geometry asynchronously
-      prefetchGeometry(alert.id);
-    }
-  }, [prefetchGeometry]);
+  const handleAlertHover = useCallback(
+    async (alert: DetailData) => {
+      if (alert.id) {
+        // Start prefetching geometry asynchronously
+        prefetchGeometry(alert.id);
+      }
+    },
+    [prefetchGeometry]
+  );
 
-  const handleAlertClick = useCallback(async (alert: DetailData) => {
-    setSelectedAlert(alert);
-    setIsDetailCardVisible(true);
+  const handleAlertClick = useCallback(
+    async (alert: DetailData) => {
+      setSelectedAlert(alert);
+      setIsDetailCardVisible(true);
 
-    if (alert.id) {
-      activeAlertIdRef.current = alert.id;
-    }
-
-    if (mapRef.current && alert.id) {
-      // Clear any existing highlight immediately
-      mapRef.current.clearHighlight();
-
-      // First, zoom to bbox if available
-      if (alert.additionalInfo?.bbox) {
-        mapRef.current.fitToBbox(alert.additionalInfo.bbox, 60);
-      } else if (alert.additionalInfo?.coordinates) {
-        const [lng, lat] = alert.additionalInfo.coordinates;
-        mapRef.current.flyTo([lng, lat], 8);
+      if (alert.id) {
+        activeAlertIdRef.current = alert.id;
       }
 
-      // Fetch geometry (will use cache if available from hover)
-      const geometry = await fetchGeometry(alert.id);
-      
-      if (activeAlertIdRef.current === alert.id && geometry && mapRef.current) {
-        // Highlight the geometry on the map
-        mapRef.current.highlightGeoJSON(geometry);
+      if (mapRef.current && alert.id) {
+        // Clear any existing highlight immediately
+        mapRef.current.clearHighlight();
+
+        // First, zoom to bbox if available
+        if (alert.additionalInfo?.bbox) {
+          mapRef.current.fitToBbox(alert.additionalInfo.bbox, 60);
+        } else if (alert.additionalInfo?.coordinates) {
+          const [lng, lat] = alert.additionalInfo.coordinates;
+          mapRef.current.flyTo([lng, lat], 8);
+        }
+
+        // Fetch geometry (will use cache if available from hover)
+        const geometry = await fetchGeometry(alert.id);
+
+        if (
+          activeAlertIdRef.current === alert.id &&
+          geometry &&
+          mapRef.current
+        ) {
+          // Highlight the geometry on the map
+          mapRef.current.highlightGeoJSON(geometry);
+        }
       }
-    }
-  }, [fetchGeometry]);
+    },
+    [fetchGeometry]
+  );
 
   const handleDetailCardClose = () => {
     setIsDetailCardVisible(false);
@@ -425,7 +461,9 @@ export const App: React.FC = () => {
         severity: alert.severity,
         popupContent: `
           <div class="p-3" style="background: var(--rich-black); color: var(--anti-flash-white);">
-            <h3 class="font-semibold text-sm text-white mb-2">${alert.title}</h3>
+            <h3 class="font-semibold text-sm text-white mb-2">${
+              alert.title
+            }</h3>
             <p class="text-xs text-gray-300 mt-1 mb-2">${alert.description.substring(
               0,
               100
@@ -514,6 +552,7 @@ export const App: React.FC = () => {
         onToggleFilter={handleToggleFilter}
         onToggleDetails={handleToggleDetails}
         onToggleSettings={handleToggleSettings}
+        onTeamClick={() => setIsTeamPopupVisible(true)}
         isFilterOpen={isAlertsPanelVisible}
         isDetailsOpen={isDetailCardVisible}
         isSettingsOpen={isSettingsPanelVisible}
@@ -539,7 +578,7 @@ export const App: React.FC = () => {
           endDate: dateFilters.endDate,
           sortBy,
           sortOrder,
-          scope
+          scope,
         }}
         onFilterChange={handleFilterChange}
         onClearSearch={handleClearSearch}
@@ -570,6 +609,10 @@ export const App: React.FC = () => {
       <UserGuide
         isVisible={isUserGuideVisible}
         onClose={handleCloseUserGuide}
+      />
+      <TeamPopup
+        isVisible={isTeamPopupVisible}
+        onClose={() => setIsTeamPopupVisible(false)}
       />
     </div>
   );

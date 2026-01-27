@@ -39,14 +39,14 @@ export const DetailCard: React.FC<DetailCardProps> = ({
 
   React.useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
-    
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const newWidth = window.innerWidth - moveEvent.clientX - 16; // 16 for right-4
       if (newWidth > 200 && newWidth < window.innerWidth - 300) {
@@ -67,7 +67,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
   const handleMobileMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
-    
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const newHeight = window.innerHeight - moveEvent.clientY - 16;
       if (newHeight > 200 && newHeight < window.innerHeight - 100) {
@@ -87,7 +87,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
 
   const handleMobileTouchStart = (e: React.TouchEvent) => {
     setIsResizing(true);
-    
+
     const handleTouchMove = (moveEvent: TouchEvent) => {
       const touch = moveEvent.touches[0];
       const newHeight = window.innerHeight - touch.clientY - 16;
@@ -208,11 +208,14 @@ export const DetailCard: React.FC<DetailCardProps> = ({
   const renderInstructionList = (text: string) => {
     return (
       <ul className="list-none space-y-2">
-        {text.split('\n').filter(line => line.trim() !== "").map((line, index) => (
-          <li key={index} className="text-sm text-gray-300 leading-relaxed">
-            {line.trim()}
-          </li>
-        ))}
+        {text
+          .split("\n")
+          .filter((line) => line.trim() !== "")
+          .map((line, index) => (
+            <li key={index} className="text-sm text-gray-300 leading-relaxed">
+              {line.trim()}
+            </li>
+          ))}
       </ul>
     );
   };
@@ -272,7 +275,11 @@ export const DetailCard: React.FC<DetailCardProps> = ({
             <button
               onClick={() => {
                 if (data.documentUrl) {
-                  window.open(data.documentUrl, "_blank", "noopener,noreferrer");
+                  window.open(
+                    data.documentUrl,
+                    "_blank",
+                    "noopener,noreferrer"
+                  );
                 }
               }}
               className={`
@@ -295,13 +302,17 @@ export const DetailCard: React.FC<DetailCardProps> = ({
           {data.category && (
             <div className="px-3 py-1 rounded-md bg-rich-black/50 border border-white/10 text-xs text-gray-300 flex items-center gap-1">
               <span className="text-gray-500 font-medium">Category:</span>
-              <span className="text-white font-medium">{getCategoryFullName(data.category)}</span>
+              <span className="text-white font-medium">
+                {getCategoryFullName(data.category)}
+              </span>
             </div>
           )}
           {data.severity && (
             <div className="px-3 py-1 rounded-md bg-rich-black/50 border border-white/10 text-xs text-gray-300 flex items-center gap-1">
               <span className="text-gray-500 font-medium">Severity:</span>
-              <span className={`font-medium ${getSeverityColor(data.severity)}`}>
+              <span
+                className={`font-medium ${getSeverityColor(data.severity)}`}
+              >
                 {data.severity}
               </span>
             </div>
@@ -367,64 +378,16 @@ export const DetailCard: React.FC<DetailCardProps> = ({
         )}
 
         {/* Affected Areas Section */}
-        {data.additionalInfo?.places && data.additionalInfo.places.length > 0 && (
-          <div className="space-y-3">
-             <button
-              onClick={() => setIsAreasExpanded(!isAreasExpanded)}
-              className="w-full flex items-center justify-between group"
-            >
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2 group-hover:text-caribbean-green transition-colors">
-                <svg
-                  className="w-5 h-5 text-caribbean-green"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-                Affected Areas
-              </h2>
-              <svg
-                className={`w-5 h-5 text-gray-400 transform transition-transform duration-200 ${
-                  isAreasExpanded ? "rotate-180" : ""
-                }`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+        {data.additionalInfo?.places &&
+          data.additionalInfo.places.length > 0 && (
+            <div className="space-y-3">
+              <button
+                onClick={() => setIsAreasExpanded(!isAreasExpanded)}
+                className="w-full flex items-center justify-between group"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </button>
-
-            {isAreasExpanded && (
-              <div className="space-y-3 animate-fadeIn">
-                {/* Search Bar */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search areas..."
-                    value={areaSearchQuery}
-                    onChange={(e) => setAreaSearchQuery(e.target.value)}
-                    className="w-full bg-white/10 border border-white/10 rounded-none px-3 py-2 pl-9 text-sm text-white focus:outline-none focus:border-caribbean-green transition-colors"
-                  />
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2 group-hover:text-caribbean-green transition-colors">
                   <svg
-                    className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2"
+                    className="w-5 h-5 text-caribbean-green"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -433,35 +396,94 @@ export const DetailCard: React.FC<DetailCardProps> = ({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth="2"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
                     />
                   </svg>
-                </div>
+                  Affected Areas
+                </h2>
+                <svg
+                  className={`w-5 h-5 text-gray-400 transform transition-transform duration-200 ${
+                    isAreasExpanded ? "rotate-180" : ""
+                  }`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
 
-                {/* Areas List */}
-                <div className="flex flex-wrap gap-1.5 p-2 bg-rich-black/30 rounded-lg max-h-40 overflow-y-auto dark-scrollbar">
-                  {data.additionalInfo.places
-                    .filter((p: string) => !areaSearchQuery || p.toLowerCase().includes(areaSearchQuery.toLowerCase()))
-                    .map((place: string, idx: number) => {
-                      const isMatch = areaSearchQuery && place.toLowerCase().includes(areaSearchQuery.toLowerCase());
-                      return (
-                        <span
-                          key={idx}
-                          className={`text-sm px-2 py-0.5 rounded transition-colors ${
-                            isMatch
-                              ? "bg-caribbean-green/30 text-white font-medium border border-caribbean-green/50"
-                              : "text-gray-400 bg-white/5"
-                          }`}
-                        >
-                          {place}
-                        </span>
-                      );
-                    })}
+              {isAreasExpanded && (
+                <div className="space-y-3 animate-fadeIn">
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search areas..."
+                      value={areaSearchQuery}
+                      onChange={(e) => setAreaSearchQuery(e.target.value)}
+                      className="w-full bg-white/10 border border-white/10 rounded-none px-3 py-2 pl-9 text-sm text-white focus:outline-none focus:border-caribbean-green transition-colors"
+                    />
+                    <svg
+                      className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                  </div>
+
+                  {/* Areas List */}
+                  <div className="flex flex-wrap gap-1.5 p-2 bg-rich-black/30 rounded-lg max-h-40 overflow-y-auto dark-scrollbar">
+                    {data.additionalInfo.places
+                      .filter(
+                        (p: string) =>
+                          !areaSearchQuery ||
+                          p
+                            .toLowerCase()
+                            .includes(areaSearchQuery.toLowerCase())
+                      )
+                      .map((place: string, idx: number) => {
+                        const isMatch =
+                          areaSearchQuery &&
+                          place
+                            .toLowerCase()
+                            .includes(areaSearchQuery.toLowerCase());
+                        return (
+                          <span
+                            key={idx}
+                            className={`text-sm px-2 py-0.5 rounded transition-colors ${
+                              isMatch
+                                ? "bg-caribbean-green/30 text-white font-medium border border-caribbean-green/50"
+                                : "text-gray-400 bg-white/5"
+                            }`}
+                          >
+                            {place}
+                          </span>
+                        );
+                      })}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
       </div>
     );
   };
@@ -473,7 +495,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
         className={`fixed 
           bottom-4 left-4 right-4 
           sm:top-4 sm:bottom-4 sm:h-auto sm:right-4 sm:left-auto
-          frosted-glass transform transition-all duration-300 ease-in-out z-40 overflow-y-auto dark-scrollbar
+          frosted-glass transform transition-all duration-300 ease-in-out z-40 flex flex-col
           ${
             isVisible
               ? "translate-y-0 opacity-100"
@@ -482,25 +504,29 @@ export const DetailCard: React.FC<DetailCardProps> = ({
           ${isResizing ? "transition-none" : ""}
         `}
         style={{
-          width: isMobile ? 'auto' : `${width}px`,
-          maxWidth: isMobile ? 'none' : `${width}px`,
-          height: isMobile ? `${mobileHeight}px` : 'auto'
+          width: isMobile ? "auto" : `${width}px`,
+          maxWidth: isMobile ? "none" : `${width}px`,
+          height: isMobile ? `${mobileHeight}px` : "auto",
         }}
       >
         {/* Resize Handle - Left (Desktop) */}
-        <div 
-          className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-caribbean-green/50 transition-colors z-50 hidden sm:block"
+        <div
+          className="absolute left-0 top-0 bottom-0 w-6 -ml-1 cursor-ew-resize z-50 hidden sm:flex items-center justify-center touch-none group"
           onMouseDown={handleMouseDown}
-        />
+        >
+          <div className="h-16 w-1 rounded-full bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
 
         {/* Resize Handle - Top (Mobile) */}
-        <div 
-          className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-caribbean-green/50 transition-colors z-50 block sm:hidden"
+        <div
+          className="absolute top-0 left-0 right-0 h-8 -mt-4 cursor-ns-resize z-50 flex sm:hidden items-center justify-center touch-none group"
           onMouseDown={handleMobileMouseDown}
           onTouchStart={handleMobileTouchStart}
-        />
+        >
+          <div className="w-16 h-1.5 bg-white/20 rounded-full group-hover:bg-caribbean-green/50 transition-colors mt-4" />
+        </div>
 
-        <div className="p-4 h-full flex flex-col">
+        <div className="p-4 h-full flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-end mb-3">
             <button

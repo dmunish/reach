@@ -387,11 +387,14 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
       }}
     >
       {/* Resize Handle */}
-      <div
-        className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-caribbean-green/50 transition-colors z-50"
+      <div 
+        className="absolute top-0 left-0 right-0 h-8 cursor-ns-resize z-50 flex items-center justify-center -mt-4 touch-none group"
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}
-      />
+      >
+        {/* Visual Grabber */}
+        <div className="w-16 h-1.5 bg-white/20 rounded-full opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity mx-auto mt-4" />
+      </div>
 
       <div className="p-4 border-b border-white/10 bg-rich-black/30 backdrop-blur-md">
         {/* Header Row: Title, Global Actions */}

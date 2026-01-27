@@ -321,7 +321,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
               placeholder="Search titles, descriptions, places..."
               value={filters.searchQuery}
               onChange={(e) => onFilterChange("searchQuery", e.target.value)}
-              className="w-full bg-rich-black/50 text-white text-sm border border-white/10 rounded-md py-2 pl-9 pr-8 focus:outline-none focus:border-caribbean-green/50 placeholder-gray-500"
+              className="w-full bg-white/10 text-white text-sm border border-white/10 rounded-none py-2 pl-9 pr-8 focus:outline-none focus:border-caribbean-green/50 placeholder-gray-500"
             />
             <svg 
               className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-500"

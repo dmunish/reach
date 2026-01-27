@@ -176,8 +176,19 @@ BEGIN
     -- Calculate bounding box for grid generation
     bbox := ST_Envelope(combined_geom);
     
-    -- Generate rectangular grid cell based on direction and BBox
-    grid_cell := get_directional_grid_cell(bbox, direction);
+    -- Step 3: Adjust sector widths based on province size
+    -- Large provinces (Punjab, Sindh, Balochistan) get narrower sectors to reduce over-inclusion
+    -- Small provinces (GB, AJK, KP) keep wide 90° beams for better coverage
+    -- Lowered threshold from 200,000 km² to 150,000 km² to catch Sindh
+    IF bbox_area > 150000000000 THEN  -- ~150,000 km² threshold (catches Sindh, Punjab, Balochistan)
+        cardinal_half_width := 33.75;  -- 67.5° total width (narrower)
+        ordinal_half_width := 16.875;  -- 33.75° total width
+        RAISE NOTICE 'Large province detected (area: % km²), using narrow sectors (67.5°)', bbox_area / 1000000;
+    ELSE  -- Small provinces
+        cardinal_half_width := 45.0;   -- 90° total width (wide beam)
+        ordinal_half_width := 22.5;    -- 45° total width
+        RAISE NOTICE 'Small province detected (area: % km²), using wide sectors (90°)', bbox_area / 1000000;
+    END IF;
     
     -- POLYGON CLIPPING: Intersect grid cell with actual province boundary
     -- This "cookie-cutters" the rectangular grid to the actual shape of the region

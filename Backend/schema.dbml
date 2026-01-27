@@ -104,16 +104,34 @@ Table places {
 }
 
 Table alert_search_index {
-  alert_id uuid [pk]
+  alert_id uuid [pk, ref: - alerts.id]
+  
   centroid geometry
   bbox geometry
+  unioned_polygon geometry
+  
   search_text text
+  category alert_category
+  severity alert_severity
+  urgency alert_urgency
+  event text
+  description text
+  instruction text
+  source text
+  url text
+  posted_date date
+  effective_from timestamptz
+  effective_until timestamptz
+  affected_places text[]
   last_updated_at timestamptz [default: `now()`]
 
   indexes {
-    centroid [type: gist, name: 'idx_alert_search_centroid']
-    bbox [type: gist, name: 'idx_alert_search_bbox']
-    search_text [type: gin, name: 'idx_alert_search_text']
+    unioned_polygon [type: gist, name: 'idx_asi_unioned_polygon']
+    search_text [type: gin, name: 'idx_asi_search_text_trgm']
+    posted_date [name: 'idx_asi_posted_date']
+    category [name: 'idx_asi_category']
+    severity [name: 'idx_asi_severity']
+    (effective_from, effective_until) [name: 'idx_asi_effective_range']
   }
 }
 

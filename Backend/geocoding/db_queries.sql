@@ -10,7 +10,11 @@ WHERE tablename = 'places';
 CREATE INDEX IF NOT EXISTS idx_places_name_trgm 
 ON places USING gin(name gin_trgm_ops);
 
--- Spatial index for polygon operations
+-- GIN index for word_similarity (better for partial matches)
+CREATE INDEX IF NOT EXISTS idx_places_name_gist
+ON places USING gist(name gist_trgm_ops);
+
+-- Spatial index for polygon operations (O(log n) for ST_Contains, ST_Intersects)
 CREATE INDEX IF NOT EXISTS idx_places_polygon 
 ON places USING gist(polygon);
 
@@ -35,10 +39,21 @@ BEGIN
         p.id,
         p.name,
         p.hierarchy_level,
-        similarity(p.name, search_name)::REAL as similarity_score
+        -- Use word_similarity for better partial matching on short strings
+        GREATEST(
+            similarity(p.name, search_name),
+            word_similarity(search_name, p.name)
+        )::REAL as similarity_score
     FROM places p
-    WHERE similarity(p.name, search_name) > similarity_threshold
-    ORDER BY similarity_score DESC, hierarchy_level DESC
+    WHERE (
+        similarity(p.name, search_name) > similarity_threshold
+        OR word_similarity(search_name, p.name) > similarity_threshold
+    )
+    ORDER BY 
+        -- Prioritize: 1) similarity score, 2) prefer exact name matches, 3) lower hierarchy levels (L2 before L3)
+        similarity_score DESC, 
+        CASE WHEN p.name = search_name THEN 0 ELSE 1 END,
+        hierarchy_level ASC
     LIMIT 10;
 END;
 $$ LANGUAGE plpgsql;

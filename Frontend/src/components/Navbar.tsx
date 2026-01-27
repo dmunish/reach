@@ -28,11 +28,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     "
     >
       {/* REACH Logo - Responsive */}
-      <div className="mr-auto sm:mr-0 sm:mb-12">
+      <div className="mr-auto sm:mr-0 sm:mb-12 select-none">
         <div
-          className="text-white font-bold text-lg tracking-wider opacity-60
+          className="text-white font-bold text-lg tracking-wider
           sm:transform sm:rotate-180
-          hidden sm:block"
+          hidden sm:block text-shine-vertical"
           style={{
             writingMode: "vertical-rl",
             textOrientation: "mixed",
@@ -40,7 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           REACH
         </div>
-        <div className="text-white font-bold text-lg tracking-wider opacity-60 sm:hidden">
+        <div className="text-white font-bold text-lg tracking-wider sm:hidden text-shine">
           REACH
         </div>
       </div>
@@ -119,7 +119,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Copyright Text - Hidden on Mobile */}
       <div className="mt-auto hidden sm:block">
         <div
-          className="text-white text-xs opacity-40 tracking-wide"
+          className="text-white text-xs tracking-wide text-shine-vertical"
           style={{
             writingMode: "vertical-rl",
             textOrientation: "mixed",

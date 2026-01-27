@@ -33,7 +33,9 @@ body {
 }
 
 /* Base styles for form components to ensure dark theme across browsers */
-input, select, textarea {
+input,
+select,
+textarea {
   color-scheme: dark;
 }
 
@@ -404,5 +406,58 @@ input, select, textarea {
 @media (min-width: 641px) and (max-width: 1024px) {
   .tablet-adjust {
     max-width: calc(100vw - 4rem);
+  }
+}
+
+/* Text Shine Effect */
+.text-shine {
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.6) 40%,
+    #ffffff 50%,
+    rgba(255, 255, 255, 0.6) 60%,
+    rgba(255, 255, 255, 0.6) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 200% auto;
+  background-position: -80% center;
+}
+
+.text-shine:hover {
+  animation: shine 1.5s linear infinite;
+}
+
+.text-shine-vertical {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.6) 40%,
+    #ffffff 50%,
+    rgba(255, 255, 255, 0.6) 60%,
+    rgba(255, 255, 255, 0.6) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: auto 200%;
+  background-position: center -80%;
+}
+
+.text-shine-vertical:hover {
+  animation: shine-vertical 1.5s linear infinite;
+}
+
+@keyframes shine {
+  to {
+    background-position: 150% center;
+  }
+}
+
+@keyframes shine-vertical {
+  to {
+    background-position: center 150%;
   }
 }

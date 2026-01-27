@@ -531,11 +531,11 @@ export const DetailCard: React.FC<DetailCardProps> = ({
           <div className="flex items-center justify-end mb-3">
             <button
               onClick={onClose}
-              className="p-1 hover:bg-bangladesh-green rounded-full transition-colors"
+              className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors cursor-pointer"
               title="Close alert details"
             >
               <svg
-                className="w-4 h-4 text-gray-400"
+                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"

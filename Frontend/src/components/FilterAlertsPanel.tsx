@@ -387,7 +387,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
       }}
     >
       {/* Resize Handle */}
-      <div 
+      <div
         className="absolute top-0 left-0 right-0 h-8 cursor-ns-resize z-50 flex items-center justify-center -mt-4 touch-none group"
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}

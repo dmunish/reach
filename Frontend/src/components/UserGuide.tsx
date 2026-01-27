@@ -41,7 +41,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
                 d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.73 5.832 18.247 7.5 18.247s3.332.483 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.73 18.247 18.247 16.5 18.247s-3.332.483-4.5 1.253"
               />
             </svg>
-            <h3 className="text-xl font-medium text-white">REACH User Guide</h3>
+            <h3 className="text-xl font-medium text-white">User Guide</h3>
           </div>
           <button
             onClick={onClose}
@@ -75,7 +75,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
                 <span className="text-base font-bold text-bangladesh-green px-2.5 py-1 bg-bangladesh-green/10 rounded">01</span>
                 <span className="text-base text-gray-300 font-medium uppercase tracking-wider">Introduction</span>
               </div>
-              <div className="bg-white/5 p-8 border border-white/5 rounded-sm">
+              <div className="bg-white/5 p-8 border border-white/5">
                 <p className="text-gray-300 leading-relaxed text-base">
                   REACH (Real-time Emergency Alert Collection Hub) is an automated system designed to help people in Pakistan stay informed about critical hazards. It gathers emergency bulletins from various official sources and organizes them into a single, interactive map and dashboard. By using AI to process complex reports, REACH provides clear, actionable information when you need it most.
                 </p>

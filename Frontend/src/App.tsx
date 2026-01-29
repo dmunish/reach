@@ -610,10 +610,10 @@ export const App: React.FC = () => {
         isVisible={isUserGuideVisible}
         onClose={handleCloseUserGuide}
       />
-      <TeamPopup
+      {/* <TeamPopup
         isVisible={isTeamPopupVisible}
         onClose={() => setIsTeamPopupVisible(false)}
-      />
+      /> */}
     </div>
   );
 };

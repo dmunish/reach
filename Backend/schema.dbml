@@ -124,6 +124,7 @@ Table alert_search_index {
   effective_until timestamptz
   affected_places text[]
   last_updated_at timestamptz [default: `now()`]
+  place_ids uuid[]
 
   indexes {
     unioned_polygon [type: gist, name: 'idx_asi_unioned_polygon']
@@ -132,6 +133,7 @@ Table alert_search_index {
     category [name: 'idx_asi_category']
     severity [name: 'idx_asi_severity']
     (effective_from, effective_until) [name: 'idx_asi_effective_range']
+    place_ids [type: gin, name: 'idx_asi_place_ids']
   }
 }
 

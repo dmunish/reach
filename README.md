@@ -65,7 +65,7 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 | :----------------------- | :--------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------- |
 | **Frontend**             | <img src="https://skillicons.dev/icons?i=react,ts,tailwind" valign="middle" />                                         | React, TypeScript, and Mapbox for web app.                                          |
 | **Services**             | <img src="https://skillicons.dev/icons?i=python,fastapi" valign="middle" />                                            | Python microservices handling business logic and scraping.                          |
-| **Backend and Database** | <img src="https://skillicons.dev/icons?i=supabase,postgres" valign="middle" />                                         | **Supabase** for storing alerts, geometries, cron jobs and message queues           |
+| **Backend and Database** | <img src="https://skillicons.dev/icons?i=supabase,postgres" valign="middle" />                                         | **Supabase** for storing alerts, geometries, cron jobs and message queues.           |
 | **AI Engine**            | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/google-gemini.svg" width="40" valign="middle" /> | Gemini-3-Flash for high-speed inference for document parsing and entity extraction. |
 
 <br>
@@ -82,13 +82,13 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 
 ## <img src="Assets\map-green.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Roadmap
 - [x] **Scrapers:** Automated bots hitting NDMA, NEOC, and PMD public sources on a 10-minute cron
-- [x] **AI Pipeline:** Document processing pipeline achieving <30s latency per report using Gemini 3 Flash
+- [x] **AI Pipeline:** Document processing pipeline achieving latency of under 1 minute per report using Gemini 3 Flash
 - [x] **Spatial Engine:** Heuristic geocoder capable of parsing admin regions and directional descriptors into polygons
 - [x] **Web Dashboard:** A responsive React application for searching alerts, filtering by severity/date, and visualizing risk zones on an interactive map
+- [x] **Performance:** Optimizing database and backend for better performance
 - [ ] **Deduplication:** Logic to merge overlapping reports from different agencies into a single "Source of Truth" event
 - [ ] **UX Polish:** Refining the dashboard based on early user feedback
 - [ ] **Alerts:** Notifications for user apps based on their GPS location
-- [ ] **Performance:** Optimizing database and backend for better performance
 - [ ] **Mobile Apps:** Apps for Android and iOS to get information to all users conveniently
 - [ ] **Advanced Geocoding:** Improving the heuristic engine to resolve roadways, hydrology (rivers/dams), and bridges
 - [ ] **Data Expansion:** Integrating social media firehose (validated) and international weather APIs

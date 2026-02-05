@@ -6,7 +6,7 @@ import React, {
   useEffect,
 } from "react";
 import { useDebouncedCallback } from "use-debounce";
-import { MapComponent, type MapRef } from "./components/MapComponent";
+import { MapComponent, type MapRef, type MapProps } from "./components/MapComponent";
 import { Navbar } from "./components/Navbar";
 import { FilterAlertsPanel } from "./components/FilterAlertsPanel";
 import { DetailCard, type DetailData } from "./components/DetailCard";
@@ -350,10 +350,12 @@ export const App: React.FC = () => {
       }
 
       if (mapRef.current && alert.id) {
+        const alertId = alert.id;
+        
         // Clear any existing highlight immediately
         mapRef.current.clearHighlight();
 
-        // First, zoom to bbox if available
+        // Immediately zoom to bbox/centroid (don't wait for geometry)
         if (alert.additionalInfo?.bbox) {
           mapRef.current.fitToBbox(alert.additionalInfo.bbox, 60);
         } else if (alert.additionalInfo?.coordinates) {
@@ -361,17 +363,37 @@ export const App: React.FC = () => {
           mapRef.current.flyTo([lng, lat], 8);
         }
 
-        // Fetch geometry (will use cache if available from hover)
-        const geometry = await fetchGeometry(alert.id);
-
-        if (
-          activeAlertIdRef.current === alert.id &&
-          geometry &&
-          mapRef.current
-        ) {
-          // Highlight the geometry on the map
-          mapRef.current.highlightGeoJSON(geometry);
-        }
+        // Fetch geometry in the background (non-blocking)
+        fetchGeometry(alertId).then((geometry) => {
+          // Only highlight if this alert is still active and geometry was found
+          if (
+            activeAlertIdRef.current === alertId &&
+            geometry &&
+            mapRef.current
+          ) {
+            // Wait for map to finish animating before highlighting
+            const map = mapRef.current.getMap();
+            if (map && !map.isMoving()) {
+              // Map is already idle, highlight immediately
+              mapRef.current.highlightGeoJSON(geometry);
+            } else if (map) {
+              // Wait for map to become idle
+              map.once('idle', () => {
+                if (
+                  activeAlertIdRef.current === alertId &&
+                  mapRef.current
+                ) {
+                  mapRef.current.highlightGeoJSON(geometry);
+                }
+              });
+            } else {
+              // Fallback: no map reference
+              mapRef.current.highlightGeoJSON(geometry);
+            }
+          }
+        }).catch((error) => {
+          console.warn('Geometry fetch failed:', error);
+        });
       }
     },
     [fetchGeometry]
@@ -453,7 +475,7 @@ export const App: React.FC = () => {
 
   // Prepare markers for map using pre-computed centroids
   const mapMarkers = useMemo(() => {
-    const markers = currentAlerts
+    const markers: Required<MapProps>["markers"] = currentAlerts
       .filter((alert) => alert.additionalInfo?.coordinates)
       .filter((alert) => !selectedAlert || alert.id === selectedAlert.id)
       .map((alert) => ({
@@ -476,6 +498,7 @@ export const App: React.FC = () => {
           </div>
         `,
         onClick: () => handleAlertClick(alert),
+        onHover: () => handleAlertHover(alert),
       }));
 
     // Add user location marker if available
@@ -542,6 +565,7 @@ export const App: React.FC = () => {
           center={[69.3451, 30.3753]}
           theme={mapTheme}
           showPolygons={showPolygons}
+          enableClustering={statusFilter === "all"}
           markers={mapMarkers}
           className="w-full h-full"
         />

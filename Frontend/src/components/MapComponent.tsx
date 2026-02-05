@@ -8,6 +8,7 @@ export interface MapProps {
   zoom?: number;
   theme?: string;
   showPolygons?: boolean;
+  enableClustering?: boolean;
   onMapClick?: (
     coordinates: [number, number],
     event: mapboxgl.MapMouseEvent
@@ -17,6 +18,7 @@ export interface MapProps {
     popupContent?: string;
     severity?: string;
     onClick?: () => void | Promise<void>;
+    onHover?: () => void | Promise<void>;
   }>;
   className?: string;
 }
@@ -39,6 +41,7 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       zoom = 3,
       theme = "dark-v11",
       showPolygons = true,
+      enableClustering = false,
       onMapClick,
       markers = [],
       className = "w-full h-full",
@@ -48,6 +51,190 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
     const markersRef = useRef<mapboxgl.Marker[]>([]);
+    const markersDataRef = useRef<MapProps["markers"]>([]); // Store markers data for interaction
+
+    // Constants for source and layers
+    const MARKERS_SOURCE_ID = "alerts-markers-source";
+    const PULSE_LAYER_ID = "alerts-pulse-layer";
+    const POINT_LAYER_ID = "alerts-point-layer";
+
+    // Clustering Configuration
+    const CLUSTER_RADIUS = 20; // Reduced distance: Pins stay separate longer
+    const CLUSTER_MAX_ZOOM = 14; 
+
+    // Setup function for marker sources and layers
+    const setupMarkersLayer = () => {
+      if (!map.current) return;
+
+      // Add source with clustering conditionally based on enableClustering prop
+      if (!map.current.getSource(MARKERS_SOURCE_ID)) {
+        map.current.addSource(MARKERS_SOURCE_ID, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+          cluster: enableClustering,
+          clusterMaxZoom: CLUSTER_MAX_ZOOM,
+          clusterRadius: CLUSTER_RADIUS,
+        });
+      }
+
+      // Add animated pulse image
+      if (!map.current.hasImage("pulsing-dot")) {
+        const size = 150; // Increased base size
+        const pulsingDot = {
+          width: size,
+          height: size,
+          data: new Uint8Array(size * size * 4),
+
+          onAdd: function () {
+            const canvas = document.createElement("canvas");
+            canvas.width = this.width;
+            canvas.height = this.height;
+            this.context = canvas.getContext("2d");
+          },
+
+          render: function () {
+            const duration = 2000;
+            const t = (performance.now() % duration) / duration;
+
+            const radius = (size / 2) * 0.3;
+            const outerRadius = (size / 2) * 0.7 * t + radius;
+            const context = this.context;
+
+            context.clearRect(0, 0, this.width, this.height);
+            context.beginPath();
+            context.arc(this.width / 2, this.height / 2, outerRadius, 0, Math.PI * 2);
+            context.fillStyle = `rgba(255, 255, 255, ${0.4 * (1 - t)})`;
+            context.fill();
+
+            // update this image's data with data from the canvas
+            this.data = context.getImageData(0, 0, this.width, this.height).data;
+            map.current?.triggerRepaint();
+            return true;
+          },
+        };
+        map.current.addImage("pulsing-dot", pulsingDot as any, { pixelRatio: 2 });
+      }
+
+      // 1. Clusters Circle Layer (Stylized colors for counts) - only visible when clustering is enabled
+      if (!map.current.getLayer("clusters")) {
+        map.current.addLayer({
+          id: "clusters",
+          type: "circle",
+          source: MARKERS_SOURCE_ID,
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-color": [
+              "step",
+              ["get", "point_count"],
+              "rgba(30, 144, 255, 0.7)", // default blue
+              10,
+              "rgba(255, 140, 0, 0.7)",  // 10+ points orange
+              30,
+              "rgba(220, 20, 60, 0.7)",  // 30+ points red
+            ],
+            "circle-radius": [
+              "step",
+              ["get", "point_count"],
+              20, 10, 25, 30, 35
+            ],
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "rgba(255, 255, 255, 0.3)",
+          },
+          layout: {
+            "visibility": enableClustering ? "visible" : "none"
+          }
+        });
+      }
+
+      // 2. Cluster Count Text - only visible when clustering is enabled
+      if (!map.current.getLayer("cluster-count")) {
+        map.current.addLayer({
+          id: "cluster-count",
+          type: "symbol",
+          source: MARKERS_SOURCE_ID,
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": "{point_count_abbreviated}",
+            "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+            "text-size": 12,
+            "visibility": enableClustering ? "visible" : "none"
+          },
+          paint: { "text-color": "#ffffff" },
+        });
+      }
+
+      // 3. Pulse Animation (Unclustered)
+      if (!map.current.getLayer("pulse-animation")) {
+        map.current.addLayer({
+          id: "pulse-animation",
+          type: "symbol",
+          source: MARKERS_SOURCE_ID,
+          filter: ["!", ["has", "point_count"]],
+          layout: {
+            "icon-image": "pulsing-dot",
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 3, 0.6, 12, 1.0], // Increased icon size
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+          },
+        });
+      }
+
+      // 4. Sharp Pin (Unclustered)
+      if (!map.current.getLayer(POINT_LAYER_ID)) {
+        map.current.addLayer({
+          id: POINT_LAYER_ID,
+          type: "circle",
+          source: MARKERS_SOURCE_ID,
+          filter: ["!", ["has", "point_count"]],
+          paint: {
+            "circle-radius": 8,
+            "circle-color": ["get", "mainColor"],
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "rgba(255, 255, 255, 0.8)", // More visible stroke
+          },
+        });
+      }
+
+      // Interaction listeners
+      map.current.on("mouseenter", POINT_LAYER_ID, (e) => {
+        if (map.current) map.current.getCanvas().style.cursor = "pointer";
+        
+        // Trigger hover callback for geometry prefetching
+        const props = e.features?.[0].properties;
+        const marker = markersDataRef.current?.[props?.index];
+        if (marker?.onHover) {
+          marker.onHover();
+        }
+      });
+      map.current.on("mouseenter", "clusters", () => {
+        if (map.current) map.current.getCanvas().style.cursor = "pointer";
+      });
+      map.current.on("mouseleave", POINT_LAYER_ID, () => {
+        if (map.current) map.current.getCanvas().style.cursor = "";
+      });
+      map.current.on("mouseleave", "clusters", () => {
+        if (map.current) map.current.getCanvas().style.cursor = "";
+      });
+
+      map.current.on("click", "clusters", (e) => {
+        const features = map.current?.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+        const clusterId = features?.[0].properties?.cluster_id;
+        const source = map.current?.getSource(MARKERS_SOURCE_ID) as mapboxgl.GeoJSONSource;
+        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err || !map.current) return;
+          map.current.easeTo({
+            center: (features?.[0].geometry as any).coordinates,
+            zoom: zoom || map.current.getZoom() + 1,
+          });
+        });
+      });
+
+      map.current.on("click", POINT_LAYER_ID, (e) => {
+        const props = e.features?.[0].properties;
+        const marker = markersDataRef.current?.[props?.index];
+        if (marker?.onClick) marker.onClick();
+      });
+    };
 
     // Initialize map
     useEffect(() => {
@@ -83,11 +270,16 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       // Handle WebGL context restore
       map.current.on("webglcontextrestored", () => {
         console.log("WebGL context restored");
-        // Re-add any highlights or custom layers here if needed
+        setupMarkersLayer(); // Restore layers
       });
 
       // Add navigation controls
       map.current.addControl(new mapboxgl.NavigationControl(), "top-left");
+
+      // Set up markers layer when map loads
+      map.current.on("load", () => {
+        setupMarkersLayer();
+      });
 
       // Add full screen control
       map.current.addControl(new mapboxgl.FullscreenControl(), "top-left");
@@ -128,101 +320,134 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
           : (customStyle as any);
 
       map.current.setStyle(mapStyle);
+      
+      // Re-setup layers after style change
+      map.current.once("style.load", () => {
+        setupMarkersLayer();
+        // Trigger a markers update to refill the data
+        const markersSource = map.current?.getSource(MARKERS_SOURCE_ID) as mapboxgl.GeoJSONSource;
+        if (markersSource) {
+          // data update will be handled by the markers useEffect
+        }
+      });
     }, [theme]);
 
     // Update markers when markers prop changes
     useEffect(() => {
       if (!map.current) return;
-
-      // Clear existing markers
-      markersRef.current.forEach((marker) => marker.remove());
-      markersRef.current = [];
+      
+      markersDataRef.current = markers;
 
       // Severity color mapping
       const getSeverityColors = (severity?: string): { main: string; pulse: string } => {
         switch (severity?.toLowerCase()) {
           case 'extreme':
-            return { main: 'rgba(180, 0, 255, 0.9)', pulse: 'rgba(180, 0, 255, 0.6)' }; // Vibrant Purple
+            return { main: 'rgba(180, 0, 255, 1.0)', pulse: 'rgba(180, 0, 255, 1.0)' };
           case 'severe':
-            return { main: 'rgba(220, 20, 60, 0.9)', pulse: 'rgba(220, 20, 60, 0.6)' }; // Crimson
+            return { main: 'rgba(220, 20, 60, 1.0)', pulse: 'rgba(220, 20, 60, 1.0)' };
           case 'moderate':
-            return { main: 'rgba(255, 140, 0, 0.9)', pulse: 'rgba(255, 140, 0, 0.6)' }; // Dark Orange
+            return { main: 'rgba(255, 140, 0, 1.0)', pulse: 'rgba(255, 140, 0, 1.0)' };
           case 'minor':
-            return { main: 'rgba(255, 215, 0, 0.9)', pulse: 'rgba(255, 215, 0, 0.6)' }; // Gold
+            return { main: 'rgba(255, 215, 0, 1.0)', pulse: 'rgba(255, 215, 0, 1.0)' };
           case 'user':
-            return { main: 'rgba(30, 144, 255, 0.9)', pulse: 'rgba(30, 144, 255, 0)' }; // User Pin (No pulse)
-          case 'unknown':
+            return { main: 'rgba(30, 144, 255, 1.0)', pulse: 'rgba(30, 144, 255, 0)' };
           default:
-            return { main: 'rgba(30, 144, 255, 0.9)', pulse: 'rgba(30, 144, 255, 0.6)' }; // Dodger Blue
+            return { main: 'rgba(30, 144, 255, 1.0)', pulse: 'rgba(30, 144, 255, 1.0)' };
         }
       };
 
-      // Add new markers
-      markers.forEach(({ coordinates, popupContent, severity, onClick }) => {
-        const colors = getSeverityColors(severity);
-        const isUserMarker = severity?.toLowerCase() === 'user';
+      const updateMarkers = () => {
+        if (!map.current) return;
         
-        // Create custom marker element with glassmorphic design
-        const el = document.createElement("div");
-        el.className = "custom-marker";
-        el.innerHTML = `
-          <div style="position: relative; width: 28px; height: 28px;">
-            ${!isUserMarker ? `<div style="position: absolute; width: 28px; height: 28px; background: ${colors.pulse}; border-radius: 50%; animation: pulse 2s ease-out infinite;"></div>` : ''}
-            <div style="
-              position: absolute; 
-              width: 20px; 
-              height: 20px; 
-              top: 4px; 
-              left: 4px; 
-              background: ${colors.main};
-              backdrop-filter: blur(10px);
-              -webkit-backdrop-filter: blur(10px);
-              border: 2px solid rgba(255, 255, 255, 0.4);
-              border-radius: 50%;
-              box-shadow: 
-                0 4px 12px ${isUserMarker ? 'rgba(30, 144, 255, 0.4)' : colors.pulse},
-                inset 0 1px 2px rgba(255, 255, 255, 0.3),
-                0 1px 3px rgba(0, 0, 0, 0.2);
-            "></div>
-          </div>
-        `;
-        el.style.cursor = "pointer";
-
-        // Add pulse animation
-        const style = document.createElement("style");
-        style.textContent = `
-          @keyframes pulse {
-            0% { transform: scale(1); opacity: 0.5; }
-            50% { transform: scale(1.5); opacity: 0.2; }
-            100% { transform: scale(2); opacity: 0; }
-          }
-        `;
-        if (!document.head.querySelector("style[data-marker-pulse]")) {
-          style.setAttribute("data-marker-pulse", "true");
-          document.head.appendChild(style);
+        const source = map.current.getSource(MARKERS_SOURCE_ID) as mapboxgl.GeoJSONSource;
+        if (!source) {
+          // If source doesn't exist yet, wait/setup
+          setupMarkersLayer();
+          return;
         }
 
-        const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
-          .setLngLat(coordinates)
-          .addTo(map.current!);
+        const features: GeoJSON.Feature[] = markers.map((marker, index) => {
+          const colors = getSeverityColors(marker.severity);
+          return {
+            type: "Feature",
+            geometry: {
+              type: "Point",
+              coordinates: marker.coordinates,
+            },
+            properties: {
+              index,
+              severity: marker.severity,
+              mainColor: colors.main,
+              pulseColor: colors.pulse,
+            },
+          };
+        });
 
-        if (popupContent) {
-          const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-            popupContent
-          );
-          marker.setPopup(popup);
-        }
+        source.setData({
+          type: "FeatureCollection",
+          features: features,
+        });
+      };
 
-        if (onClick) {
-          el.addEventListener("click", (e) => {
-            e.stopPropagation(); // Prevent map click event
-            onClick();
-          });
-        }
-
-        markersRef.current.push(marker);
-      });
+      if (map.current.isStyleLoaded()) {
+        updateMarkers();
+      } else {
+        map.current.once("load", updateMarkers);
+      }
     }, [markers]);
+
+    // Handle clustering changes dynamically
+    useEffect(() => {
+      if (!map.current || !map.current.isStyleLoaded()) return;
+
+      const source = map.current.getSource(MARKERS_SOURCE_ID) as mapboxgl.GeoJSONSource;
+      if (!source) return;
+
+      // Update visibility of cluster-related layers
+      try {
+        const clusterLayerIds = ["clusters", "cluster-count"];
+        clusterLayerIds.forEach(layerId => {
+          if (map.current?.getLayer(layerId)) {
+            map.current.setLayoutProperty(
+              layerId,
+              "visibility",
+              enableClustering ? "visible" : "none"
+            );
+          }
+        });
+
+        // We need to reconfigure the source to enable/disable clustering
+        // Store current data
+        const currentData = (source as any)._data || { type: "FeatureCollection", features: [] };
+        
+        // Remove all layers that use this source
+        const layersToRemove = ["clusters", "cluster-count", "pulse-animation", POINT_LAYER_ID];
+        layersToRemove.forEach(layerId => {
+          if (map.current?.getLayer(layerId)) {
+            map.current.removeLayer(layerId);
+          }
+        });
+
+        // Remove the source
+        if (map.current.getSource(MARKERS_SOURCE_ID)) {
+          map.current.removeSource(MARKERS_SOURCE_ID);
+        }
+
+        // Re-add source with new clustering configuration
+        map.current.addSource(MARKERS_SOURCE_ID, {
+          type: "geojson",
+          data: currentData,
+          cluster: enableClustering,
+          clusterMaxZoom: CLUSTER_MAX_ZOOM,
+          clusterRadius: CLUSTER_RADIUS,
+        });
+
+        // Re-add all layers with correct visibility
+        setupMarkersLayer();
+      } catch (error) {
+        console.warn("Failed to update clustering configuration:", error);
+      }
+    }, [enableClustering]);
 
     // Fly to location
     const flyTo = (coordinates: [number, number], zoomLevel?: number) => {

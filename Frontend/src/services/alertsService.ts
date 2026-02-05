@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { LRUCache } from "../utils/LRUCache";
 import type {
   AlertFromRPC,
   AlertGeometry,
@@ -13,8 +14,8 @@ export interface AlertsServiceResult<T> {
   loading: boolean;
 }
 
-// Geometry cache to avoid redundant fetches
-const geometryCache = new Map<string, AlertGeometry | null>();
+// Geometry cache to avoid redundant fetches - using LRU cache with 100 max entries and 5 min TTL
+const geometryCache = new LRUCache<string, AlertGeometry | null>(100, 5 * 60 * 1000);
 
 class AlertsService {
   /**
@@ -116,6 +117,21 @@ class AlertsService {
    */
   getCachedGeometry(alertId: string): AlertGeometry | null | undefined {
     return geometryCache.get(alertId);
+  }
+
+  /**
+   * Invalidate geometry cache for alerts no longer in current result set
+   * This prevents memory bloat from old alerts
+   */
+  invalidateStaleGeometry(currentAlertIds: string[]): void {
+    const currentIds = new Set(currentAlertIds);
+    const cachedIds = geometryCache.keys();
+    
+    for (const cachedId of cachedIds) {
+      if (!currentIds.has(cachedId)) {
+        geometryCache.delete(cachedId);
+      }
+    }
   }
 
   /**

@@ -52,6 +52,7 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
     const map = useRef<mapboxgl.Map | null>(null);
     const markersRef = useRef<mapboxgl.Marker[]>([]);
     const markersDataRef = useRef<MapProps["markers"]>([]); // Store markers data for interaction
+    const activeHighlightRef = useRef<any>(null); // Track currently highlighted geometry for persistence
 
     // Constants for source and layers
     const MARKERS_SOURCE_ID = "alerts-markers-source";
@@ -304,6 +305,14 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       // Cleanup function
       return () => {
         if (map.current) {
+          // Remove all markers first
+          markersRef.current.forEach(marker => {
+            marker.remove();
+          });
+          markersRef.current = [];
+          markersDataRef.current = [];
+          
+          // Remove the map - this automatically cleans up all event listeners
           map.current.remove();
           map.current = null;
         }
@@ -324,6 +333,12 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
       // Re-setup layers after style change
       map.current.once("style.load", () => {
         setupMarkersLayer();
+        
+        // Re-apply active highlight if one exists
+        if (activeHighlightRef.current) {
+          highlightGeoJSON(activeHighlightRef.current);
+        }
+
         // Trigger a markers update to refill the data
         const markersSource = map.current?.getSource(MARKERS_SOURCE_ID) as mapboxgl.GeoJSONSource;
         if (markersSource) {
@@ -714,6 +729,8 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
     const clearHighlight = () => {
       if (!map.current) return;
 
+      activeHighlightRef.current = null;
+
       try {
         // Remove layers if they exist
         if (map.current.getLayer("highlighted-polygon-fill")) {
@@ -728,7 +745,7 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
         }
       } catch (error) {
         console.warn(
-          "Failed to clear polygon highlight (this is normal after context loss):",
+          "Failed to clear polygon highlight:",
           error
         );
       }
@@ -741,16 +758,17 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
         return;
       }
 
+      // Track this highlight for persistence across style changes
+      activeHighlightRef.current = geometry;
+
       // Don't show polygons if setting is disabled
       if (!showPolygons) {
-        console.log("Polygon display is disabled in settings");
         return;
       }
 
-      // Wait for map to be fully loaded
-      if (!map.current.isStyleLoaded()) {
-        console.log("Map style not loaded yet, waiting...");
-        map.current.once("styledata", () => {
+      // If style hasn't loaded at all, wait for 'style.load'
+      if (!map.current.getStyle()) {
+        map.current.once("style.load", () => {
           highlightGeoJSON(geometry);
         });
         return;
@@ -761,16 +779,28 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
         return;
       }
 
-      console.log("Highlighting GeoJSON geometry:", geometry);
-
       try {
-        // Remove existing highlight if any
-        clearHighlight();
+        // Ensure map is settle enough for source addition
+        // If map is currently busy changing styles, isStyleLoaded() might be false
+        // We check this to avoid adding sources to a style that's about to be replaced
+        if (!map.current.isStyleLoaded()) {
+           // If we are already waiting for a style load, don't queue multiple
+           // But if it's just tiles loading, we can often proceed anyway.
+           // However, to be safe and avoid the "double click" issue:
+           map.current.once('idle', () => {
+             // Re-check if this is still the active geometry before drawing
+             if (activeHighlightRef.current === geometry) {
+               highlightGeoJSON(geometry);
+             }
+           });
+           return;
+        }
 
-        // Check if map is still valid before adding layers
-        if (!map.current.getStyle()) {
-          console.warn("Map style not available, skipping polygon highlight");
-          return;
+        // Remove existing highlight if any
+        if (map.current.getSource("highlighted-polygon")) {
+          if (map.current.getLayer("highlighted-polygon-fill")) map.current.removeLayer("highlighted-polygon-fill");
+          if (map.current.getLayer("highlighted-polygon-outline")) map.current.removeLayer("highlighted-polygon-outline");
+          map.current.removeSource("highlighted-polygon");
         }
 
         // Create a Feature from the geometry
@@ -796,12 +826,12 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
               "interpolate",
               ["linear"],
               ["zoom"],
-              0, "#003020",   // Darker at global view to compensate for ambient light
-              6, "#004530",   // Transition
-              10, "#006240"   // Intended color at street level
+              0, "#003020",
+              6, "#004530",
+              10, "#006240"
             ],
             "fill-opacity": 0.25,
-            "fill-emissive-strength": 1, // Ensure visibility in Standard style night mode
+            "fill-emissive-strength": 1,
           },
         });
 
@@ -811,16 +841,14 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
           type: "line",
           source: "highlighted-polygon",
           paint: {
-            "line-color": "#2fa96c", // Mint green - softer outline
+            "line-color": "#2fa96c",
             "line-width": 2,
-            "line-emissive-strength": 1, // Ensure visibility in Standard style night mode
+            "line-emissive-strength": 1,
           },
         });
-
-        console.log("Successfully highlighted GeoJSON geometry");
       } catch (error) {
         console.warn(
-          "Failed to add polygon highlight (context may be lost):",
+          "Failed to add polygon highlight:",
           error
         );
       }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { alertsService, type AlertsRPCFilters } from "../services/alertsService";
 import type { AlertFromRPC, AlertGeometry, AlertCategory, AlertSeverity, AlertUrgency } from "../types/database";
 
@@ -14,15 +14,13 @@ export function useAlerts(options: UseAlertsOptions = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Track the last fetched filters to avoid duplicate calls
-  const lastFetchedFilters = useRef<string>("");
+  // Create stable string representation of filters for comparison
+  const filtersString = useMemo(() => JSON.stringify(filters), [filters]);
+  const lastFetchedFiltersRef = useRef<string>("");
 
   const fetchAlerts = useCallback(async (forceRefetch = false) => {
-    // Create a string representation of current filters for comparison
-    const filterString = JSON.stringify(filters);
-    
     // Skip if already fetched with same filters (unless forced)
-    if (!forceRefetch && filterString === lastFetchedFilters.current && alerts.length > 0) {
+    if (!forceRefetch && filtersString === lastFetchedFiltersRef.current && alerts.length > 0) {
       console.log("useAlerts: Skipping fetch - filters unchanged");
       return;
     }
@@ -39,8 +37,15 @@ export function useAlerts(options: UseAlertsOptions = {}) {
         setAlerts([]);
       } else {
         console.log("useAlerts: Fetched alerts count:", result.data?.length);
-        setAlerts(result.data || []);
-        lastFetchedFilters.current = filterString;
+        const newAlerts = result.data || [];
+        setAlerts(newAlerts);
+        lastFetchedFiltersRef.current = filtersString;
+        
+        // Invalidate stale geometry cache entries for alerts no longer in view
+        if (newAlerts.length > 0) {
+          const alertIds = newAlerts.map(a => a.id).filter(Boolean) as string[];
+          alertsService.invalidateStaleGeometry(alertIds);
+        }
       }
     } catch (err) {
       const errorMessage =
@@ -50,22 +55,7 @@ export function useAlerts(options: UseAlertsOptions = {}) {
     } finally {
       setLoading(false);
     }
-  }, [
-    filters?.status_filter,
-    filters?.search_query,
-    filters?.category_filter,
-    filters?.severity_filter,
-    filters?.urgency_filter,
-    filters?.date_start,
-    filters?.date_end,
-    filters?.sort_by,
-    filters?.sort_order,
-    filters?.page_size,
-    filters?.page_offset,
-    filters?.user_lat,
-    filters?.user_lng,
-    filters?.radius_km,
-  ]);
+  }, [filters, filtersString]); // Only depend on filters object and its serialization
 
   const refetch = useCallback(() => {
     return fetchAlerts(true);

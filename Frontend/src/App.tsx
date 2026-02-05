@@ -123,18 +123,27 @@ export const App: React.FC = () => {
   const mapRef = useRef<MapRef>(null);
   const autoRefreshInterval = useRef<number | null>(null);
   const activeAlertIdRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Geometry fetching hook
-  const { fetchGeometry, prefetchGeometry } = useAlertGeometry();
+  // Geometry fetching hook - includes cache access for synchronous rendering
+  const { fetchGeometry, prefetchGeometry, isGeometryCached, getCachedGeometry } = useAlertGeometry();
 
   // Debounced search - waits 300ms after user stops typing
   const debouncedSetSearch = useDebouncedCallback((value: string) => {
     setDebouncedSearchQuery(value);
   }, 300);
 
+  // Cleanup debounced callback on unmount
+  useEffect(() => {
+    return () => {
+      debouncedSetSearch.cancel();
+    };
+  }, [debouncedSetSearch]);
+
   // Clear search
   const handleClearSearch = useCallback(() => {
     setSearchQuery("");
+    debouncedSetSearch.cancel(); // Cancel any pending debounced calls
     setDebouncedSearchQuery("");
   }, [debouncedSetSearch]);
 
@@ -342,6 +351,14 @@ export const App: React.FC = () => {
 
   const handleAlertClick = useCallback(
     async (alert: DetailData) => {
+      // Cancel any pending geometry fetch
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      abortControllerRef.current = new AbortController();
+      const { signal } = abortControllerRef.current;
+
       setSelectedAlert(alert);
       setIsDetailCardVisible(true);
 
@@ -352,10 +369,15 @@ export const App: React.FC = () => {
       if (mapRef.current && alert.id) {
         const alertId = alert.id;
         
-        // Clear any existing highlight immediately
-        mapRef.current.clearHighlight();
-
-        // Immediately zoom to bbox/centroid (don't wait for geometry)
+        // Check cache SYNCHRONOUSLY first for immediate rendering
+        const cachedGeometry = isGeometryCached(alertId) ? getCachedGeometry(alertId) : null;
+        
+        // If geometry is already cached, render it IMMEDIATELY (before map animation starts)
+        if (cachedGeometry && mapRef.current) {
+          mapRef.current.highlightGeoJSON(cachedGeometry);
+        }
+        
+        // Initiate map animation (non-blocking)
         if (alert.additionalInfo?.bbox) {
           mapRef.current.fitToBbox(alert.additionalInfo.bbox, 60);
         } else if (alert.additionalInfo?.coordinates) {
@@ -363,37 +385,28 @@ export const App: React.FC = () => {
           mapRef.current.flyTo([lng, lat], 8);
         }
 
-        // Fetch geometry in the background (non-blocking)
-        fetchGeometry(alertId).then((geometry) => {
-          // Only highlight if this alert is still active and geometry was found
-          if (
-            activeAlertIdRef.current === alertId &&
-            geometry &&
-            mapRef.current
-          ) {
-            // Wait for map to finish animating before highlighting
-            const map = mapRef.current.getMap();
-            if (map && !map.isMoving()) {
-              // Map is already idle, highlight immediately
-              mapRef.current.highlightGeoJSON(geometry);
-            } else if (map) {
-              // Wait for map to become idle
-              map.once('idle', () => {
-                if (
-                  activeAlertIdRef.current === alertId &&
-                  mapRef.current
-                ) {
-                  mapRef.current.highlightGeoJSON(geometry);
-                }
-              });
-            } else {
-              // Fallback: no map reference
+        // If geometry wasn't cached, fetch it asynchronously and draw when ready
+        if (!cachedGeometry) {
+          try {
+            const geometry = await fetchGeometry(alertId);
+            
+            // Check if operation was aborted
+            if (signal.aborted) return;
+            
+            // Draw geometry if this alert is still active
+            if (
+              activeAlertIdRef.current === alertId &&
+              geometry &&
+              mapRef.current
+            ) {
               mapRef.current.highlightGeoJSON(geometry);
             }
+          } catch (error) {
+            if (!signal.aborted) {
+              console.warn('Geometry fetch failed:', error);
+            }
           }
-        }).catch((error) => {
-          console.warn('Geometry fetch failed:', error);
-        });
+        }
       }
     },
     [fetchGeometry]
@@ -436,39 +449,47 @@ export const App: React.FC = () => {
     refetch();
   }, [refetch]);
 
-  // Handle settings changes
+  // Handle settings changes and manage auto-refresh interval
+  useEffect(() => {
+    // Clear any existing interval
+    if (autoRefreshInterval.current) {
+      clearInterval(autoRefreshInterval.current);
+      autoRefreshInterval.current = null;
+    }
+
+    // Set up new interval if auto-refresh is enabled
+    if (userSettings?.autoRefresh) {
+      console.log("Setting up auto-refresh every 5 minutes");
+      autoRefreshInterval.current = setInterval(() => {
+        console.log("Auto-refreshing alerts...");
+        refetch();
+      }, 5 * 60 * 1000) as unknown as number; // 5 minutes
+    }
+
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      if (autoRefreshInterval.current) {
+        clearInterval(autoRefreshInterval.current);
+        autoRefreshInterval.current = null;
+      }
+    };
+  }, [userSettings?.autoRefresh, refetch]);
+
+  // Handle settings changes (without managing interval - that's done in useEffect above)
   const handleSettingsChange = useCallback(
     (settings: UserSettings) => {
       setUserSettings(settings);
       setMapTheme(settings.mapTheme);
       setShowPolygons(settings.showPolygons);
-
-      // Update auto-refresh based on settings
-      if (settings.autoRefresh) {
-        // Set up auto-refresh every 5 minutes
-        if (autoRefreshInterval.current) {
-          clearInterval(autoRefreshInterval.current);
-        }
-        autoRefreshInterval.current = setInterval(() => {
-          console.log("Auto-refreshing alerts...");
-          refetch();
-        }, 5 * 60 * 1000); // 5 minutes
-      } else {
-        // Clear auto-refresh
-        if (autoRefreshInterval.current) {
-          clearInterval(autoRefreshInterval.current);
-          autoRefreshInterval.current = null;
-        }
-      }
     },
-    [refetch]
+    []
   );
 
-  // Clean up auto-refresh on unmount
+  // Cleanup abort controller on unmount
   useEffect(() => {
     return () => {
-      if (autoRefreshInterval.current) {
-        clearInterval(autoRefreshInterval.current);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
     };
   }, []);
@@ -520,7 +541,7 @@ export const App: React.FC = () => {
     }
 
     return markers;
-  }, [currentAlerts, selectedAlert, userLocation, handleAlertClick]);
+  }, [currentAlerts, selectedAlert, userLocation, handleAlertClick, handleAlertHover]);
 
   // Panel toggle handlers
   const handleToggleFilter = () => {

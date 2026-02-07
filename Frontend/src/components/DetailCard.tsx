@@ -551,7 +551,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto dark-scrollbar">
+          <div className="flex-1 overflow-y-auto dark-scrollbar pr-2">
             {renderContent()}
           </div>
         </div>

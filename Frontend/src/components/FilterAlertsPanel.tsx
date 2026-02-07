@@ -759,7 +759,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
       </div>
 
       {/* Alert List */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-black/40">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden dark-scrollbar-large bg-black/40 pr-1">
         {error ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-4">
             <p className="text-red-400 mb-2">Error loading alerts</p>

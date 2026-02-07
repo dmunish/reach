@@ -153,21 +153,45 @@ textarea {
 
 /* Custom scrollbar styles for dark panels */
 .dark-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 .dark-scrollbar::-webkit-scrollbar-track {
-  background: var(--dark-green);
-  border-radius: 3px;
+  background: transparent;
+  margin: 4px;
 }
 
 .dark-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--bangladesh-green);
-  border-radius: 3px;
+  background: rgba(0, 98, 64, 0.4); /* Bangladesh green with opacity */
+  border-radius: 10px;
 }
 
 .dark-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--mountain-meadow);
+}
+
+/* Larger scrollbar for main lists */
+.dark-scrollbar-large::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.dark-scrollbar-large::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  margin: 2px;
+  border-radius: 10px;
+}
+
+.dark-scrollbar-large::-webkit-scrollbar-thumb {
+  background: rgba(0, 98, 64, 0.5); /* Bangladesh green with opacity */
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.dark-scrollbar-large::-webkit-scrollbar-thumb:hover {
+  background: var(--mountain-meadow);
+  background-clip: content-box;
 }
 
 /* Mapbox controls dark theme styling */

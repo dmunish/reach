@@ -291,7 +291,7 @@ export const App: React.FC = () => {
       page_offset: 0,
       user_lat: scope === "local" ? userLocation?.lat : undefined,
       user_lng: scope === "local" ? userLocation?.lng : undefined,
-      radius_km: scope === "local" ? 20 : undefined,
+      radius_km: scope === "local" ? 30 : undefined,
     }),
     [
       debouncedSearchQuery,
@@ -586,7 +586,6 @@ export const App: React.FC = () => {
           center={[69.3451, 30.3753]}
           theme={mapTheme}
           showPolygons={showPolygons}
-          enableClustering={statusFilter === "all"}
           markers={mapMarkers}
           className="w-full h-full"
         />

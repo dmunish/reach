@@ -3,14 +3,12 @@ from typing import List, Optional, Literal
 from uuid import UUID
 
 class GeocodeOptions(BaseModel):
-    """Options for customizing geocoding behavior"""
     prefer_lower_admin_levels: bool = True
     include_confidence_scores: bool = False
 
 class GeocodeRequest(BaseModel):
-    """Request model for geocoding locations"""
-    locations: List[str] = Field(..., min_length=1, description="List of location strings to geocode")
-    options: GeocodeOptions = Field(default_factory=GeocodeOptions)
+    locations: List[str] = Field(..., min_items=1)
+    options: GeocodeOptions = GeocodeOptions()
 
 class MatchedPlace(BaseModel):
     id: UUID

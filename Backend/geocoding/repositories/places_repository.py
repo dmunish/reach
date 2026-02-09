@@ -4,6 +4,7 @@ from supabase import Client
 import logging
 import hashlib
 import json
+from functools import lru_cache
 
 from ..services.redis_cache import get_redis_cache
 
@@ -18,6 +19,9 @@ class PlacesRepository:
     
     def __init__(self, supabase_client: Client):
         self.client = supabase_client
+        # In-memory LRU cache for frequently accessed places (500 most recent)
+        self._place_cache: Dict[str, Dict[str, Any]] = {}
+        self._cache_maxsize = 500
     
     async def search_by_fuzzy_name(
         self, 
@@ -27,7 +31,7 @@ class PlacesRepository:
         """
         Search places using fuzzy name matching via PostgreSQL function.
         Uses trigram similarity for efficient fuzzy matching.
-        NOW WITH REDIS CACHING.
+        NOW WITH REDIS CACHING AND DYNAMIC THRESHOLD FOR SHORT STRINGS.
         
         Args:
             name: Location name to search for
@@ -36,10 +40,23 @@ class PlacesRepository:
         Returns:
             List of matching places with similarity scores
         """
+        # Dynamic threshold adjustment for short strings
+        # Short strings need lower thresholds to handle 1-char typos
+        # Examples: "Multn" → "Multan", "Peshwar" → "Peshawar", "Islmabad" → "Islamabad"
+        adjusted_threshold = threshold
+        if len(name) <= 5:
+            # Very short strings (≤5): aggressive reduction for 1-char typos
+            adjusted_threshold = max(0.40, threshold - 0.30)  # e.g., 0.85 → 0.55
+            logger.debug(f"Very short string '{name}' - adjusted threshold: {threshold} -> {adjusted_threshold}")
+        elif len(name) <= 8:
+            # Short strings (6-8): more lenient for missing/wrong characters
+            adjusted_threshold = max(0.50, threshold - 0.30)  # e.g., 0.85 → 0.55 or 0.50 min
+            logger.debug(f"Short string '{name}' - adjusted threshold: {threshold} -> {adjusted_threshold}")
+        
         # Try Redis cache first
         cache = get_redis_cache()
         if cache:
-            cache_key = f"fuzzy:{name}:{threshold}"
+            cache_key = f"fuzzy:{name}:{adjusted_threshold}"
             cached_result = await cache.get("fuzzy_search", cache_key)
             if cached_result is not None:
                 return cached_result
@@ -49,7 +66,7 @@ class PlacesRepository:
                 'search_places_fuzzy',
                 {
                     'search_name': name,
-                    'similarity_threshold': threshold
+                    'similarity_threshold': adjusted_threshold
                 }
             ).execute()
             
@@ -61,7 +78,7 @@ class PlacesRepository:
                 if cache:
                     from ..config import get_settings
                     settings = get_settings()
-                    cache_key = f"fuzzy:{name}:{threshold}"
+                    cache_key = f"fuzzy:{name}:{adjusted_threshold}"
                     await cache.set("fuzzy_search", cache_key, data, ttl_seconds=settings.redis_ttl_fuzzy)
                 
                 return data
@@ -102,7 +119,7 @@ class PlacesRepository:
     
     async def get_by_id(self, place_id: UUID) -> Optional[Dict[str, Any]]:
         """
-        Get place by ID.
+        Get place by ID with in-memory LRU caching.
         
         Args:
             place_id: UUID of the place
@@ -110,20 +127,40 @@ class PlacesRepository:
         Returns:
             Place dict or None if not found
         """
+        place_id_str = str(place_id)
+        
+        # Check in-memory cache first (fastest)
+        if place_id_str in self._place_cache:
+            return self._place_cache[place_id_str]
+        
         try:
             result = self.client.table('places')\
                 .select('*')\
-                .eq('id', str(place_id))\
+                .eq('id', place_id_str)\
                 .single()\
                 .execute()
             
             # Type guard for single result
             if result.data and isinstance(result.data, dict):
-                return cast(Dict[str, Any], result.data)
+                place_data = cast(Dict[str, Any], result.data)
+                
+                # Add to in-memory cache
+                self._add_to_cache(place_id_str, place_data)
+                
+                return place_data
             return None
         except Exception as e:
             logger.error(f"Get by ID failed for {place_id}: {e}")
             return None
+    
+    def _add_to_cache(self, place_id: str, place_data: Dict[str, Any]):
+        """Add place to in-memory cache with LRU eviction."""
+        if len(self._place_cache) >= self._cache_maxsize:
+            # Remove oldest entry (first key)
+            oldest_key = next(iter(self._place_cache))
+            del self._place_cache[oldest_key]
+        
+        self._place_cache[place_id] = place_data
     
     async def get_children(
         self, 
@@ -199,18 +236,7 @@ class PlacesRepository:
             
             # Type guard: ensure result.data is a list
             if result.data and isinstance(result.data, list):
-                # DEBUG LOGGING (safe after type check)
-                logger.info(f"RPC result.data type: {type(result.data)}")
-                data_list = cast(List[Any], result.data)
-                logger.info(f"First 3 items: {data_list[:3]}")
-                if len(data_list) > 0:
-                    first_item = data_list[0]
-                    logger.info(f"First item type: {type(first_item)}")
-                    logger.info(f"First item: {first_item}")
-                    if isinstance(first_item, dict):
-                        logger.info(f"First item keys: {first_item.keys()}")
-                
-                result_data = cast(List[Dict[str, Any]], data_list)
+                result_data = cast(List[Dict[str, Any]], result.data)
                 
                 # Cache the result
                 if cache:
@@ -294,10 +320,10 @@ class PlacesRepository:
     
     async def get_by_ids_batch(self, place_ids: List[UUID]) -> Dict[str, Dict[str, Any]]:
         """
-        Batch get places by IDs.
+        Batch get places by IDs with in-memory caching.
         
         Much more efficient than calling get_by_id multiple times.
-        Uses a single query with .in_() filter.
+        Uses a single query with .in_() filter + checks in-memory cache first.
         
         Args:
             place_ids: List of place UUIDs to fetch
@@ -308,20 +334,33 @@ class PlacesRepository:
         if not place_ids:
             return {}
         
-        try:
-            result = self.client.table('places')\
-                .select('*')\
-                .in_('id', [str(pid) for pid in place_ids])\
-                .execute()
-            
-            # Build lookup dict
-            places_dict: Dict[str, Dict[str, Any]] = {}
-            if result.data and isinstance(result.data, list):
-                for place in result.data:
-                    if isinstance(place, dict) and 'id' in place:
-                        places_dict[str(place['id'])] = place
-            
-            return places_dict
-        except Exception as e:
-            logger.error(f"Batch get by IDs failed: {e}")
-            return {}
+        # Check in-memory cache first
+        places_dict: Dict[str, Dict[str, Any]] = {}
+        uncached_ids: List[UUID] = []
+        
+        for place_id in place_ids:
+            place_id_str = str(place_id)
+            if place_id_str in self._place_cache:
+                places_dict[place_id_str] = self._place_cache[place_id_str]
+            else:
+                uncached_ids.append(place_id)
+        
+        # Only query database for uncached IDs
+        if uncached_ids:
+            try:
+                result = self.client.table('places')\
+                    .select('*')\
+                    .in_('id', [str(pid) for pid in uncached_ids])\
+                    .execute()
+                
+                # Build lookup dict and add to cache
+                if result.data and isinstance(result.data, list):
+                    for place in result.data:
+                        if isinstance(place, dict) and 'id' in place:
+                            place_id_str = str(place['id'])
+                            places_dict[place_id_str] = place
+                            self._add_to_cache(place_id_str, place)
+            except Exception as e:
+                logger.error(f"Batch get by IDs failed: {e}")
+        
+        return places_dict

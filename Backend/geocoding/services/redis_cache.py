@@ -13,7 +13,6 @@ import redis.asyncio as redis
 import json
 import hashlib
 import logging
-from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 

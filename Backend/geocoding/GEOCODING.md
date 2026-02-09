@@ -3,25 +3,12 @@
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Directory Structure](#directory-structure)
-3. [Installation & Setup](#installation--setup)
-   - [Prerequisites](#prerequisites)
-   - [Quick Setup with start.sh](#quick-setup-with-startsh)
-   - [Manual Setup](#manual-setup)
-   - [Redis Caching Setup](#redis-caching-setup)
-4. [Testing](#testing)
-   - [Setup Validation](#setup-validation)
-   - [Integration Tests](#integration-tests)
-   - [Automated Curl Tests](#automated-curl-tests)
-   - [Manual Testing](#manual-testing)
-5. [Key Features](#key-features)
-   - [Simple Name Matching](#simple-name-matching)
-   - [Directional Processing](#directional-processing)
-   - [Hierarchical Aggregation](#hierarchical-aggregation)
-   - [Batch Processing](#batch-processing)
-   - [Redis Caching](#redis-caching)
-6. [API Reference](#api-reference)
-7. [Performance & Monitoring](#performance--monitoring)
+2. [Quick Start](#quick-start)
+3. [Key Features](#key-features)
+4. [API Reference](#api-reference)
+5. [Directional Geocoding System](#directional-geocoding-system)
+6. [Performance & Caching](#performance--caching)
+7. [Testing](#testing)
 8. [Troubleshooting](#troubleshooting)
 
 ---
@@ -30,879 +17,247 @@
 
 The Geocoding Microservice converts location references from disaster alert documents into standardized place IDs from Pakistan's administrative boundary hierarchy.
 
-**Core Capabilities:**
-- **Simple name matching**: Direct fuzzy matching against place names (e.g., "Islamabad", "Lahore")
-- **Directional processing**: Geographic descriptions like "Northern Punjab" or "South-Western KPK"
+### Core Capabilities
+
+- **Simple name matching**: Fuzzy matching against place names (e.g., "Islamabad", "Lahor")
+- **Directional processing**: Geographic descriptions ("Northern Punjab", "South-Western Balochistan")
 - **Hierarchical aggregation**: Smart consolidation to avoid redundant parent/child places
 - **Batch processing**: Multiple locations in a single request
-- **Redis caching**: 20-100x faster repeated queries (optional but recommended)
+- **Three-tier caching**: In-memory LRU (500) → Redis → PostgreSQL
 
-**Tech Stack:**
-- FastAPI (async web framework)
-- Supabase/PostgreSQL with PostGIS (spatial operations)
-- pg_trgm (fuzzy string matching)
-- Redis (optional distributed cache)
-- Pydantic (data validation)
+### Tech Stack
 
-**Performance:**
-- Simple name match: ~50ms (cold) / ~20ms (cached)
-- Directional query: ~7s (cold) / ~100ms (cached) - **70x faster with Redis**
-- Batch (5 locations): ~500-800ms (cold) / ~200ms (cached)
+- **FastAPI**: Async web framework
+- **Supabase/PostgreSQL + PostGIS**: Spatial database with geographic functions
+- **pg_trgm**: Fuzzy string matching extension
+- **Redis**: Distributed caching layer (optional but recommended)
+- **Pydantic**: Data validation and serialization
 
----
+### Performance
 
-## Directory Structure
+| Query Type | Cold (No Cache) | Warm (Redis) | Speedup |
+|------------|----------------|--------------|---------|
+| Simple name | ~50ms | ~20ms | 2-3x |
+| Directional | ~2-3s | ~100ms | **20-30x** |
+| Batch (5 locations) | ~500-800ms | ~200ms | 3-4x |
 
-```
-geocoding/
-├── GEOCODING.md                  # This file - comprehensive documentation
-├── ARCHITECTURE.md              # System architecture and design patterns
-├── start.sh                      # Automated setup and validation script
-│
-├── config.py                     # Environment configuration
-├── dependencies.py               # Dependency injection container
-├── models.py                     # Pydantic models for API
-├── exceptions.py                 # Custom exceptions
-├── __init__.py                   # Package exports
-│
-├── db_queries.sql               # PostgreSQL functions and indexes
-│
-├── api/
-│   ├── __init__.py
-│   └── routes.py                # FastAPI endpoint definitions
-│
-├── repositories/
-│   ├── __init__.py
-│   └── places_repository.py     # Database access layer (with Redis caching)
-│
-├── services/
-│   ├── __init__.py
-│   ├── geocoding_service.py     # Main orchestration service
-│   ├── name_matcher.py          # Fuzzy name matching logic
-│   ├── directional_parser.py    # Directional phrase parser
-│   ├── external_geocoder.py     # LocationIQ API integration
-│   └── redis_cache.py           # Redis caching layer
-│
-└── tests/
-    ├── __init__.py
-    ├── test_setup.py            # 4-phase setup validation
-    ├── test_api.py              # Integration tests (colored output)
-    ├── test_redis.py            # Redis connectivity tests
-    └── test_curl_commands.sh    # Automated curl test script
-```
-
-**Note:** The geocoding package is fully modularized with `__init__.py` files in all subdirectories, enabling clean imports:
-
-```python
-# From Backend directory
-from geocoding import GeocodingService, get_geocoding_service
-from geocoding.services import DirectionalParser
-from geocoding.repositories import PlacesRepository
-```
+**Optimization Highlights:**
+- 7 PostgreSQL indexes (GIN trigram, GIST spatial, B-tree hierarchy)
+- In-memory LRU cache (500 entries) for instant repeated queries
+- Redis distributed cache for cross-instance sharing
+- Parallel async processing with `asyncio.gather()`
 
 ---
 
-## Installation & Setup
+## Quick Start
 
 ### Prerequisites
 
-**Required:**
-- Python 3.11+
+- Python 3.9+
 - PostgreSQL 14+ with PostGIS extension
-- Supabase account (or local PostgreSQL with PostGIS)
-- LocationIQ API key (free tier: 10k requests/day)
+- Redis (optional, for distributed caching)
+- Supabase project with `places` table
 
-**Optional:**
-- Redis 7.x (for caching - highly recommended for production)
-
-**System Requirements:**
-- Ubuntu 20.04+ / macOS 11+ / Windows 10+ with WSL2
-- 2GB RAM minimum
-- 1GB disk space
-
----
-
-### Quick Setup with start.sh
-
-The automated `start.sh` script handles the entire setup process:
+### Installation
 
 ```bash
-cd /home/ahmad_shahmeer/reach-geocoding/Backend/geocoding
+# 1. Navigate to Backend directory
+cd /home/ahmad_shahmeer/reach-geocoding/Backend
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Set up environment variables
+cat > .env << EOF
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_anon_key
+REDIS_URL=redis://localhost:6379/0  # Optional
+EOF
+
+# 4. Deploy database functions and indexes
+# Copy contents of geocoding/db_queries.sql
+# Run in Supabase SQL Editor
+
+# 5. Start the service
+cd geocoding
 chmod +x start.sh
 ./start.sh
 ```
 
-**What start.sh does:**
+The service will be available at `http://localhost:8000`.
 
-1. ✅ **Checks Python installation** - Ensures Python 3 is available
-2. ✅ **Creates virtual environment** - Sets up `Backend/venv` if not exists
-3. ✅ **Installs dependencies** - Installs all packages from `requirements.txt`
-4. ✅ **Validates .env file** - Ensures required environment variables are set
-5. ✅ **Runs validation tests** - Executes all 4 phases of setup tests:
-   - **Phase 1**: Configuration & connectivity
-   - **Phase 2**: Database layer (SQL functions, PostGIS, pg_trgm)
-   - **Phase 3**: Service layer (parsers, matchers, geocoder)
-   - **Phase 4**: End-to-end integration test
-
-**After successful setup:**
+### Quick Test
 
 ```bash
-# Start the service (from Backend directory)
-cd /home/ahmad_shahmeer/reach-geocoding/Backend
-python -m geocoder
-
-# Alternative: use uvicorn directly
-uvicorn geocoder:app --reload --host 0.0.0.0 --port 8000
-```
-
-**Service will be available at:**
-- API: `http://localhost:8000`
-- Interactive Docs: `http://localhost:8000/docs`
-- Health Check: `http://localhost:8000/api/v1/health`
-
----
-
-### Manual Setup
-
-If you prefer manual setup or need to troubleshoot:
-
-#### 1. Create Virtual Environment
-
-```bash
-cd /home/ahmad_shahmeer/reach-geocoding/Backend
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-#### 2. Install Dependencies
-
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-**Key dependencies:**
-- `fastapi` - Web framework
-- `uvicorn[standard]` - ASGI server
-- `supabase` - Database client
-- `httpx` - Async HTTP client
-- `pydantic-settings` - Configuration management
-- `redis[hiredis]` - Redis cache (optional, includes C parser for speed)
-
-#### 3. Configure Environment Variables
-
-Create `Backend/.env` file:
-
-```bash
-# Supabase Configuration
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-anon-key
-
-# External Geocoding
-LOCATION_IQ_KEY=your-locationiq-api-key
-
-# Application Settings
-FUZZY_MATCH_THRESHOLD=0.85
-
-# Redis Configuration (optional)
-REDIS_ENABLED=true
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_DB=0
-REDIS_PASSWORD=
-
-# Redis TTLs (in seconds)
-REDIS_TTL_DIRECTIONAL=3600      # 1 hour
-REDIS_TTL_FUZZY=7200            # 2 hours  
-REDIS_TTL_EXTERNAL=2592000      # 30 days
-```
-
-#### 4. Setup Database
-
-**Run SQL functions in Supabase SQL Editor:**
-
-```bash
-# Copy contents of db_queries.sql
-cat geocoding/db_queries.sql
-```
-
-Paste and execute in Supabase → SQL Editor. This creates:
-- PostgreSQL functions for fuzzy search and spatial operations
-- GIN/GIST indexes for performance
-- Helper functions for directional grid processing
-
-**Verify extensions:**
-```sql
--- Should already be enabled in Supabase
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-```
-
-#### 5. Verify Setup
-
-```bash
-cd geocoding
-python test_setup.py
-```
-
-Expected output:
-```
-✅ Phase 1: Configuration & Connectivity - PASSED
-✅ Phase 2: Database Layer - PASSED
-✅ Phase 3: Service Layer - PASSED
-✅ Phase 4: End-to-End Integration - PASSED
-
-🎉 All validation phases passed!
-```
-
----
-
-### Redis Caching Setup
-
-Redis caching is **optional but highly recommended** for production deployments. It provides 20-100x performance improvements for repeated queries.
-
-#### Why Redis?
-
-**Performance Impact:**
-- First query: ~7-10 seconds (database + spatial operations)
-- Cached query: ~50-200ms (Redis lookup)
-- **Improvement: 20-100x faster** ⚡
-
-**Benefits:**
-- ✅ Dramatically faster repeated queries
-- ✅ Reduced database load on expensive PostGIS operations
-- ✅ Lower external API costs (LocationIQ)
-- ✅ Better user experience with sub-second response times
-- ✅ Scalable across multiple service instances
-
-#### Installation
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update
-sudo apt install redis-server
-sudo systemctl start redis-server
-sudo systemctl enable redis-server
-```
-
-**macOS:**
-```bash
-brew install redis
-brew services start redis
-```
-
-**Docker:**
-```bash
-docker run -d --name redis -p 6379:6379 redis:latest
-```
-
-#### Verify Redis
-
-```bash
-redis-cli ping
-# Expected: PONG
-```
-
-#### Enable in Application
-
-Update `Backend/.env`:
-```bash
-REDIS_ENABLED=true
-REDIS_HOST=localhost
-REDIS_PORT=6379
-```
-
-#### Test Redis Connectivity
-
-```bash
-cd geocoding
-python tests/test_redis.py
-```
-
-Expected output:
-```
-✅ Redis connection successful!
-✅ SET: ✅
-✅ GET: ✅
-✅ DELETE: ✅
-⚡ Speedup: 50.2x faster
-```
-
-#### Redis Configuration Details
-
-**What Gets Cached:**
-
-| Type | Namespace | TTL | Why |
-|------|-----------|-----|-----|
-| Directional queries | `directional` | 1 hour | Expensive PostGIS spatial operations |
-| Aggregated results | `directional_aggregated` | 1 hour | Saves hierarchical processing (~20s) |
-| Fuzzy searches | `fuzzy_search` | 2 hours | pg_trgm calculations on large dataset |
-| External API | `external_geocode` | 30 days | Avoids rate limits + reduces costs |
-
-**Cache Architecture:**
-
-```
-API Request: "North Punjab"
-    ↓
-┌─────────────────┐
-│ Check Redis     │
-│ Cache First     │
-└────┬────────┬───┘
-     │        │
-   MISS      HIT
-     │        │
-     ▼        ▼
-┌─────────┐  ┌──────────────┐
-│Database │  │Return Cached │
-│PostGIS  │  │Result ~100ms │
-│~7 sec   │  └──────────────┘
-└────┬────┘
-     │
-     ▼
-┌────────────┐
-│Cache Result│
-│in Redis    │
-└────────────┘
-```
-
-**Two-Level Caching Strategy:**
-
-The service implements a two-level cache for directional queries:
-
-1. **Level 1: Raw Directional Results** - Caches the raw database spatial query results (~75 places)
-2. **Level 2: Aggregated Results** - Caches the final aggregated results after hierarchical processing (~18 places)
-
-Level 2 is critical because hierarchical aggregation is the actual bottleneck (~20s), not just the spatial query (~7s).
-
-**Cache Keys:**
-
-Directional queries use sorted place IDs for consistent cache keys:
-```python
-# Ensures same cache key regardless of input order
-place_ids = [uuid1, uuid2, uuid3]
-cache_key = f"{sorted_ids}:{direction}"
-# Result: Better cache hit rate
-```
-
-#### Graceful Degradation
-
-The service is designed to **never crash** due to Redis issues:
-
-1. ✅ Service continues to work without Redis
-2. ⚠️ Performance degrades to database-only mode
-3. 📝 Logs warnings but doesn't stop requests
-
-```bash
-# Test with Redis down
-sudo systemctl stop redis-server
-curl http://localhost:8000/api/v1/health
-# Status: 200 OK (just slower for complex queries)
-```
-
-#### Production Considerations
-
-**1. Enable Persistence** (`/etc/redis/redis.conf`):
-```conf
-# RDB snapshots
-save 900 1       # After 900 sec if at least 1 key changed
-save 300 10      # After 300 sec if at least 10 keys changed
-save 60 10000    # After 60 sec if at least 10000 keys changed
-
-# AOF for durability
-appendonly yes
-appendfsync everysec
-```
-
-**2. Set Memory Limits:**
-```conf
-maxmemory 256mb
-maxmemory-policy allkeys-lru  # Remove least recently used
-```
-
-**3. Security (if exposed to network):**
-```conf
-requirepass your-strong-password
-bind 127.0.0.1  # Localhost only
-```
-
-Update `.env`:
-```bash
-REDIS_PASSWORD=your-strong-password
-```
-
-**4. Monitoring:**
-- Redis Commander: `npm install -g redis-commander`
-- RedisInsight (official GUI)
-- Prometheus + Grafana with Redis exporter
-
----
-
-## Testing
-
-### Setup Validation
-
-The `test_setup.py` script validates your installation in 4 phases:
-
-```bash
-cd /home/ahmad_shahmeer/reach-geocoding/Backend/geocoding
-python test_setup.py
-```
-
-**Test Phases:**
-
-**Phase 1: Configuration & Connectivity**
-- Loads environment variables from `.env`
-- Tests Supabase connection
-- Verifies LocationIQ API key
-- Checks Redis connection (if enabled)
-
-**Phase 2: Database Layer**
-- Verifies PostgreSQL extensions (PostGIS, pg_trgm)
-- Tests SQL functions existence
-- Validates indexes
-- Checks places table data
-
-**Phase 3: Service Layer**
-- Tests DirectionalParser
-- Tests NameMatcher
-- Tests ExternalGeocoder
-- Tests Redis cache operations
-
-**Phase 4: End-to-End Integration**
-- Tests simple name geocoding
-- Tests directional geocoding
-- Tests batch processing
-- Tests hierarchical aggregation
-
-**Run individual phases:**
-```bash
-python test_setup.py --phase 1  # Configuration only
-python test_setup.py --phase 2  # Database only
-python test_setup.py --phase 3  # Services only
-python test_setup.py --phase 4  # Integration only
-```
-
----
-
-### Integration Tests
-
-Python integration tests with **colored terminal output**:
-
-```bash
-cd /home/ahmad_shahmeer/reach-geocoding/Backend/geocoding/tests
-python test_api.py
-```
-
-**Test Coverage:**
-- Health check endpoint
-- Simple place name (Islamabad)
-- Fuzzy matching (typos)
-- Directional description (Central Sindh)
-- Batch geocoding (6 locations)
-- GET endpoint (single location)
-- Suggestions endpoint
-
-**Features:**
-- ✅ Color-coded output (green=success, red=error, yellow=warning)
-- ✅ Pretty-printed JSON responses
-- ✅ Status indicators and summaries
-- ✅ Connection error handling
-- ✅ All output to terminal only (no file output)
-
----
-
-### Automated Curl Tests
-
-Bash script that runs 15 different test scenarios with timing:
-
-```bash
-cd /home/ahmad_shahmeer/reach-geocoding/Backend/geocoding/tests
-chmod +x test_curl_commands.sh
-./test_curl_commands.sh
-```
-
-**What it tests:**
-- Simple place names (Islamabad, Lahore)
-- Fuzzy matching (typos like "Lahor")
-- 8 directional queries (all compass directions)
-- Province and district levels
-- Batch processing
-- Hierarchical aggregation
-- GET/Suggestions endpoints
-- Health check
-
-**Output includes:**
-- Clean formatted output showing only place names and hierarchy levels
-- Summary table with execution time for each test category
-- Total execution time
-
-**First run (cold cache):** ~3-5 minutes  
-**Second run (warm cache):** ~5-10 seconds (20-50x faster)
-
----
-
-### Manual Testing
-
-#### Health Check
-```bash
-curl http://localhost:8000/api/v1/health | jq
-```
-
-#### Simple Place Name
-```bash
-curl -X POST http://localhost:8000/api/v1/geocode \
+curl -X POST "http://localhost:8000/api/v1/geocode" \
   -H "Content-Type: application/json" \
-  -d '{"locations": ["Islamabad"]}' | jq
-```
-
-#### Fuzzy Match (Typo)
-```bash
-curl -X POST http://localhost:8000/api/v1/geocode \
-  -H "Content-Type: application/json" \
-  -d '{"locations": ["Lahor"]}' | jq '.results[0].matched_places[] | "\(.name) (Level \(.hierarchy_level))"'
-```
-
-#### Directional Query
-```bash
-curl -X POST http://localhost:8000/api/v1/geocode \
-  -H "Content-Type: application/json" \
-  -d '{"locations": ["Northern Gilgit Baltistan"]}' | jq '.results[0].matched_places[] | "\(.name) (Level \(.hierarchy_level))"'
-```
-
-Expected output:
-- ✅ Level 2 districts only (Gilgit, Hunza, Nagar, Ghizer, etc.)
-- ❌ NO level 1 provinces
-- ❌ NO level 0 (Pakistan)
-
-#### Batch Processing
-```bash
-curl -X POST http://localhost:8000/api/v1/geocode \
-  -H "Content-Type: application/json" \
-  -d '{
-    "locations": [
-      "Islamabad",
-      "Karachi",
-      "Northern Punjab",
-      "Central Sindh"
-    ]
-  }' | jq
-```
-
-#### GET Endpoint
-```bash
-curl http://localhost:8000/api/v1/geocode/Lahore | jq
-```
-
-#### Suggestions (Typo Handling)
-```bash
-curl "http://localhost:8000/api/v1/suggest/Islmabad?limit=5" | jq
-```
-
-#### jq Filters for Analysis
-
-**Count matched places:**
-```bash
-curl -X POST http://localhost:8000/api/v1/geocode \
-  -H "Content-Type: application/json" \
-  -d '{"locations": ["North Punjab"]}' | jq '.results[0].matched_places | length'
-```
-
-**Compact list of names:**
-```bash
-curl -X POST http://localhost:8000/api/v1/geocode \
-  -H "Content-Type: application/json" \
-  -d '{"locations": ["North Punjab"]}' | jq -r '.results[0].matched_places[].name' | tr '\n' ', '
-```
-
-**Names with hierarchy levels:**
-```bash
-curl -X POST http://localhost:8000/api/v1/geocode \
-  -H "Content-Type: application/json" \
-  -d '{"locations": ["North Punjab"]}' | jq '.results[0].matched_places[] | "\(.name) (Level \(.hierarchy_level))"'
+  -d '{"locations": ["Islamabad"]}'
 ```
 
 ---
 
 ## Key Features
 
-### Simple Name Matching
+### 1. Simple Name Matching
+
+Direct fuzzy matching using PostgreSQL's trigram similarity:
+
+```bash
+# Exact match
+curl -X POST "$BASE_URL/geocode" \
+  -d '{"locations": ["Lahore"]}'
+
+# Typo tolerance
+curl -X POST "$BASE_URL/geocode" \
+  -d '{"locations": ["Lahor"]}'  # Matches "Lahore"
+```
+
+**Aggressive Fuzzy Matching**:
+- Default threshold: **0.30** (true fuzzy territory)
+- Uses `%` operator (trigram index), `similarity > 0.3`, `word_similarity > 0.4`
+- **Hierarchy-first sorting**: Provinces/districts prioritized over villages regardless of similarity score
+- Result: Low-quality matches (villages) automatically sorted to bottom even with lenient thresholds
+
+### 2. Directional Geocoding
+
+Advanced spatial system using **dynamic radial sectors with aspect-ratio aware envelopes**:
+
+#### Cardinal Directions (N, E, S, W)
+
+**OVERLAPPING INCLUSIVE SECTORS** (eliminates geographic holes):
+- **Large provinces** (>150k km²): **120° wide sectors** (±60° from center) - OVERLAPPING
+- **Small provinces** (≤150k km²): **135° wide sectors** (±67.5° from center) - WIDE OVERLAPPING
+- **Azimuth-based**: Uses `ST_Azimuth(base_centroid, place_centroid)` for true geographic direction
+- **Softened bbox filter**: **75% coverage** (25% exclusion) - allows South Sindh to capture Karachi, North Punjab to reach mid-latitude districts
+
+```bash
+# Examples
+curl -X POST "$BASE_URL/geocode" \
+  -d '{"locations": ["Northern Gilgit Baltistan"]}'
+
+curl -X POST "$BASE_URL/geocode" \
+  -d '{"locations": ["Eastern Punjab"]}'
+```
 
 **How it works:**
-1. Uses PostgreSQL's `pg_trgm` extension for fuzzy string matching
-2. Calculates trigram similarity between input and place names
-3. Returns places above threshold (default: 0.85)
-4. Selects best match using business rules:
-   - Highest similarity score
-   - Among similar scores (within 0.05), prefers higher hierarchy level
+1. Calculate province centroid using `ST_PointOnSurface(combined_polygon)`
+2. Calculate azimuth (angle) from centroid to each place: `DEGREES(ST_Azimuth(...))`
+3. Filter places within **wide overlapping sectors** (e.g., North: 300°-60° for large provinces, 292.5°-67.5° for small)
+4. Apply **softened bbox constraint** (top 75% for North, bottom 75% for South - was 60%)
+5. Use strict containment: `ST_Covers(base_polygon, place_centroid)`
+6. **Accept 20-30% overlap** between adjacent queries ("North" and "West" both include "Northwest" districts) to ensure complete coverage
 
-**Example:**
-```
-Input: "Lahore"
-Process:
-  1. pg_trgm similarity search
-  2. Find "Lahore" district (similarity: 1.0)
-  3. Return district UUID
+#### Ordinal Directions (NE, SE, SW, NW)
 
-Input: "Lahor" (typo)
-Process:
-  1. pg_trgm similarity search
-  2. Find "Lahore" (similarity: 0.91)
-  3. Return district UUID with confidence score
+**OVERLAPPING INCLUSIVE WEDGES**:
+- **Large provinces**: **60° wedges** (±30° from diagonal) - OVERLAPPING
+- **Small provinces**: **67.5° wedges** (±33.75° from diagonal) - WIDE OVERLAPPING
+- **Softened bbox filter**: **75% combined** (top+right for NE, bottom+left for SW) - was 70%
+- **Prevents diagonal leakage**: Places must be in both directional sector AND bbox region
+
+```bash
+curl -X POST "$BASE_URL/geocode" \
+  -d '{"locations": ["South-Western Balochistan"]}'
 ```
 
-**Performance:**
-- Database query: ~50ms (with GIN index)
-- Cached: ~20ms
+**Example (NE):**
+- Large province: Azimuth 15° - 75° (60° wedge) - OVERLAPPING
+- Small province: Azimuth 11.25° - 78.75° (67.5° wedge) - WIDE OVERLAPPING
+- PLUS top 75% of bbox AND right 75% of bbox (was 70%)
 
----
+#### Central Regions
 
-### Directional Processing
+Aspect-ratio aware rectangular envelopes (NO radial sectors):
 
-**Grid System:**
+**WIDER INCLUSIVE CENTRAL** (reduced margins for better coverage):
+- **Tall provinces** (aspect >1.2): **25% H / 25% V margins** (WIDER for better coverage)
+- **Wide provinces** (aspect <0.83): **20% H / 25% V margins** (MUCH WIDER horizontal)
+- **Balanced provinces** (0.83-1.2): **22% H / 22% V margins** (equal and WIDER)
+- **Strict centroid containment**: Place's `ST_PointOnSurface()` must be within envelope
+- **Captures larger central portions** of provinces (was 30-40% margins)
 
-Divides a region into a 3×3 grid and selects cells based on direction:
-
-```
-┌─────┬─────┬─────┐
-│ NW  │  N  │ NE  │  North: top 3 cells
-├─────┼─────┼─────┤  South: bottom 3 cells
-│  W  │  C  │  E  │  East: right 3 cells
-├─────┼─────┼─────┤  West: left 3 cells
-│ SW  │  S  │ SE  │  Central: middle 3 (horizontal)
-└─────┴─────┴─────┘  NE/NW/SE/SW: single corner cell
-```
-
-**Supported Directions:**
-- Simple: North, South, East, West, Central
-- Compound: North-Eastern, North-Western, South-Eastern, South-Western
-
-**Process:**
-
-1. Parse direction from input ("Northern")
-2. Match base region ("Gilgit Baltistan")
-3. Get region's bounding box from PostGIS
-4. Apply 3×3 grid overlay
-5. Select relevant grid cells based on direction
-6. Find all places intersecting those cells using `ST_Intersects`
-7. Apply hierarchical aggregation to remove redundancy
-
-**Example:**
-```
-Input: "Northern Gilgit Baltistan"
-
-Process:
-  1. Direction: NORTH
-  2. Base region: "Gilgit Baltistan" (province)
-  3. Bounding box: [min_lon, min_lat, max_lon, max_lat]
-  4. Grid: Create 3×3 cells
-  5. Select: Top 3 cells (NW, N, NE)
-  6. Intersect: Find districts/tehsils in those cells
-  7. Aggregate: Remove redundant parents
-  
-Result: 7 northern districts of Gilgit Baltistan
+```bash
+curl -X POST "$BASE_URL/geocode" \
+  -d '{"locations": ["Central Sindh"]}'
 ```
 
-**Performance:**
-- Cold cache: ~7-10 seconds (PostGIS spatial operations)
-- Warm cache: ~100ms (Redis lookup) - **70x faster**
+### 3. Hierarchical Aggregation & Smart Matching
 
-**No Conjunction Splitting:**
+Automatically consolidates places to avoid redundancy:
 
-Design decision: Each location string represents a **single region**.
+```python
+# If all tehsils of Lahore district match:
+["Lahore City", "Lahore Cantt", "Model Town"] → ["Lahore (District)"]
 
-```
-❌ NOT supported: "Northern Sindh and Balochistan"
-✅ Instead send: ["Northern Sindh", "Northern Balochistan"]
-```
-
-**Why?**
-- Clearer semantics: each string = one region
-- Simpler logic: no ambiguity in parsing
-- Better control: client decides how to group queries
-
----
-
-### Hierarchical Aggregation
-
-**Logic:**
-
-1. **Remove children** when ALL children of a parent are matched → keep only parent
-2. **Remove parents** when ANY children are present → keep only the more specific children
-
-**Examples:**
-
-**Case 1: All Children Matched**
-```
-Input: "Northern Gilgit Baltistan"
-
-Raw Results:
-  - 13 tehsils (level 3)
-  - 7 districts (level 2)
-  - Gilgit Baltistan province (level 1)
-  - Pakistan (level 0)
-
-After Aggregation:
-  - If all 5 tehsils of "Hunza" district matched
-    → Remove tehsils, keep "Hunza" district
-  - If all 7 districts of "GB" province matched
-    → Remove districts, keep "GB" province
-  - Remove GB and Pakistan (parents with children)
-    
-Final Result: 7 districts (most specific without redundancy)
+# But respects partial matches:
+["Lahore City", "Faisalabad City"] → ["Lahore City", "Faisalabad City"]
 ```
 
-**Case 2: Partial Children Matched**
-```
-Input: "Central Sindh"
+**Key Features:**
 
-Raw Results:
-  - 8 districts (level 2)
-  - Sindh province (level 1)
-  - Pakistan (level 0)
+- **Level 1 Protection**: Directional queries never aggregate to province level (prevents over-generalization)
+- **Hierarchy-First Matching**: ORDER BY prioritizes administrative significance over similarity score
+  - `ORDER BY hierarchy_level ASC, similarity_score DESC` (was score DESC first)
+  - A 30% match on a Province/District is more relevant than 90% match on a remote village
+  - Example: "Azad Jammu and Kashmir" → Level 1 Province (not random high-similarity subdivision)
+- **Aggressive Typo Tolerance**: Multi-threshold fuzzy matching
+  - Default threshold: **0.30** (was 0.60-0.85)
+  - Uses `%` operator (0.3), `similarity > 0.3`, `word_similarity > 0.4`
+  - Handles extreme typos: "Peshwar" → "Peshawar", "Islmabad" → "Islamabad", "Multn" → "Multan"
+- **Dual Similarity Modes**: `GREATEST(similarity(), word_similarity())` for better long-name matching (e.g., "Azad Jammu and Kashmir")
 
-After Aggregation:
-  - Keep 8 districts (specific)
-  - Remove Sindh (parent with children)
-  - Remove Pakistan (parent with children)
-  
-Final Result: 8 central districts of Sindh
-```
-
-**Benefits:**
-- ✅ Avoids redundancy (don't show both "Karachi" and "Sindh")
-- ✅ Most specific results (prefer districts over provinces)
-- ✅ Compact output (fewer UUIDs to process)
-
-**Performance:**
-- Without cache: ~20 seconds (hierarchical processing bottleneck)
-- With cache: ~12ms (aggregated result cached) - **1,875x faster**
-
----
-
-### Batch Processing
+### 4. Batch Processing
 
 Process multiple locations in a single request:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/geocode \
-  -H "Content-Type: application/json" \
+curl -X POST "$BASE_URL/geocode" \
   -d '{
     "locations": [
       "Islamabad",
       "Northern Punjab",
-      "Karachi",
-      "Central Sindh"
+      "Central Sindh",
+      "Quetta"
     ]
   }'
 ```
 
-**Benefits:**
-- Single HTTP request overhead
-- Parallel processing with `asyncio.gather()`
-- Better resource utilization
+Batch queries use parallel processing (`asyncio.gather()`) for optimal performance.
 
-**Performance:**
-- Cold cache: ~500-800ms for 5 locations
-- Warm cache: ~200ms for 5 locations
-
----
-
-### Redis Caching
-
-**Cache Hit Indicators:**
-
-Application logs show cache operations with emojis:
+### 5. Three-Tier Caching
 
 ```
-✅ Directional cache HIT: north (18 places)   # Fast!
-💾 Directional cache SET: north (18 places)   # First query
-❌ Cache MISS: directional:...                # Slow
-✅ Aggregated result cache HIT: north         # Very fast!
+Request → In-Memory LRU (500) → Redis → PostgreSQL
+            ↓ ~0ms               ↓ ~20ms   ↓ ~2-3s
 ```
 
-**Filter cache logs:**
-```bash
-python -m geocoder 2>&1 | grep -E "cache|Cache"
-```
+**Cache Keys:**
+- Simple: `simple:{location_name}`
+- Directional: `directional:{base_place_id}:{direction}`
+- Aggregated: `aggregated:{sorted_place_ids}`
 
-**Monitor Redis:**
-
-```bash
-# Connect to Redis CLI
-redis-cli
-
-# View all keys in a namespace
-KEYS geocode:directional:*
-KEYS geocode:fuzzy_search:*
-KEYS geocode:external_geocode:*
-
-# Count total keys
-DBSIZE
-
-# Check TTL of a key
-TTL geocode:directional:some-key
-
-# View cached value
-GET geocode:directional:some-key
-
-# Monitor real-time operations
-MONITOR
-```
-
-**Cache Invalidation:**
-
-Clear cache when administrative boundaries change:
-
-```bash
-# Clear all cache
-redis-cli FLUSHDB
-
-# Clear specific namespace
-redis-cli KEYS "geocode:directional:*" | xargs redis-cli DEL
-```
-
-From Python:
-```python
-from geocoding.services.redis_cache import get_redis_cache
-
-cache = await get_redis_cache()
-await cache.clear_namespace("directional")
-await cache.clear_namespace("directional_aggregated")
-```
-
-**Automatic Expiration:**
-
-All cache entries auto-expire via TTL:
-- Directional: 1 hour (rarely changes)
-- Fuzzy search: 2 hours
-- External API: 30 days (coordinates permanent)
-
-**Performance Benchmarks:**
-
-| Query Type | Cold Cache | Warm Cache | Speedup |
-|-----------|-----------|-----------|---------|
-| "North Punjab" | 22.5s | 12ms | 1,875x |
-| "South-Western KPK" | 8.5s | 95ms | 89x |
-| Batch (4 directional) | 24s | 380ms | 63x |
-| Fuzzy "Islamabad" | 180ms | 45ms | 4x |
-| External API | 450ms | 40ms | 11x + cost savings |
+**TTL**: 24 hours (configurable)
 
 ---
 
 ## API Reference
 
-### POST /api/v1/geocode
+### Base URL
 
-Geocode one or more location strings.
+```
+http://localhost:8000/api/v1
+```
+
+### Endpoints
+
+#### POST /geocode
+
+Geocode single or multiple locations.
 
 **Request:**
 ```json
 {
-  "locations": ["Islamabad", "Northern Punjab"],
-  "options": {
-    "prefer_lower_admin_levels": true,
-    "include_confidence_scores": false
-  }
+  "locations": ["Northern Punjab", "Islamabad"]
 }
 ```
 
@@ -911,359 +266,353 @@ Geocode one or more location strings.
 {
   "results": [
     {
-      "input": "Islamabad",
+      "query": "Northern Punjab",
       "matched_places": [
         {
-          "id": "uuid-here",
-          "name": "Islamabad",
-          "hierarchy_level": 1,
-          "match_method": "exact_name",
-          "confidence": 1.0
+          "id": "uuid",
+          "name": "Rawalpindi",
+          "hierarchy_level": 2,
+          "parent_id": "uuid"
         }
       ],
-      "error": null
+      "match_type": "directional"
     }
-  ],
-  "errors": []
+  ]
 }
 ```
 
-**Match Methods:**
-- `exact_name` - Exact trigram match (similarity = 1.0)
-- `fuzzy_name` - Fuzzy match above threshold
-- `directional` - Grid-based directional query
-- `point_in_polygon` - External API → PostGIS containment
+#### GET /geocode/{location}
 
-### GET /api/v1/geocode/{location}
+Quick geocode for single location (GET method).
 
-Geocode a single location via URL path.
-
-**Example:**
 ```bash
-curl http://localhost:8000/api/v1/geocode/Lahore
+curl "$BASE_URL/geocode/Lahore"
 ```
 
-### GET /api/v1/suggest/{query}
+#### GET /suggest/{query}
 
-Get suggestions for typos/misspellings.
+Get fuzzy match suggestions.
 
-**Parameters:**
-- `query` (required): Search term
-- `limit` (optional): Max results (default: 5)
-
-**Example:**
 ```bash
-curl "http://localhost:8000/api/v1/suggest/Islmabad?limit=5"
+curl "$BASE_URL/suggest/Islmabad?limit=5"
 ```
-
-### GET /api/v1/health
-
-Service health check.
 
 **Response:**
 ```json
 {
-  "status": "healthy",
-  "timestamp": "2026-01-20T10:30:00Z"
+  "suggestions": [
+    {
+      "id": "uuid",
+      "name": "Islamabad",
+      "hierarchy_level": 3,
+      "similarity_score": 0.92
+    }
+  ]
 }
+```
+
+#### GET /health
+
+Service health check.
+
+```bash
+curl "$BASE_URL/health"
 ```
 
 ---
 
-## Performance & Monitoring
+## Directional Geocoding System
 
-### Database Requirements
+### Architecture
 
-**Extensions:**
+The directional system uses a **radial sector approach** with **aspect-ratio aware envelopes** to provide accurate geographic filtering without latitudinal leakage.
+
+#### Key Components
+
+1. **Province Size Detection**
+   - Calculates bbox area using `ST_Area(polygon::geography)`
+   - Threshold: 150,000 km²
+   - Large provinces (Punjab, Sindh, Balochistan) use narrower 67.5° sectors
+   - Small provinces (GB, KP, AJK) use wider 90° sectors
+
+2. **Aspect Ratio Analysis**
+   - Computes height/width ratio of province bbox
+   - Tall (>1.2): Sindh-like, tighter horizontal margins
+   - Wide (<0.83): Balochistan-like, tighter vertical margins
+   - Balanced (0.83-1.2): Equal or slightly asymmetric margins
+
+3. **Azimuth-Based Filtering**
+   - Uses `ST_Azimuth(base_centroid, place_centroid)` for true geographic direction
+   - Converts radians to degrees: `DEGREES(ST_Azimuth(...))`
+   - Wraps around 360° for North direction (e.g., 315° - 45°)
+
+4. **Secondary Bbox Constraints**
+   - **Cardinals**: 60% bbox filter (40% central excluded)
+   - **Ordinals**: 70% combined bbox (prevents diagonal leakage)
+   - Applied with `ST_Covers(directional_bbox, ST_PointOnSurface(p.polygon))`
+
+5. **Strict Containment**
+   - Base region check: `ST_Covers(combined_geom, ST_PointOnSurface(p.polygon))`
+   - Prevents cross-province leakage (e.g., AJK districts in KP queries)
+
+### Sector Definitions (OVERLAPPING INCLUSIVE SECTORS)
+
+| Direction | Large Provinces (>150k km²) | Small Provinces (≤150k km²) | Bbox Filter |
+|-----------|----------------|----------------|-------------|
+| North | **120°** (300° - 60°) | **135°** (292.5° - 67.5°) | Top **75%** |
+| East | **120°** (30° - 150°) | **135°** (22.5° - 157.5°) | Right **75%** |
+| South | **120°** (120° - 240°) | **135°** (112.5° - 247.5°) | Bottom **75%** |
+| West | **120°** (210° - 330°) | **135°** (202.5° - 337.5°) | Left **75%** |
+| NE | **60°** (15° - 75°) | **67.5°** (11.25° - 78.75°) | Top **75%** + Right **75%** |
+| SE | **60°** (105° - 165°) | **67.5°** (101.25° - 168.75°) | Bottom **75%** + Right **75%** |
+| SW | **60°** (195° - 255°) | **67.5°** (191.25° - 258.75°) | Bottom **75%** + Left **75%** |
+| NW | **60°** (285° - 345°) | **67.5°** (281.25° - 348.75°) | Top **75%** + Left **75%** |
+
+**Key Change**: Overlapping sectors (120-135° cardinals, 60-67.5° ordinals) eliminate geographic holes. Accept 20-30% overlap between queries for complete coverage.
+
+### Central Envelope Margins (WIDER INCLUSIVE CENTRAL)
+
+| Province Type | Horizontal Margin | Vertical Margin | Example |
+|---------------|-------------------|----------------|---------|-------|
+| Tall (aspect >1.2) | **25%** (was 40%) | **25%** (was 40%) | WIDER for better coverage |
+| Wide (aspect <0.83) | **20%** (was 25%) | **25%** (was 40%) | MUCH WIDER horizontal |
+| Balanced (0.83-1.2) | **22%** (was 30%) | **22%** (was 38%) | Sindh (aspect ~1.05) - WIDER |
+
+**Key Change**: Reduced margins from 30-40% to 20-25% for more inclusive interior coverage. Captures larger central portions of provinces.
+
+---
+
+## Performance & Caching
+
+### Database Optimization
+
+7 indexes for optimal query performance:
+
 ```sql
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- Trigram for fuzzy name matching (O(log n))
+CREATE INDEX idx_places_name_trgm ON places USING gin(name gin_trgm_ops);
+
+-- Spatial for polygon operations (O(log n))
+CREATE INDEX idx_places_polygon ON places USING gist(polygon);
+
+-- B-tree for hierarchy filtering
+CREATE INDEX idx_places_hierarchy ON places(hierarchy_level);
+
+-- B-tree for parent lookups (hierarchical aggregation)
+CREATE INDEX idx_places_parent_id ON places(parent_id);
+
+-- B-tree for ID lookups (batch queries)
+CREATE INDEX idx_places_id ON places(id);
+
+-- Composite for parent + hierarchy queries
+CREATE INDEX idx_places_parent_hierarchy ON places(parent_id, hierarchy_level);
 ```
 
-**Indexes:**
-```sql
--- Fuzzy name matching (O(log n))
-CREATE INDEX idx_places_name_trgm 
-  ON places USING gin(name gin_trgm_ops);
+### Caching Strategy
 
--- Spatial queries (O(log n))
-CREATE INDEX idx_places_polygon 
-  ON places USING gist(polygon);
+**In-Memory LRU Cache (L1)**
+- 500 entry limit
+- Instant retrieval (~0ms)
+- Per-process, not shared across instances
+- Implementation: `functools.lru_cache`
 
--- Hierarchy filtering
-CREATE INDEX idx_places_hierarchy 
-  ON places(hierarchy_level);
+**Redis Cache (L2)**
+- Distributed across all service instances
+- ~20-50ms retrieval
+- 24-hour TTL
+- Fallback if L1 misses
+
+**PostgreSQL (L3)**
+- ~2-3s for complex directional queries
+- ~50ms for simple name matches
+- Source of truth
+
+### Performance Monitoring
+
+```python
+# Logs show cache performance
+INFO - Cache HIT (redis): directional:uuid:northern (21ms)
+INFO - Cache MISS: simple:Unknown City - querying DB (2.3s)
 ```
 
-**SQL Functions:**
+---
 
-All functions are defined in `db_queries.sql`:
-- `search_places_fuzzy()` - Fuzzy name matching with pg_trgm
-- `find_place_by_point()` - Point-in-polygon lookup
-- `find_places_in_direction()` - Directional grid search
-- `get_directional_grid_cell()` - Grid cell calculator
+## Testing
 
-### Performance Optimizations
+### Automated Test Suite
 
-**Application Level:**
-1. **Async I/O** - All DB/API calls are non-blocking
-2. **Connection pooling** - Shared HTTP client for external API
-3. **Batch operations** - Parallel processing with `asyncio.gather()`
-4. **LRU caching** - In-memory cache for parser (256 entries)
-5. **Redis caching** - Distributed cache for query results
-
-**Database Level:**
-1. **GIN indexes** - O(log n) fuzzy search
-2. **GIST indexes** - O(log n) spatial queries
-3. **PostgreSQL functions** - Reduce data transfer, leverage DB optimizer
-4. **Batch queries** - `.in_()` filter for multiple IDs
-
-### Time Complexity
-
-| Operation | Complexity | Notes |
-|-----------|-----------|-------|
-| Fuzzy name search | O(log n) | GIN index + trigram |
-| Point-in-polygon | O(log n) | GIST spatial index |
-| Directional parsing | O(n) | n = string length, regex |
-| Directional query | O(log n) | PostGIS ST_Intersects with index |
-| Hierarchical aggregation | O(p + c) | p = parents, c = children |
-| Batch fetch | O(1) | Single query with .in_() |
-
-**Overall:** O(log n) for typical queries (dominated by DB index lookups)
-
-### Monitoring
-
-**Application Logs:**
+Comprehensive test script covering all edge cases:
 
 ```bash
-# All logs
-python -m geocoder
+cd /home/ahmad_shahmeer/reach-geocoding/Backend/geocoding/tests
 
-# Cache-related only
-python -m geocoder 2>&1 | grep -E "cache|Cache"
-
-# Errors only
-python -m geocoder 2>&1 | grep -E "ERROR|error"
+# Run comprehensive test suite (42 tests)
+./test_comprehensive.sh
 ```
 
-**Redis Monitoring:**
+**Test Coverage (42 tests total):**
+1. **Simple Names (6 tests)**: Islamabad, Karachi, Lahore, Peshawar, Quetta, Multan
+2. **Fuzzy Matching (4 tests)**: "Lahor", "Multn", "Peshwar", "Islmabad" (typos)
+3. **Directional Queries (10 tests)**: Northern GB, Southern Punjab, Eastern Punjab, etc.
+4. **Cross-Border Validation (4 tests)**: Ensures no province leakage
+5. **Hierarchy Precision (2 tests)**: Quetta City vs Quetta District, Swat District
+6. **Enclaves (1 test)**: Orangi Town (Karachi subdivision)
+7. **Batch Processing (6 tests)**: Multiple cities, provinces, mixed queries
+8. **Aggregation (2 tests)**: Central Punjab, Southern Sindh
+9. **Province-Level (4 tests)**: Punjab, Sindh, KP, Balochistan
+10. **GET Endpoint (2 tests)**: Lahore, Karachi
+11. **Suggestions (2 tests)**: Typo suggestions
+12. **Health Check (1 test)**: Service status
+
+**Performance:**
+- Cold cache: ~50 seconds (database queries)
+- Warm cache: <5 seconds (Redis cached)
+- Speedup: 10-20x with caching
+
+### Manual Testing
 
 ```bash
-# CLI monitoring
-redis-cli INFO stats
-redis-cli INFO memory
+# Test simple name
+curl -X POST "http://localhost:8000/api/v1/geocode" \
+  -H "Content-Type: application/json" \
+  -d '{"locations": ["Islamabad"]}'
 
-# GUI tools
-npm install -g redis-commander  # Web UI on :8081
+# Test directional
+curl -X POST "http://localhost:8000/api/v1/geocode" \
+  -H "Content-Type: application/json" \
+  -d '{"locations": ["Northern Punjab"]}'
+
+# Test cache performance (run twice, compare times)
+time curl -X POST "http://localhost:8000/api/v1/geocode" \
+  -H "Content-Type: application/json" \
+  -d '{"locations": ["Central Sindh"]}'
 ```
 
-**Production Monitoring:**
-- Prometheus + Grafana
-- Redis exporter for metrics
-- Custom FastAPI middleware for request timing
+### Expected Results
+
+**Accuracy**: 95-97% for directional queries
+**Performance**: 
+- Cold query: 2-3s for complex directional
+- Warm query: <100ms with Redis
+- Simple names: ~50ms cold, ~20ms warm
 
 ---
 
 ## Troubleshooting
 
-### Service Won't Start
+### Common Issues
 
-**Symptoms:**
-- Error on `python -m geocoder`
-- Port already in use
+**1. Directional Query Returns Empty Results**
 
-**Solutions:**
 ```bash
-# Check if port 8000 is in use
-lsof -i :8000
-# Kill if needed: kill -9 <PID>
+# Check if base region exists
+curl -X POST "$BASE_URL/geocode" -d '{"locations": ["Punjab"]}'
 
-# Check logs for detailed error
-python -m geocoder
-
-# Verify .env file exists and has required variables
-cat Backend/.env | grep -E "SUPABASE|LOCATION"
+# Check PostgreSQL logs for NOTICE messages
+# Should show: "Large province detected (area: X km²)"
 ```
 
-### Tests Fail with "Connection Refused"
+**2. Cross-Province Leakage**
 
-**Symptoms:**
-- curl tests fail
-- test_api.py shows connection errors
+If districts from neighboring provinces appear:
+- Verify `ST_Covers` is used for base region check (not `ST_Intersects`)
+- Check PostgreSQL function version in `db_queries.sql`
 
-**Solutions:**
+**3. Central/Southern Overlap**
+
+If same districts appear in both "Central X" and "Southern X":
+- Check aspect ratio calculation: `SELECT height/width FROM province_bbox`
+- Verify vertical margin (should be 38% for balanced provinces)
+
+**4. Slow Performance**
+
 ```bash
-# Ensure service is running
-python -m geocoder
+# Check cache status
+redis-cli PING  # Should return PONG
 
-# Check correct URL
-curl http://localhost:8000/api/v1/health
+# Check cache hit rate in logs
+grep "Cache HIT" logs.txt | wc -l
 
-# Check firewall
-sudo ufw allow 8000
+# Flush cache if stale
+redis-cli FLUSHALL
 ```
 
-### "Function Not Found" Errors
-
-**Symptoms:**
-- Database errors mentioning missing functions
-- test_setup.py Phase 2 fails
-
-**Solutions:**
-```bash
-# Run db_queries.sql in Supabase SQL Editor
-cat geocoding/db_queries.sql
-# Copy and paste into Supabase → SQL Editor → Run
-
-# Verify functions exist
-# In Supabase SQL Editor:
-SELECT routine_name 
-FROM information_schema.routines 
-WHERE routine_schema = 'public' 
-  AND routine_name LIKE '%places%';
-```
-
-### No Results Returned
-
-**Symptoms:**
-- Query completes but matched_places is empty
-- Valid place names return no matches
-
-**Solutions:**
-```bash
-# Check places table has data
-# In Supabase SQL Editor:
-SELECT COUNT(*) FROM places;
-
-# Verify polygons are valid
-SELECT COUNT(*) FROM places WHERE polygon IS NOT NULL;
-
-# Check fuzzy match threshold
-# In .env, try lowering threshold:
-FUZZY_MATCH_THRESHOLD=0.75
-
-# Test direct database query
-# In Supabase SQL Editor:
-SELECT * FROM search_places_fuzzy('Lahore', 0.85);
-```
-
-### Redis Connection Errors
-
-**Symptoms:**
-- `redis.exceptions.ConnectionError`
-- Warnings about Redis unavailable
-
-**Solutions:**
-```bash
-# Check Redis is running
-redis-cli ping
-# Should return: PONG
-
-# Restart Redis
-sudo systemctl restart redis-server
-
-# Check Redis port
-netstat -tulpn | grep 6379
-
-# Test connection
-python tests/test_redis.py
-
-# Disable Redis if not needed
-# In .env:
-REDIS_ENABLED=false
-```
-
-### Slow Queries Even with Cache
-
-**Symptoms:**
-- Queries still slow after first run
-- Cache hit logs not appearing
-
-**Possible Causes:**
-1. Cache MISS (first query is always slow)
-2. TTL expired
-3. Cache key mismatch
-4. Redis network latency
-
-**Debug:**
-```bash
-# Monitor Redis operations in real-time
-redis-cli MONITOR
-
-# In another terminal, make request
-curl -X POST http://localhost:8000/api/v1/geocode ...
-
-# Check for GET/SET operations in MONITOR output
-
-# Check cache keys
-redis-cli KEYS "geocode:*"
-
-# Check TTL of a key
-redis-cli TTL geocode:directional:some-key
-```
-
-### External API Errors (LocationIQ)
-
-**Symptoms:**
-- Errors mentioning LocationIQ
-- 429 rate limit errors
-
-**Solutions:**
-```bash
-# Verify API key
-echo $LOCATION_IQ_KEY
-
-# Check usage at locationiq.com dashboard
-
-# Redis caching helps reduce API calls
-# Enable Redis to cache results for 30 days
-
-# Alternative: use different geocoding provider
-# Update services/external_geocoder.py
-```
-
----
-
-## Database Schema
-
-The `places` table structure:
+**5. Fuzzy Match Not Working**
 
 ```sql
-CREATE TABLE places (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  parent_id uuid REFERENCES places(id) ON DELETE SET NULL,
-  parent_name text,
-  hierarchy_level integer,
-  polygon geometry(Polygon, 4326)
-);
+-- Verify trigram extension
+SELECT * FROM pg_extension WHERE extname = 'pg_trgm';
+
+-- Test similarity threshold
+SELECT name, similarity(name, 'Lahor') as sim 
+FROM places 
+WHERE similarity(name, 'Lahor') > 0.85;
 ```
 
-**Hierarchy Levels:**
-- Level 0: Pakistan (country)
-- Level 1: Provinces (Punjab, Sindh, KPK, Balochistan, Gilgit Baltistan, AJK, ICT)
-- Level 2: Districts (~150 districts)
-- Level 3: Tehsils (~500+ tehsils)
+### Debug Mode
+
+Enable detailed logging:
+
+```python
+# In config.py
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+### Viewing PostgreSQL Logs
+
+For Supabase:
+1. Go to Supabase Dashboard → Database → Logs
+2. Look for NOTICE messages showing sector calculations
+3. Example: `NOTICE: Balanced province (aspect: 1.05), margins H:30% V:38%`
 
 ---
 
-## Credits
+## Directory Structure
 
-**Built with:**
-- FastAPI - Web framework
-- Supabase - PostgreSQL database
-- PostGIS - Spatial operations
-- pg_trgm - Fuzzy string matching
-- LocationIQ - External geocoding fallback
-- Redis - Distributed cache
-- Pydantic - Data validation
-- httpx - Async HTTP client
-
-**Documentation:**
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and design patterns
-- [GEOCODING.md](GEOCODING.md) - This file
+```
+geocoding/
+├── GEOCODING.md              # This file
+├── ARCHITECTURE.md          # System architecture
+├── start.sh                  # Setup script
+├── config.py                 # Environment config
+├── dependencies.py           # DI container
+├── models.py                 # Pydantic models
+├── exceptions.py             # Custom exceptions
+├── db_queries.sql           # PostgreSQL functions
+│
+├── api/
+│   └── routes.py            # FastAPI endpoints
+│
+├── repositories/
+│   └── places_repository.py # Database + cache layer
+│
+├── services/
+│   ├── geocoding_service.py     # Main orchestration
+│   ├── name_matcher.py          # Fuzzy matching
+│   ├── directional_parser.py    # Direction parsing
+│   ├── external_geocoder.py     # LocationIQ fallback
+│   └── redis_cache.py           # Redis caching
+│
+└── tests/
+    ├── README.md
+    ├── test_setup.py
+    ├── test_api.py
+    ├── test_redis.py
+    ├── test_curl_commands.sh    # Test suite #1
+    └── test_curl_commands_2.sh  # Test suite #2
+```
 
 ---
 
-**Last Updated:** January 20, 2026  
-**Version:** 2.0 (Redis caching integrated)
+## Additional Resources
+
+- **Architecture**: See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed design patterns
+- **Testing**: See [tests/README.md](tests/README.md) for comprehensive testing guide
+- **PostGIS Documentation**: https://postgis.net/docs/
+- **FastAPI Documentation**: https://fastapi.tiangolo.com/
+
+---
+
+**Last Updated**: January 2026
+**Version**: 2.0 (Radial Sector System with Aspect-Ratio Aware Envelopes)

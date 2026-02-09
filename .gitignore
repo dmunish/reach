@@ -21,3 +21,5 @@ Prompts.md
 /Backend/processing_engine/examples
 *.ipynb
 Backend/old_funcs.sql
+*.txt
+rough.md

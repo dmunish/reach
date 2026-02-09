@@ -90,14 +90,20 @@ class GeocodingService:
         options: GeocodeOptions
     ) -> List[GeocodeResult]:
         """
-        Geocode multiple locations with context-aware disambiguation.
+        Geocode multiple locations with PARALLEL processing and context-aware disambiguation.
+        
+        OPTIMIZATION: All locations are now processed in parallel using asyncio.gather()
+        for maximum speed. This provides significant speedup for initial batch queries.
         
         Strategy:
-        1. First pass: Try fuzzy matching for all locations
-        2. Collect coordinates for successful matches
-        3. Second pass: Geocode failures with centroid context
+        1. Parse all locations in parallel (CPU-bound, but fast)
+        2. Process all geocoding requests in parallel (I/O-bound)
+        3. Collect coordinates for successful matches
+        4. Use centroid context for disambiguation where applicable
         
-        Time Complexity: O(n * log m) where n = locations, m = places in DB
+        Time Complexity: O(log m) per location (processed in parallel)
+            where m = places in DB
+            Total wall time ≈ single query time (not N × query time)
         
         Args:
             locations: List of location strings
@@ -109,12 +115,14 @@ class GeocodingService:
         if not locations:
             return []
         
-        results = []
+        logger.info(f"Starting PARALLEL batch geocoding for {len(locations)} locations")
         
-        # Process each location
-        for location in locations:
-            result = await self.geocode_location(location, options, None)
-            results.append(result)
+        # PARALLEL OPTIMIZATION: Process all locations simultaneously
+        # Use asyncio.gather to run all geocoding operations concurrently
+        tasks = [self.geocode_location(loc, options, None) for loc in locations]
+        results = await asyncio.gather(*tasks)
+        
+        logger.info(f"Completed batch geocoding: {len(results)} results")
         
         return results
     
@@ -225,11 +233,17 @@ class GeocodingService:
         Process directional description (e.g., "Central Sindh and Balochistan").
         NOW WITH FULL RESULT CACHING (includes aggregation).
         
+        Uses enhanced spatial logic:
+        - Aspect-ratio aware central envelope (tall vs wide provinces)
+        - Province-size aware sector widths (67.5° for large, 90° for small)
+        - Strict administrative containment (ST_Covers)
+        - Directional bbox secondary filter (prevents diagonal leakage)
+        
         Workflow:
         1. Check Redis cache for final aggregated result
         2. Match each base place name (e.g., Sindh, Balochistan)
         3. Get place IDs for base regions
-        4. Query database for places in directional grid
+        4. Query database for places in directional sectors
         5. Apply hierarchical aggregation
         6. Cache final result
         
@@ -255,15 +269,19 @@ class GeocodingService:
                 error="No place names found after parsing direction"
             )
         
-        # Step 1: Match all base places
+        # Step 1: Match all base places IN PARALLEL
+        # OPTIMIZATION: Don't wait for each match sequentially
         base_place_ids = []
         matched_base_names = []
         failed_matches = []
         
         logger.info(f"Matching base places: {place_names}")
         
-        for place_name in place_names:
-            match = await self.matcher.match(place_name)
+        # Parallel matching for all base places
+        match_tasks = [self.matcher.match(place_name) for place_name in place_names]
+        matches = await asyncio.gather(*match_tasks)
+        
+        for place_name, match in zip(place_names, matches):
             if match:
                 # FIX: Handle both string and UUID types
                 place_id = match['id']
@@ -434,8 +452,14 @@ class GeocodingService:
         
         This ensures we return the most specific level without redundancy.
         
-        Example: If all 5 tehsils of a district are matched, return only the district.
-                 If only 3 of 5 tehsils are matched, return those 3 tehsils (not the district).
+        IMPORTANT: For directional queries, this often returns partial results (e.g., some tehsils
+        of a district). This is CORRECT - if only some tehsils are in "Central Sindh", we should
+        NOT aggregate to the district level, as that would incorrectly imply the entire district
+        is central.
+        
+        Example 1: If all 5 tehsils of a district are matched, return only the district.
+        Example 2: If only 3 of 5 tehsils are in "Northern GB", return those 3 tehsils.
+        Example 3: If both "Nagar (L2)" and "Nagar (L3)" match criteria, remove L2 (keep specific L3).
         
         Time Complexity: O(n + k*d) where:
             n = number of places
@@ -521,8 +545,17 @@ class GeocodingService:
                 logger.debug(f"Parent {parent_id}: {matched_count}/{total_count} children matched")
                 
                 # If ALL children are present, aggregate to parent
+                # SAFEGUARD: Don't aggregate to Level 1 (province) for directional queries
+                # Directional queries should return districts (L2) or tehsils (L3), not provinces
+                parent_hierarchy_level = parent_details.get(parent_id, {}).get('hierarchy_level', 999)
+                
                 if total_count > 0 and matched_count >= total_count:
-                    logger.info(f"Aggregating UP: Parent {parent_id} has all {total_count} children - replacing with parent")
+                    if parent_hierarchy_level == 1:
+                        logger.warning(f"Skipping aggregation to Level 1 (province) for parent {parent_id} - "
+                                     f"directional queries should not return entire provinces")
+                        continue  # Don't aggregate to province level
+                    
+                    logger.info(f"Aggregating UP: Parent {parent_id} (Level {parent_hierarchy_level}) has all {total_count} children - replacing with parent")
                     
                     # Add parent to results if not already there
                     if parent_id not in place_by_id and parent_id in parent_details:

@@ -3,6 +3,7 @@ import logging
 from dotenv import load_dotenv
 from pathlib import Path
 from supabase import create_client, Client, acreate_client, AsyncClient
+from utilities.llm_client import LLMClient, AsyncLLMClient
 
 def load_env():
     BASE_DIR = Path(__file__).resolve().parent
@@ -41,3 +42,6 @@ def reload_env():
 
 def is_env_loaded():
     return _env_loaded
+
+def get_llm_client_async():
+    return AsyncLLMClient

@@ -1,7 +1,7 @@
 import json
 from pydantic import ValidationError
 from typing import List
-from processing_engine.processor_utils.llm_client import AsyncLLMClient
+from utilities.llm_client import AsyncLLMClient
 from processing_engine.processor_utils.pipeline_prompts import messages
 from processing_engine.models.schemas import QueueJob, Alert, AlertArea, StructuredAlert
 import os

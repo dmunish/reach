@@ -1,8 +1,11 @@
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
+import json
+import pandas as pd
 from Backend.agenting import get_supabase
 from Backend.agenting.state import AgentState
-from typing import Annotated
+from typing import Annotated, List
+
 
 
 FORBIDDEN_KEYWORDS = frozenset({
@@ -166,8 +169,6 @@ def publish_chart(echart_options_json: str,description: str,state: Annotated[Age
     The config and dataset are delivered to the frontend as separate objects
     so the frontend can update data independently of chart structure.
     """
-    import json
-    import pandas as pd
 
     # 1. Parse and validate the config skeleton
     try:
@@ -196,3 +197,30 @@ def publish_chart(echart_options_json: str,description: str,state: Annotated[Age
         "dataset": dataset,
         "description": description,
     }
+
+@tool
+def control_map(place_names: List[str]) -> dict:
+    """
+    Control the Mapbox camera and highlight a geometry.
+    
+    YOU provide:
+    place_names: List of places to focus on and highlight.
+
+    Returns a dict with keys:
+        - unioned_polygon: dict  (GeoJSON geometry, for highlighting)
+        - centroid: dict         (GeoJSON geometry, to move camera)
+        - bbox: dict             (GeoJSON geometry, to set zoom)
+
+    Call in PARALLEL with execute_sql to save latency — emit both in one tool_calls array.
+    """
+    try:
+        client = get_supabase()
+        result = client.rpc("get_places", {"place_names": place_names}).execute()
+        row = result.data[0]
+        return {
+        "unioned_polygon": row["unioned_polygon"],
+        "centroid": row["centroid"],
+        "bbox": row["bbox"]
+        }
+    except Exception as e:
+        return {"error": str(e)}

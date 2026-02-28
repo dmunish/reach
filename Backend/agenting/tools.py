@@ -1,5 +1,9 @@
 from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedState
 from Backend.agenting import get_supabase
+from Backend.agenting.state import AgentState
+from typing import Annotated
+
 
 FORBIDDEN_KEYWORDS = frozenset({
     "drop", "delete", "update", "insert",
@@ -107,3 +111,29 @@ def execute_sql(query: str) -> dict:
         return {"columns": columns, "rows": rows, "row_count": len(rows)}
     except Exception as e:
         return {"error": str(e)}
+
+@tool
+def summarize_data(columns: list[str], rows: list[dict]) -> dict:
+    """
+    Compute a pandas-style statistical summary of query results.
+    Returns describe() and dtype info per column, plus a 5-row sample.
+    ALWAYS call this after execute_sql before writing any chart JSON.
+
+    Use the returned summary and sample to:
+      - Understand the data shape for chart design
+      - Write a markdown table in your textual response
+    Do NOT reproduce data values in publish_chart — they are injected automatically.
+    """
+    import pandas as pd
+
+    if not rows:
+        return {"error": "No data to summarize."}
+
+    df = pd.DataFrame(rows, columns=columns)
+
+    return {
+        "shape": {"rows": len(df), "columns": len(df.columns)},
+        "dtypes": df.dtypes.astype(str).to_dict(),
+        "describe": df.describe(include="all").fillna("").astype(str).to_dict(),
+        "sample": df.head(5).to_dict(orient="records"),
+    }

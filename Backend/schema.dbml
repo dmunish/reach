@@ -137,6 +137,35 @@ Table alert_search_index {
   }
 }
 
+Table conversations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid
+  title text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+
+  Note: 'Chat history sessions'
+}
+
+Table messages {
+  id uuid [pk, default: `gen_random_uuid()`]
+  conversation_id uuid [not null]
+  parent_id uuid
+  role text [not null]
+  content text
+  tool_calls jsonb
+  tool_call_id text
+  ui_state jsonb
+  created_at timestamptz [default: `now()`]
+
+  indexes {
+    (conversation_id, created_at) [name: 'idx_messages_conversation']
+    parent_id [name: 'idx_messages_parent']
+  }
+
+  Note: 'Individual messages within a conversation'
+}
+
 // -----------------------------------------------------------------------
 // RELATIONSHIPS
 // -----------------------------------------------------------------------

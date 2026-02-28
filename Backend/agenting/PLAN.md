@@ -263,9 +263,22 @@ def summarize_data(columns: list[str], rows: list[dict]) -> dict:
 
 ### 5.3 `publish_chart`
 
-The LLM writes the chart **skeleton** — structure, styling, axis labels, series names, chart type — but leaves all `data` arrays empty. The tool reads the real rows from `state["query_results"]` via `InjectedState` and injects them using pandas. This means the LLM acts as a visualization designer, not a data transcription layer.
+The LLM writes the chart **config** — structure, styling, axis labels, series names, chart type, and `encode` mappings. It never touches the data. The tool builds the `dataset` programmatically from `state["query_results"]` using pandas and returns `config` and `dataset` as **separate keys**.
 
-Making this a tool (rather than an inline JSON field in the response) still gives the same three benefits as before: JSON validation before it reaches the frontend, an unambiguous `on_tool_end` event the streamer can route as a `ui_action`, and a stored `ToolMessage` audit trail.
+This separation means the frontend can update data independently of chart structure — ECharts supports merging a new `dataset` into an existing instance without reinitialising the chart, which enables data-only re-renders when the user changes a filter or time range without changing the chart shape.
+
+The `encode` pattern replaces the previous `series_mappings` and `x_axis_column` parameters entirely. The LLM already knows the column names because it wrote the SQL — it references them directly in `series[i].encode`, which is standard ECharts and far more expressive:
+
+```json
+"series": [
+  { "type": "bar", "name": "Flood",     "encode": { "x": "month", "y": "flood_count" } },
+  { "type": "bar", "name": "Landslide", "encode": { "x": "month", "y": "landslide_count" } }
+]
+```
+
+The tool constructs `dataset.source` as an **array-of-arrays** (ECharts' most efficient format): one header row of column names, followed by data rows. ECharts joins `encode` column names to the header automatically.
+
+Making this a tool (rather than an inline JSON field in the response) still gives three benefits: JSON validation before it reaches the frontend, an unambiguous `on_tool_end` event the streamer can route as a `ui_action`, and a stored `ToolMessage` audit trail.
 
 ```python
 from langgraph.prebuilt import InjectedState
@@ -274,41 +287,46 @@ from typing import Annotated
 @tool
 def publish_chart(
     echart_options_json: str,
-    x_axis_column: str,
-    series_mappings: list[dict],
     description: str,
     state: Annotated[AgentState, InjectedState],   # invisible to LLM
 ) -> dict:
     """
-    Publish a chart by combining your ECharts skeleton with the query data.
+    Publish a chart by combining your ECharts config with the query data.
 
     YOU provide:
       echart_options_json: A complete ECharts option object as a JSON string.
-                           Leave ALL series[].data arrays EMPTY — write [].
-                           Leave xAxis.data EMPTY — write [].
-                           They are populated automatically from query results.
-      x_axis_column:       The column name whose values form the x-axis (or pie labels).
-      series_mappings:     List of { "series_index": int, "data_column": str }.
-                           Maps each series in your skeleton to a column in the query result.
-      description:         Short human-readable label for the chart.
+                           Define mappings using series[i].encode — reference
+                           column names exactly as they appear in your SQL query.
+                           Do NOT include a "dataset" key — it is built automatically.
+                           Do NOT include series[i].data arrays.
 
-    The actual data rows are injected programmatically — do NOT reproduce
-    them in the skeleton. You only define structure, style, and mappings.
+      description: Short human-readable label for the chart.
 
-    Example series_mappings for a two-series bar chart:
-      [
-        { "series_index": 0, "data_column": "flood_count" },
-        { "series_index": 1, "data_column": "landslide_count" }
-      ]
+    ENCODE PATTERNS:
+      Cartesian (bar, line, scatter):
+        "encode": { "x": "<column>", "y": "<column>" }
+
+      Pie / donut:
+        "encode": { "itemName": "<label_column>", "value": "<value_column>" }
+
+      Multi-axis or stacked: each series references the same x column,
+        different y columns.
+
+    The dataset is built programmatically from the last execute_sql result.
+    The config and dataset are delivered to the frontend as separate objects
+    so the frontend can update data independently of chart structure.
     """
     import json
     import pandas as pd
 
-    # 1. Parse and validate the skeleton
+    # 1. Parse and validate the config skeleton
     try:
-        options = json.loads(echart_options_json)
+        config = json.loads(echart_options_json)
     except json.JSONDecodeError as e:
         return {"error": f"Invalid ECharts JSON: {e}"}
+
+    # Defensive: strip any dataset the LLM may have accidentally included
+    config.pop("dataset", None)
 
     # 2. Pull rows from state — guaranteed to exist if workflow is followed
     query_result = state.get("query_results")
@@ -317,35 +335,17 @@ def publish_chart(
 
     df = pd.DataFrame(query_result["rows"])
 
-    # 3. Inject x-axis values
-    if x_axis_column not in df.columns:
-        return {"error": f"Column '{x_axis_column}' not found in query results."}
-
-    x_values = df[x_axis_column].tolist()
-
-    if isinstance(options.get("xAxis"), dict):
-        options["xAxis"]["data"] = x_values
-    elif isinstance(options.get("xAxis"), list) and options["xAxis"]:
-        options["xAxis"][0]["data"] = x_values
-
-    # 4. Inject series data programmatically
-    series = options.get("series", [])
-    for mapping in series_mappings:
-        idx = mapping["series_index"]
-        col = mapping["data_column"]
-
-        if col not in df.columns:
-            return {"error": f"Column '{col}' not found in query results."}
-        if idx >= len(series):
-            return {"error": f"series_index {idx} out of range (skeleton has {len(series)} series)."}
-
-        series[idx]["data"] = df[col].tolist()
-
-    options["series"] = series
+    # 3. Build dataset.source as array-of-arrays:
+    #    [ [col1, col2, ...], [val1, val2, ...], ... ]
+    #    This is ECharts' most efficient format and maps directly to encode.
+    header = df.columns.tolist()
+    rows = df.values.tolist()
+    dataset = {"source": [header] + rows}
 
     return {
         "action": "render_chart",
-        "payload": options,
+        "config": config,
+        "dataset": dataset,
         "description": description,
     }
 ```
@@ -516,11 +516,16 @@ explore disaster alerts and geographic patterns through data, maps, and charts.
      - Design the best chart type and axis structure
      - Write a markdown table in your textual response to present the data
 
-4. DESIGN — Call publish_chart with an ECharts skeleton JSON and column mappings.
-   Leave ALL series[].data arrays EMPTY — write [].
-   Leave xAxis.data EMPTY — write [].
-   Provide x_axis_column and series_mappings to declare which columns map where.
-   The data is injected automatically — you only design structure, style, and labels.
+4. DESIGN — Call publish_chart with an ECharts config JSON and a description.
+   Use ECharts' dataset + encode pattern:
+     - Do NOT include a "dataset" key — it is built automatically from query results.
+     - Do NOT include series[i].data arrays.
+     - Define all data mappings using series[i].encode, referencing column names
+       exactly as they appear in your SQL SELECT clause.
+   Encode patterns:
+     - Cartesian (bar, line, scatter): "encode": { "x": "<col>", "y": "<col>" }
+     - Pie / donut: "encode": { "itemName": "<label_col>", "value": "<value_col>" }
+     - Stacked multi-series: each series has the same "x" column, different "y" columns.
 
 5. MAP — If a location is mentioned, call control_map IN PARALLEL with execute_sql.
    Provide geometry_sql to highlight the boundary.
@@ -530,11 +535,12 @@ explore disaster alerts and geographic patterns through data, maps, and charts.
 
 ## DATA INJECTION RULE
 
-When calling publish_chart, leave ALL series[].data arrays EMPTY — write [].
-Also leave xAxis.data EMPTY — write [].
-Provide only x_axis_column and series_mappings to declare which columns map where.
-The actual data is injected automatically from the query results stored in state.
-You only design structure, style, axis labels, colors, and chart type.
+NEVER include a "dataset" key in your echart_options_json.
+NEVER include series[i].data arrays.
+Instead, define encode mappings in each series using the exact column names from your SQL.
+The dataset is built programmatically from query results and delivered to the frontend
+as a separate object — this allows the frontend to update data without re-rendering
+the full chart config. You only design structure, style, axes, and encode mappings.
 
 ## DATABASE SCHEMA
 
@@ -562,6 +568,7 @@ You only design structure, style, axis labels, colors, and chart type.
 
 ## ECHARTS DESIGN RULES
 
+- Always use dataset + encode. Never use series[i].data or xAxis.data directly.
 - Severity color palette: ["#52c41a","#faad14","#ff7a45","#f5222d"]
   maps to: Minor → Moderate → Severe → Extreme
 - General series palette: ["#5470c6","#91cc75","#fac858","#ee6666","#73c0de","#3ba272"]
@@ -657,16 +664,42 @@ FEW_SHOT_EXAMPLES: list = [
             "id": "call_chart_1", "name": "publish_chart",
             "args": {
                 "description": "Alert severity distribution in Sindh (current year)",
-                "x_axis_column": "severity",
-                "series_mappings": [
-                    { "series_index": 0, "data_column": "count" }
-                ],
-                "echart_options_json": '{"title":{"text":"Alert Severity in Sindh","subtext":"Current year","left":"center"},"tooltip":{"trigger":"item"},"legend":{"bottom":0},"color":["#f5222d","#ff7a45","#faad14","#52c41a"],"series":[{"type":"pie","radius":["40%","70%"],"data":[],"emphasis":{"itemStyle":{"shadowBlur":10}}}]}'
+                "echart_options_json": json.dumps({
+                    "title": {"text": "Alert Severity in Sindh", "subtext": "Current year", "left": "center"},
+                    "tooltip": {"trigger": "item"},
+                    "legend": {"bottom": 0},
+                    "color": ["#f5222d", "#ff7a45", "#faad14", "#52c41a"],
+                    "series": [{
+                        "type": "pie",
+                        "radius": ["40%", "70%"],
+                        "encode": {"itemName": "severity", "value": "count"},
+                        "emphasis": {"itemStyle": {"shadowBlur": 10}}
+                    }]
+                })
             }
         }]
     ),
     ToolMessage(
-        content='{"action":"render_chart","description":"Alert severity distribution in Sindh (current year)"}',
+        content=json.dumps({
+            "action": "render_chart",
+            "config": {
+                "title": {"text": "Alert Severity in Sindh", "subtext": "Current year", "left": "center"},
+                "tooltip": {"trigger": "item"},
+                "legend": {"bottom": 0},
+                "color": ["#f5222d", "#ff7a45", "#faad14", "#52c41a"],
+                "series": [{"type": "pie", "radius": ["40%", "70%"], "encode": {"itemName": "severity", "value": "count"}}]
+            },
+            "dataset": {
+                "source": [
+                    ["severity", "count"],
+                    ["Extreme", 8],
+                    ["Severe", 22],
+                    ["Moderate", 35],
+                    ["Minor", 14]
+                ]
+            },
+            "description": "Alert severity distribution in Sindh (current year)"
+        }),
         tool_call_id="call_chart_1"
     ),
 
@@ -781,7 +814,8 @@ def build_graph():
             if action == "render_chart":
                 ui_actions.append({
                     "action": "render_chart",
-                    "payload": content.get("payload", {}),
+                    "config": content.get("config", {}),
+                    "dataset": content.get("dataset", {}),
                     "description": content.get("description", "")
                 })
             elif action in ("fly_to", "highlight"):
@@ -936,12 +970,28 @@ Every chunk sent over SSE follows a single discriminated-union schema. The React
 ### 10.2 Wire format
 
 ```json
-{ "event": "chunk",      "data": { "content": "I found 22 severe alerts…" } }
-{ "event": "status",     "data": { "tool": "execute_sql", "content": "Querying database…" } }
+{ "event": "chunk",       "data": { "content": "I found 22 severe alerts…" } }
+{ "event": "status",      "data": { "tool": "execute_sql", "content": "Querying database…" } }
 { "event": "data_preview","data": { "row_count": 79, "columns": ["severity","count"] } }
-{ "event": "ui_action",  "data": { "action": "render_chart", "payload": {…}, "description": "…" } }
-{ "event": "ui_action",  "data": { "action": "highlight", "center": [68.5, 26.0], "zoom": 7, "geometry": […] } }
-{ "event": "error",      "data": { "content": "Database error: …" } }
+{ "event": "ui_action",   "data": {
+    "action": "render_chart",
+    "config":  { "title": {…}, "series": [{ "encode": {…} }], … },
+    "dataset": { "source": [["severity","count"],["Extreme",8],…] },
+    "description": "Alert severity in Sindh"
+  }
+}
+{ "event": "ui_action",   "data": { "action": "highlight", "center": [68.5, 26.0], "zoom": 7, "geometry": […] } }
+{ "event": "error",       "data": { "content": "Database error: …" } }
+```
+
+**`config` and `dataset` are delivered as separate keys in the same event payload.** The frontend merges them for the initial render and can apply a dataset-only update later without reinitialising the chart instance:
+
+```javascript
+// Initial render
+echartsInstance.setOption({ ...config, dataset })
+
+// Data-only update (e.g. user changes filter, same chart structure)
+echartsInstance.setOption({ dataset }, false)  // notMerge: false → merges into existing config
 ```
 
 ---
@@ -1067,9 +1117,12 @@ async def stream_agent(request: ChatRequest):
                 # UI actions (chart, map)
                 action = output.get("action")
                 if action == "render_chart":
+                    # Pass config and dataset as separate keys — the frontend
+                    # merges them for first render and can update dataset-only later.
                     payload = {
                         "action": "render_chart",
-                        "payload": output.get("payload", {}),
+                        "config": output.get("config", {}),
+                        "dataset": output.get("dataset", {}),
                         "description": output.get("description", "")
                     }
                     yield _sse("ui_action", payload)
@@ -1191,7 +1244,7 @@ The React client consumes the SSE stream with the `EventSource` API (or `fetch` 
 | `chunk` | Append `content` to `currentMessage` string |
 | `status` | Set `agentStatus` label |
 | `data_preview` | Show row count badge inside the chat bubble |
-| `ui_action { action: "render_chart" }` | Update `chartOptions` state → `<ReactECharts option={chartOptions} />` renders inside the bubble |
+| `ui_action { action: "render_chart" }` | Initial render: `setOption({ ...config, dataset })`. Data-only update: `setOption({ dataset }, false)` |
 | `ui_action { action: "highlight" \| "fly_to" }` | Call `map.flyTo()` / add GeoJSON source layer in Mapbox |
 | `[DONE]` | Clear `agentStatus`, unlock input, flush `currentMessage` to history |
 
@@ -1218,13 +1271,14 @@ LangGraph (agent)
     │    ├─ execute_sql ──► Supabase RPC (read-only role) → rows
     │    ├─ summarize_data ──► pandas describe/info → shape + sample
     │    ├─ publish_chart ──► reads state["query_results"] via InjectedState
-    │    │                    pivots with pandas, injects data arrays,
-    │    │                    validates ECharts JSON
+    │    │                    builds dataset.source as array-of-arrays with pandas
+    │    │                    validates ECharts config (encode mappings only, no data)
+    │    │                    returns config + dataset as separate keys
     │    └─ control_map ──► fetches GeoJSON + camera params
     │        │
     │        ▼
     │   process_results
-    │    ├─ promotes ui_actions (render_chart, fly_to, highlight)
+    │    ├─ promotes ui_actions (render_chart {config,dataset}, fly_to, highlight)
     │    └─ writes execute_sql rows → state["query_results"]
     │        │
     │        └──────────────► back to reasoner
@@ -1235,7 +1289,8 @@ LangGraph (agent)
 SSE stream → React client
     ├─ chunk events → chat bubble text (including markdown table)
     ├─ status events → "Querying database…" badge
-    ├─ ui_action render_chart → ECharts component (data already hydrated)
+    ├─ ui_action render_chart → setOption({ ...config, dataset })
+    │                           data-only refresh → setOption({ dataset }, false)
     └─ ui_action highlight/fly_to → Mapbox camera
     │
 FastAPI (after stream)

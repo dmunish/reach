@@ -136,6 +136,13 @@ class UIAction(TypedDict):
     payload: dict
 
 
+class QueryResult(TypedDict):
+    """The raw result of the most recent execute_sql call."""
+    columns: list[str]
+    rows: list[dict]
+    row_count: int
+
+
 class AgentState(TypedDict):
     # ── Conversation history (append-only via operator.add) ──
     messages: Annotated[List[BaseMessage], operator.add]
@@ -144,12 +151,19 @@ class AgentState(TypedDict):
     # operator.add ensures parallel tool calls both write without overwriting
     ui_actions: Annotated[List[UIAction], operator.add]
 
+    # ── Latest SQL result — written by process_results, read by publish_chart ──
+    # Stored here so publish_chart can inject data programmatically via
+    # InjectedState without the LLM ever reproducing the rows.
+    query_results: Optional[QueryResult]
+
     # ── Conversation context (injected on each request) ──
     conversation_id: Optional[str]
     user_id: Optional[str]
 ```
 
 **Why `operator.add` on `ui_actions`?** LangGraph merges state updates from parallel tool calls by applying the reducer. Using `operator.add` (list append) means two simultaneous tools — say `execute_sql` and `control_map` — can both write UI actions without a race condition.
+
+**Why `query_results` on state?** The LLM should design the chart structure but never transcribe data. Storing rows in state lets `publish_chart` read them via `InjectedState` — a LangGraph mechanism that populates tool parameters from state at runtime, invisibly to the LLM's tool schema.
 
 ---
 
@@ -217,64 +231,122 @@ def execute_sql(query: str) -> dict:
 
 ### 5.2 `summarize_data`
 
-Compresses query results into a statistical profile so the LLM can design a chart without consuming its context window on raw rows.
+Compresses query results into a pandas-style statistical profile. The LLM uses this to understand data shape and design the chart. It also uses the returned `sample` rows to compose a markdown table in its textual response. The actual data injection into ECharts happens programmatically in `publish_chart` — the LLM never needs to reproduce individual values.
 
 ```python
 @tool
 def summarize_data(columns: list[str], rows: list[dict]) -> dict:
     """
-    Compute a statistical summary of query results.
-    Returns min, max, mean, unique counts, and sample values per column.
-    ALWAYS call this after execute_sql before writing ECharts JSON.
+    Compute a pandas-style statistical summary of query results.
+    Returns describe() and dtype info per column, plus a 5-row sample.
+    ALWAYS call this after execute_sql before writing any chart JSON.
+
+    Use the returned summary and sample to:
+      - Understand the data shape for chart design
+      - Write a markdown table in your textual response
+    Do NOT reproduce data values in publish_chart — they are injected automatically.
     """
-    import statistics
+    import pandas as pd
 
-    summary = {}
-    for col in columns:
-        values = [r[col] for r in rows if r.get(col) is not None]
-        info: dict = {"count": len(values), "nulls": len(rows) - len(values)}
+    if not rows:
+        return {"error": "No data to summarize."}
 
-        if values and isinstance(values[0], (int, float)):
-            info["min"] = min(values)
-            info["max"] = max(values)
-            info["mean"] = round(statistics.mean(values), 2)
-        else:
-            unique = list(dict.fromkeys(values))  # Preserves order, deduplicates
-            info["unique_count"] = len(unique)
-            info["unique_values"] = unique[:15]    # Cap at 15 to avoid token bloat
-            info["sample"] = values[:3]
+    df = pd.DataFrame(rows, columns=columns)
 
-        summary[col] = info
-
-    return summary
+    return {
+        "shape": {"rows": len(df), "columns": len(df.columns)},
+        "dtypes": df.dtypes.astype(str).to_dict(),
+        "describe": df.describe(include="all").fillna("").astype(str).to_dict(),
+        "sample": df.head(5).to_dict(orient="records"),
+    }
 ```
 
 ### 5.3 `publish_chart`
 
-Validates and publishes a fully-constructed Apache ECharts `option` object. Making this a tool (rather than an inline JSON field in the response) gives three benefits: JSON validation before it reaches the frontend, an unambiguous `on_tool_end` event the streamer can route as a `ui_action`, and a stored `ToolMessage` audit trail.
+The LLM writes the chart **skeleton** — structure, styling, axis labels, series names, chart type — but leaves all `data` arrays empty. The tool reads the real rows from `state["query_results"]` via `InjectedState` and injects them using pandas. This means the LLM acts as a visualization designer, not a data transcription layer.
+
+Making this a tool (rather than an inline JSON field in the response) still gives the same three benefits as before: JSON validation before it reaches the frontend, an unambiguous `on_tool_end` event the streamer can route as a `ui_action`, and a stored `ToolMessage` audit trail.
 
 ```python
+from langgraph.prebuilt import InjectedState
+from typing import Annotated
+
 @tool
-def publish_chart(echart_options_json: str, description: str) -> dict:
+def publish_chart(
+    echart_options_json: str,
+    x_axis_column: str,
+    series_mappings: list[dict],
+    description: str,
+    state: Annotated[AgentState, InjectedState],   # invisible to LLM
+) -> dict:
     """
-    Publish a complete Apache ECharts options object to the frontend.
+    Publish a chart by combining your ECharts skeleton with the query data.
 
-    'echart_options_json': A COMPLETE, valid ECharts option object as a JSON string.
-    All series[].data arrays must contain REAL data from query results — no placeholders.
+    YOU provide:
+      echart_options_json: A complete ECharts option object as a JSON string.
+                           Leave ALL series[].data arrays EMPTY — write [].
+                           Leave xAxis.data EMPTY — write [].
+                           They are populated automatically from query results.
+      x_axis_column:       The column name whose values form the x-axis (or pie labels).
+      series_mappings:     List of { "series_index": int, "data_column": str }.
+                           Maps each series in your skeleton to a column in the query result.
+      description:         Short human-readable label for the chart.
 
-    'description': Short human-readable label (e.g. "Monthly flood alerts in Sindh, 2025")
+    The actual data rows are injected programmatically — do NOT reproduce
+    them in the skeleton. You only define structure, style, and mappings.
+
+    Example series_mappings for a two-series bar chart:
+      [
+        { "series_index": 0, "data_column": "flood_count" },
+        { "series_index": 1, "data_column": "landslide_count" }
+      ]
     """
     import json
+    import pandas as pd
 
+    # 1. Parse and validate the skeleton
     try:
         options = json.loads(echart_options_json)
     except json.JSONDecodeError as e:
         return {"error": f"Invalid ECharts JSON: {e}"}
 
+    # 2. Pull rows from state — guaranteed to exist if workflow is followed
+    query_result = state.get("query_results")
+    if not query_result or not query_result.get("rows"):
+        return {"error": "No query results in state. Call execute_sql first."}
+
+    df = pd.DataFrame(query_result["rows"])
+
+    # 3. Inject x-axis values
+    if x_axis_column not in df.columns:
+        return {"error": f"Column '{x_axis_column}' not found in query results."}
+
+    x_values = df[x_axis_column].tolist()
+
+    if isinstance(options.get("xAxis"), dict):
+        options["xAxis"]["data"] = x_values
+    elif isinstance(options.get("xAxis"), list) and options["xAxis"]:
+        options["xAxis"][0]["data"] = x_values
+
+    # 4. Inject series data programmatically
+    series = options.get("series", [])
+    for mapping in series_mappings:
+        idx = mapping["series_index"]
+        col = mapping["data_column"]
+
+        if col not in df.columns:
+            return {"error": f"Column '{col}' not found in query results."}
+        if idx >= len(series):
+            return {"error": f"series_index {idx} out of range (skeleton has {len(series)} series)."}
+
+        series[idx]["data"] = df[col].tolist()
+
+    options["series"] = series
+
     return {
         "action": "render_chart",
         "payload": options,
-        "description": description
+        "description": description,
     }
 ```
 
@@ -440,14 +512,29 @@ explore disaster alerts and geographic patterns through data, maps, and charts.
    You may write TWO queries: one aggregated for the chart, one for textual insight.
 
 3. INSPECT — ALWAYS call summarize_data after execute_sql. Never skip.
+   Use the returned summary and sample rows to:
+     - Design the best chart type and axis structure
+     - Write a markdown table in your textual response to present the data
 
-4. DESIGN — Call publish_chart with a COMPLETE ECharts option JSON string.
-   Embed REAL data into series[].data. No placeholders.
+4. DESIGN — Call publish_chart with an ECharts skeleton JSON and column mappings.
+   Leave ALL series[].data arrays EMPTY — write [].
+   Leave xAxis.data EMPTY — write [].
+   Provide x_axis_column and series_mappings to declare which columns map where.
+   The data is injected automatically — you only design structure, style, and labels.
 
 5. MAP — If a location is mentioned, call control_map IN PARALLEL with execute_sql.
    Provide geometry_sql to highlight the boundary.
 
-6. RESPOND — Write a concise textual answer. Reference the chart. Highlight key insights.
+6. RESPOND — Write a concise textual answer. Include a markdown table of the key
+   figures from the summarize_data sample. Reference the chart. Highlight key insights.
+
+## DATA INJECTION RULE
+
+When calling publish_chart, leave ALL series[].data arrays EMPTY — write [].
+Also leave xAxis.data EMPTY — write [].
+Provide only x_axis_column and series_mappings to declare which columns map where.
+The actual data is injected automatically from the query results stored in state.
+You only design structure, style, axis labels, colors, and chart type.
 
 ## DATABASE SCHEMA
 
@@ -560,7 +647,7 @@ FEW_SHOT_EXAMPLES: list = [
         }]
     ),
     ToolMessage(
-        content='{"severity":{"unique_count":4,"unique_values":["Extreme","Severe","Moderate","Minor"]},"count":{"min":8,"max":35,"mean":19.75}}',
+        content='{"shape":{"rows":4,"columns":2},"dtypes":{"severity":"object","count":"int64"},"describe":{"severity":{"count":"4","unique":"4","top":"Moderate","freq":"1"},"count":{"count":"4.0","mean":"19.75","min":"8.0","max":"35.0"}},"sample":[{"severity":"Extreme","count":8},{"severity":"Severe","count":22},{"severity":"Moderate","count":35},{"severity":"Minor","count":14}]}',
         tool_call_id="call_sum_1"
     ),
 
@@ -570,7 +657,11 @@ FEW_SHOT_EXAMPLES: list = [
             "id": "call_chart_1", "name": "publish_chart",
             "args": {
                 "description": "Alert severity distribution in Sindh (current year)",
-                "echart_options_json": '{"title":{"text":"Alert Severity in Sindh","subtext":"Current year","left":"center"},"tooltip":{"trigger":"item"},"legend":{"bottom":0},"color":["#f5222d","#ff7a45","#faad14","#52c41a"],"series":[{"type":"pie","radius":["40%","70%"],"data":[{"name":"Extreme","value":8},{"name":"Severe","value":22},{"name":"Moderate","value":35},{"name":"Minor","value":14}],"emphasis":{"itemStyle":{"shadowBlur":10}}}]}'
+                "x_axis_column": "severity",
+                "series_mappings": [
+                    { "series_index": 0, "data_column": "count" }
+                ],
+                "echart_options_json": '{"title":{"text":"Alert Severity in Sindh","subtext":"Current year","left":"center"},"tooltip":{"trigger":"item"},"legend":{"bottom":0},"color":["#f5222d","#ff7a45","#faad14","#52c41a"],"series":[{"type":"pie","radius":["40%","70%"],"data":[],"emphasis":{"itemStyle":{"shadowBlur":10}}}]}'
             }
         }]
     ),
@@ -582,7 +673,13 @@ FEW_SHOT_EXAMPLES: list = [
     AIMessage(content=(
         "Sindh currently has **79 alerts** active this year. "
         "Moderate-severity alerts dominate (44%), while Extreme alerts "
-        "represent a concerning 10% of all active incidents. "
+        "represent a concerning 10% of all active incidents.\n\n"
+        "| Severity | Count |\n"
+        "|---|---|\n"
+        "| Extreme | 8 |\n"
+        "| Severe | 22 |\n"
+        "| Moderate | 35 |\n"
+        "| Minor | 14 |\n\n"
         "The map shows the Sindh boundary highlighted, and the donut chart "
         "above breaks down the severity distribution in full."
     )),
@@ -655,11 +752,16 @@ def build_graph():
     # ── Node 3: Post-Tool Processing ─────────────────────────────────────
     def process_results(state: AgentState) -> dict:
         """
-        Inspect the latest ToolMessages and promote structured payloads
-        (render_chart, fly_to, highlight) into ui_actions.
-        Keeps tools pure (data-only returns) and graph routing clean.
+        Inspect the latest ToolMessages and:
+          1. Promote structured UI payloads (render_chart, fly_to, highlight)
+             into ui_actions so the streamer can route them cleanly.
+          2. Capture the latest execute_sql result into state["query_results"]
+             so publish_chart can read it via InjectedState without the LLM
+             ever reproducing the rows.
         """
         ui_actions = []
+        query_results = None
+
         for msg in reversed(state["messages"]):
             if not isinstance(msg, ToolMessage):
                 break  # Stop at the most recent tool call batch
@@ -671,6 +773,10 @@ def build_graph():
             if not isinstance(content, dict):
                 continue
 
+            # Capture the latest SQL result for programmatic data injection
+            if "row_count" in content and query_results is None:
+                query_results = content
+
             action = content.get("action")
             if action == "render_chart":
                 ui_actions.append({
@@ -681,7 +787,7 @@ def build_graph():
             elif action in ("fly_to", "highlight"):
                 ui_actions.append({"action": action, "payload": content})
 
-        return {"ui_actions": ui_actions}
+        return {"ui_actions": ui_actions, "query_results": query_results}
 
     # ── Routing ──────────────────────────────────────────────────────────
     def should_continue(state: AgentState) -> str:
@@ -1109,26 +1215,31 @@ LangGraph (agent)
     │        │ tool_calls?
     │        ▼
     │   tools (ToolNode — parallel)
-    │    ├─ execute_sql ──► Supabase RPC (read-only role)
-    │    ├─ summarize_data ──► statistical summary
-    │    ├─ publish_chart ──► validates ECharts JSON
+    │    ├─ execute_sql ──► Supabase RPC (read-only role) → rows
+    │    ├─ summarize_data ──► pandas describe/info → shape + sample
+    │    ├─ publish_chart ──► reads state["query_results"] via InjectedState
+    │    │                    pivots with pandas, injects data arrays,
+    │    │                    validates ECharts JSON
     │    └─ control_map ──► fetches GeoJSON + camera params
     │        │
     │        ▼
-    │   process_results (promotes ui_actions)
+    │   process_results
+    │    ├─ promotes ui_actions (render_chart, fly_to, highlight)
+    │    └─ writes execute_sql rows → state["query_results"]
     │        │
     │        └──────────────► back to reasoner
     │
     └─► final AIMessage (no tool_calls) → stream ends
+         LLM response includes markdown table from summarize_data sample
     │
 SSE stream → React client
-    ├─ chunk events → chat bubble text
+    ├─ chunk events → chat bubble text (including markdown table)
     ├─ status events → "Querying database…" badge
-    ├─ ui_action render_chart → ECharts component
+    ├─ ui_action render_chart → ECharts component (data already hydrated)
     └─ ui_action highlight/fly_to → Mapbox camera
     │
 FastAPI (after stream)
     └─ save_messages → Supabase messages table
 ```
 
-Every component has a single responsibility. The graph is stateless and independently testable. Adding a new tool requires only editing `tools.py` and the `ALL_TOOLS` list in `graph.py`. Swapping the LLM is a two-line change to `.env`.
+Every component has a single responsibility. The LLM designs charts; pandas moves the data. The graph is stateless and independently testable. Adding a new tool requires only editing `tools.py` and the `ALL_TOOLS` list in `graph.py`. Swapping the LLM is a two-line change to `.env`.

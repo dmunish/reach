@@ -137,3 +137,62 @@ def summarize_data(columns: list[str], rows: list[dict]) -> dict:
         "describe": df.describe(include="all").fillna("").astype(str).to_dict(),
         "sample": df.head(5).to_dict(orient="records"),
     }
+
+@tool
+def publish_chart(echart_options_json: str,description: str,state: Annotated[AgentState, InjectedState]) -> dict:
+    """
+    Publish a chart by combining your ECharts config with the query data.
+
+    YOU provide:
+      echart_options_json: A complete ECharts option object as a JSON string.
+                           Define mappings using series[i].encode, reference
+                           column names exactly as they appear in your SQL query.
+                           Do NOT include a "dataset" key — it is built automatically.
+                           Do NOT include series[i].data arrays.
+
+      description: Short human-readable label for the chart.
+
+    ENCODE PATTERNS:
+      Cartesian (bar, line, scatter):
+        "encode": { "x": "<column>", "y": "<column>" }
+
+      Pie / donut:
+        "encode": { "itemName": "<label_column>", "value": "<value_column>" }
+
+      Multi-axis or stacked: each series references the same x column,
+        different y columns.
+
+    The dataset is built programmatically from the last execute_sql result.
+    The config and dataset are delivered to the frontend as separate objects
+    so the frontend can update data independently of chart structure.
+    """
+    import json
+    import pandas as pd
+
+    # 1. Parse and validate the config skeleton
+    try:
+        config = json.loads(echart_options_json)
+    except json.JSONDecodeError as e:
+        return {"error": f"Invalid ECharts JSON: {e}"}
+
+    # Defensive: strip any dataset the LLM may have accidentally included
+    config.pop("dataset", None)
+
+    # 2. Pull rows from state — guaranteed to exist if workflow is followed
+    query_result = state.get("query_results")
+    if not query_result or not query_result.get("rows"):
+        return {"error": "No query results in state. Call execute_sql first."}
+
+    df = pd.DataFrame(query_result["rows"])
+
+    # 3. Build dataset.source as array-of-arrays:
+    header = df.columns.tolist()
+    rows = df.values.tolist()
+    dataset = {"source": [header] + rows}
+
+    return {
+        "action": "render_chart",
+        "config": config,
+        "dataset": dataset,
+        "description": description,
+    }

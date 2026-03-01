@@ -4,18 +4,14 @@ from langchain_core.messages import SystemMessage, ToolMessage
 from Backend.agenting.state import AgentState
 from Backend.agenting.tools import execute_sql, summarize_data, publish_chart, control_map
 from Backend.agenting.prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
-from Backend.agenting.config import settings, get_model
+from Backend.agenting.config import get_model
 import json
 
-ALL_TOOLS = [execute_sql, summarize_data, publish_chart, control_map]
+TOOLS = [execute_sql, summarize_data, publish_chart, control_map]
 
 
 def build_graph():
-    llm = get_model(
-        settings.llm_provider,
-        settings.llm_model,
-        settings.llm_temperature
-    ).bind_tools(ALL_TOOLS)
+    llm = get_model.bind_tools(TOOLS)
 
     # ── Node 1: Reasoner ────────────────────────────────────────────────
     def reasoner(state: AgentState) -> dict:
@@ -27,7 +23,7 @@ def build_graph():
     # ── Node 2: Tool Executor ────────────────────────────────────────────
     # ToolNode automatically parallelises multiple tool_calls in a
     # single AIMessage via asyncio.gather — no extra code required.
-    tool_node = ToolNode(ALL_TOOLS)
+    tool_node = ToolNode(TOOLS)
 
     # ── Node 3: Post-Tool Processing ─────────────────────────────────────
     def process_results(state: AgentState) -> dict:

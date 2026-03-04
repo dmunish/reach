@@ -352,49 +352,75 @@ def publish_chart(
 
 ### 5.4 `control_map`
 
-Sends a camera command and/or fetches a geometry to highlight. Can be called **in parallel** with `execute_sql` — the LLM should always issue both in the same `tool_calls` array when a location is involved.
+Resolves a list of place names to their unioned geometry, centroid, and bounding box via the `get_places` RPC, and returns all three for the frontend to use. The LLM only needs to supply the place names it already knows from the query context — no coordinates, no SQL, no geometry reasoning. Call in parallel with `execute_sql` when a location is involved.
 
 ```python
 @tool
-def control_map(
-    action: str,
-    lat: float | None = None,
-    lon: float | None = None,
-    zoom: float | None = None,
-    bbox: list[float] | None = None,   # [west, south, east, north]
-    geometry_sql: str | None = None    # SELECT returning ST_AsGeoJSON(...)
-) -> dict:
+def control_map(place_names: list[str]) -> dict:
     """
-    Control the Mapbox camera and/or highlight a geometry.
+    Control the Mapbox camera and highlight a geometry.
 
-    action: "fly_to" | "highlight"
-    lat, lon, zoom: Camera target (WGS84)
-    bbox: [west, south, east, north] for fitBounds
-    geometry_sql: A SELECT query returning { geojson: <GeoJSON string> } rows.
-                  Example: SELECT ST_AsGeoJSON(polygon) AS geojson
-                           FROM places WHERE name = 'Sindh' AND hierarchy_level = 1
+    place_names: List of place names to focus on and highlight.
+                 The RPC resolves names to geometries, unions them, and
+                 returns a single combined polygon, centroid, and bbox.
+
+    Returns:
+        unioned_polygon: GeoJSON geometry — for highlighting on the map
+        centroid:        GeoJSON geometry — to move the camera
+        bbox:            GeoJSON geometry — to set zoom level via fitBounds
 
     Call in PARALLEL with execute_sql to save latency — emit both in one tool_calls array.
     """
-    result: dict = {"action": action}
-
-    if lat is not None and lon is not None:
-        result["center"] = [lon, lat]
-        result["zoom"] = zoom or 7
-
-    if bbox:
-        result["bbox"] = bbox
-
-    if geometry_sql:
-        try:
-            client = get_supabase()
-            geom = client.rpc("execute_readonly_sql", {"query_text": geometry_sql}).execute()
-            result["geometry"] = geom.data
-        except Exception as e:
-            result["geometry_error"] = str(e)
-
-    return result
+    try:
+        client = get_supabase()
+        result = client.rpc("get_places", {"place_names": place_names}).execute()
+        row = result.data[0]
+        return {
+            "unioned_polygon": row["unioned_polygon"],
+            "centroid": row["centroid"],
+            "bbox": row["bbox"],
+        }
+    except Exception as e:
+        return {"error": str(e)}
 ```
+
+---
+
+### 5.5 `set_conversation_title`
+
+Called by the LLM at the end of the **first turn only**, once it understands what the conversation is actually about. The truncated first-message title set by `ensure_conversation` is a placeholder — this replaces it with something meaningful.
+
+The tool reads `conversation_id` from state via `InjectedState`, so the LLM only needs to supply the title string itself.
+
+```python
+@tool
+def set_conversation_title(
+    title: str,
+    state: Annotated[AgentState, InjectedState],   # invisible to LLM
+) -> dict:
+    """
+    Set a descriptive title for the current conversation.
+
+    Call this ONCE at the end of the first turn, after you have enough context
+    to summarise what the user is trying to find out.
+    Keep the title short (under 60 characters) and specific.
+    Examples: "Flood alerts in Sindh — 2025", "KPK extreme weather frequency"
+
+    Do NOT call this on subsequent turns.
+    """
+    conversation_id = state.get("conversation_id")
+    if not conversation_id:
+        return {"error": "No conversation_id in state."}
+
+    try:
+        client = get_supabase()
+        client.table("conversations").update({"title": title[:60]}).eq("id", conversation_id).execute()
+        return {"ok": True, "title": title[:60]}
+    except Exception as e:
+        return {"error": str(e)}
+```
+
+Add `set_conversation_title` to `ALL_TOOLS` in `graph.py` and update the system prompt's CONSTRAINTS block with: *"Call `set_conversation_title` once at the end of the first turn."*
 
 ---
 
@@ -584,6 +610,7 @@ the full chart config. You only design structure, style, axes, and encode mappin
 - NEVER fabricate data. Every number must come from execute_sql results.
 - NEVER call publish_chart without first calling summarize_data.
 - ALWAYS call control_map in PARALLEL with execute_sql when a location is involved.
+- Call set_conversation_title ONCE at the end of the first turn only.
 - If a query returns 0 rows, tell the user — do not generate an empty chart.
 - Keep prose concise. Let the chart do the heavy lifting.
 """
@@ -618,12 +645,7 @@ FEW_SHOT_EXAMPLES: list = [
             {
                 "id": "call_map_1", "name": "control_map",
                 "args": {
-                    "action": "highlight",
-                    "lat": 26.0, "lon": 68.5, "zoom": 7,
-                    "geometry_sql": (
-                        "SELECT ST_AsGeoJSON(polygon) AS geojson "
-                        "FROM places WHERE name = 'Sindh' AND hierarchy_level = 1"
-                    )
+                    "place_names": ["Sindh"]
                 }
             }
         ]
@@ -634,7 +656,7 @@ FEW_SHOT_EXAMPLES: list = [
         tool_call_id="call_sql_1"
     ),
     ToolMessage(
-        content='{"action":"highlight","center":[68.5,26.0],"zoom":7}',
+        content='{"unioned_polygon":{"type":"Polygon","coordinates":[[[66.5,23.5],[67.0,23.5],[67.0,24.0],[66.5,24.0],[66.5,23.5]]]},"centroid":{"type":"Point","coordinates":[68.5,26.0]},"bbox":{"type":"Polygon","coordinates":[[[60.5,23.5],[75.0,23.5],[75.0,28.5],[60.5,28.5],[60.5,23.5]]]}}',
         tool_call_id="call_map_1"
     ),
 
@@ -716,6 +738,19 @@ FEW_SHOT_EXAMPLES: list = [
         "The map shows the Sindh boundary highlighted, and the donut chart "
         "above breaks down the severity distribution in full."
     )),
+
+    # ── Final turn: set a descriptive title now that intent is clear ──
+    AIMessage(
+        content="",
+        tool_calls=[{
+            "id": "call_title_1", "name": "set_conversation_title",
+            "args": {"title": "Alert severity breakdown — Sindh 2025"}
+        }]
+    ),
+    ToolMessage(
+        content='{"ok": true, "title": "Alert severity breakdown — Sindh 2025"}',
+        tool_call_id="call_title_1"
+    ),
 ]
 ```
 
@@ -948,6 +983,48 @@ def ensure_conversation(
         .execute()
     )
     return result.data[0]["id"]
+
+
+def list_conversations(user_id: str) -> list[dict]:
+    """
+    Return all conversations for a user, ordered by most recently updated.
+    Used to populate the sidebar conversation list — no message content included.
+    """
+    client = get_supabase()
+    rows = (
+        client.table("conversations")
+        .select("id, title, created_at, updated_at")
+        .eq("user_id", user_id)
+        .order("updated_at", desc=True)
+        .execute()
+        .data
+    )
+    return rows or []
+
+
+def load_messages_for_display(conversation_id: str) -> list[dict]:
+    """
+    Return all messages in a conversation for frontend rendering.
+    Returns raw dicts (not LangChain objects) — the frontend decides what to show.
+
+    Role rendering guide:
+      user      → user chat bubble
+      assistant, no tool_calls, has content → AI response bubble
+      assistant, has tool_calls → collapsed "thinking" step (optional)
+      tool, content parses to action=render_chart → ECharts component
+                                                     using ui_state config+dataset
+      tool, other → hidden or collapsed
+    """
+    client = get_supabase()
+    rows = (
+        client.table("messages")
+        .select("id, role, content, tool_calls, tool_call_id, ui_state, created_at")
+        .eq("conversation_id", conversation_id)
+        .order("created_at")
+        .execute()
+        .data
+    )
+    return rows or []
 ```
 
 ---
@@ -1015,7 +1092,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
 from .graph import agent
-from .persistence import load_history, save_messages, ensure_conversation
+from .persistence import load_history, save_messages, ensure_conversation, list_conversations, load_messages_for_display
 from .state import AgentState
 import json
 from typing import Optional
@@ -1170,6 +1247,37 @@ async def chat(request: ChatRequest):
     )
 
 
+@app.get("/api/conversations")
+async def get_conversations(user_id: str):
+    """
+    Return the conversation list for the sidebar.
+    Ordered by most recently updated — no message content included.
+
+    Response: [ { id, title, created_at, updated_at }, … ]
+    """
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required.")
+    return list_conversations(user_id)
+
+
+@app.get("/api/conversations/{conversation_id}/messages")
+async def get_messages(conversation_id: str):
+    """
+    Return all messages in a conversation for rendering a full chat history.
+
+    Response: [ { id, role, content, tool_calls, tool_call_id, ui_state, created_at }, … ]
+
+    Frontend rendering guide:
+      role=user                              → user bubble
+      role=assistant, content, no tool_calls → AI response bubble
+      role=assistant, tool_calls             → optional collapsed "thinking" step
+      role=tool, action=render_chart         → ECharts component
+                                               (use ui_state.config + ui_state.dataset)
+      role=tool, other                       → hidden or collapsed
+    """
+    return load_messages_for_display(conversation_id)
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -1274,7 +1382,8 @@ LangGraph (agent)
     │    │                    builds dataset.source as array-of-arrays with pandas
     │    │                    validates ECharts config (encode mappings only, no data)
     │    │                    returns config + dataset as separate keys
-    │    └─ control_map ──► fetches GeoJSON + camera params
+    │    ├─ control_map ──► get_places RPC → unioned_polygon, centroid, bbox
+    │    └─ set_conversation_title ──► UPDATE conversations SET title (first turn only)
     │        │
     │        ▼
     │   process_results
@@ -1298,3 +1407,12 @@ FastAPI (after stream)
 ```
 
 Every component has a single responsibility. The LLM designs charts; pandas moves the data. The graph is stateless and independently testable. Adding a new tool requires only editing `tools.py` and the `ALL_TOOLS` list in `graph.py`. Swapping the LLM is a two-line change to `.env`.
+
+### API surface
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/chat` | Start or continue a conversation. Returns SSE stream. |
+| `GET` | `/api/conversations?user_id=` | List all conversations for a user (sidebar). |
+| `GET` | `/api/conversations/{id}/messages` | Load full message history for a conversation. |
+| `GET` | `/health` | Health check. |

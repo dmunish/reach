@@ -49,7 +49,7 @@ Two new tables must be created in Supabase to support persistent, branching conv
 CREATE TABLE conversations (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id     UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    title       TEXT,                     -- Auto-generated from first message
+    title       TEXT,                     -- Set by the LLM via set_conversation_title tool (NULL until first turn completes)
     created_at  TIMESTAMPTZ DEFAULT now(),
     updated_at  TIMESTAMPTZ DEFAULT now()
 );
@@ -352,7 +352,7 @@ def publish_chart(
 
 ### 5.4 `control_map`
 
-Resolves a list of place names to their unioned geometry, centroid, and bounding box via the `get_places` RPC, and returns all three for the frontend to use. The LLM only needs to supply the place names it already knows from the query context — no coordinates, no SQL, no geometry reasoning. Call in parallel with `execute_sql` when a location is involved.
+Resolves a list of place names to their unioned geometry, centroid, and bounding box via the `get_places` RPC, and returns all three for the frontend to use. The LLM only needs to supply the place names it already knows from the query context — no coordinates, no SQL, no geometry reasoning. Returns `action: "map_update"` so `process_results` and the streamer can route it without inspecting the payload structure. Call in parallel with `execute_sql` when a location is involved.
 
 ```python
 @tool
@@ -365,6 +365,7 @@ def control_map(place_names: list[str]) -> dict:
                  returns a single combined polygon, centroid, and bbox.
 
     Returns:
+        action:          "map_update" — routing signal for the frontend
         unioned_polygon: GeoJSON geometry — for highlighting on the map
         centroid:        GeoJSON geometry — to move the camera
         bbox:            GeoJSON geometry — to set zoom level via fitBounds
@@ -376,6 +377,7 @@ def control_map(place_names: list[str]) -> dict:
         result = client.rpc("get_places", {"place_names": place_names}).execute()
         row = result.data[0]
         return {
+            "action": "map_update",
             "unioned_polygon": row["unioned_polygon"],
             "centroid": row["centroid"],
             "bbox": row["bbox"],
@@ -388,9 +390,9 @@ def control_map(place_names: list[str]) -> dict:
 
 ### 5.5 `set_conversation_title`
 
-Called by the LLM at the end of the **first turn only**, once it understands what the conversation is actually about. The truncated first-message title set by `ensure_conversation` is a placeholder — this replaces it with something meaningful.
+Called by the LLM **in parallel with its first `execute_sql` call**, so the conversation gets a meaningful title the moment the agent understands the user's intent — without adding any latency. Conversations are created with `title = NULL` by `ensure_conversation`; this tool performs the only title write. It is idempotent: if the title is already set (resumed conversation), the `WHERE title IS NULL` guard makes it a no-op.
 
-The tool reads `conversation_id` from state via `InjectedState`, so the LLM only needs to supply the title string itself.
+The tool reads `conversation_id` from state via `InjectedState`, so the LLM only supplies the title string.
 
 ```python
 @tool
@@ -401,12 +403,11 @@ def set_conversation_title(
     """
     Set a descriptive title for the current conversation.
 
-    Call this ONCE at the end of the first turn, after you have enough context
-    to summarise what the user is trying to find out.
-    Keep the title short (under 60 characters) and specific.
+    Call this ONCE on your first response turn, in PARALLEL with execute_sql.
+    Keep the title short (under 60 characters) and specific to the user's query.
     Examples: "Flood alerts in Sindh — 2025", "KPK extreme weather frequency"
 
-    Do NOT call this on subsequent turns.
+    Do NOT call this on subsequent turns — it is a no-op if a title already exists.
     """
     conversation_id = state.get("conversation_id")
     if not conversation_id:
@@ -414,13 +415,15 @@ def set_conversation_title(
 
     try:
         client = get_supabase()
-        client.table("conversations").update({"title": title[:60]}).eq("id", conversation_id).execute()
+        client.table("conversations") \
+            .update({"title": title[:60]}) \
+            .eq("id", conversation_id) \
+            .is_("title", "null") \
+            .execute()
         return {"ok": True, "title": title[:60]}
     except Exception as e:
         return {"error": str(e)}
 ```
-
-Add `set_conversation_title` to `ALL_TOOLS` in `graph.py` and update the system prompt's CONSTRAINTS block with: *"Call `set_conversation_title` once at the end of the first turn."*
 
 ---
 
@@ -554,7 +557,7 @@ explore disaster alerts and geographic patterns through data, maps, and charts.
      - Stacked multi-series: each series has the same "x" column, different "y" columns.
 
 5. MAP — If a location is mentioned, call control_map IN PARALLEL with execute_sql.
-   Provide geometry_sql to highlight the boundary.
+   Provide the place names exactly as you know them (province, district, or region names).
 
 6. RESPOND — Write a concise textual answer. Include a markdown table of the key
    figures from the summarize_data sample. Reference the chart. Highlight key insights.
@@ -582,11 +585,6 @@ the full chart config. You only design structure, style, axes, and encode mappin
     hierarchy_level INT, polygon GEOMETRY
     (hierarchy_level: 1=province, 2=district, 3=tehsil)
 
-  Useful PostGIS functions:
-    ST_AsGeoJSON(polygon) → GeoJSON string for map highlighting
-    ST_X(centroid), ST_Y(centroid) → longitude, latitude
-    ST_Centroid(unioned_polygon) → centroid of alert coverage area
-
   Severity values: 'Extreme', 'Severe', 'Moderate', 'Minor', 'Unknown'
   Urgency values: 'Immediate', 'Expected', 'Future', 'Past', 'Unknown'
   Category values: 'Geo','Met','Safety','Security','Rescue','Fire',
@@ -595,6 +593,9 @@ the full chart config. You only design structure, style, axes, and encode mappin
 ## ECHARTS DESIGN RULES
 
 - Always use dataset + encode. Never use series[i].data or xAxis.data directly.
+- Use dark-mode optimized colors. Set backgroundColor: "#0d1117" on every chart.
+- All text (titles, axis labels, legends): "#e0e0e0" or "#ccc".
+- Grid lines and axis lines: "#333" or "#444".
 - Severity color palette: ["#52c41a","#faad14","#ff7a45","#f5222d"]
   maps to: Minor → Moderate → Severe → Extreme
 - General series palette: ["#5470c6","#91cc75","#fac858","#ee6666","#73c0de","#3ba272"]
@@ -604,13 +605,16 @@ the full chart config. You only design structure, style, axes, and encode mappin
 - For >12 x-axis points: add dataZoom: [{ type: "inside" }, { type: "slider" }]
 - For many categories: xAxis.axisLabel.rotate: 45
 - Date format: "MMM YYYY" or "YYYY-MM" on axes
+- For radar charts: use encode: { itemName: "<label_col>", value: ["<col1>", ...] }
+- For scatter3D: use encode: { x: "<col>", y: "<col>", z: "<col>" } and visualMap
 
 ## CONSTRAINTS
 
 - NEVER fabricate data. Every number must come from execute_sql results.
 - NEVER call publish_chart without first calling summarize_data.
-- ALWAYS call control_map in PARALLEL with execute_sql when a location is involved.
-- Call set_conversation_title ONCE at the end of the first turn only.
+- ALWAYS call control_map IN PARALLEL with execute_sql when a location is involved.
+- On your FIRST response turn, call set_conversation_title IN PARALLEL with execute_sql.
+  It is idempotent — safe to include even if called on a resumed conversation.
 - If a query returns 0 rows, tell the user — do not generate an empty chart.
 - Keep prose concise. Let the chart do the heavy lifting.
 """
@@ -618,84 +622,152 @@ the full chart config. You only design structure, style, axes, and encode mappin
 
 ### 7.2 Few-Shot Examples
 
-One complete worked example is sufficient to establish the tool-call pattern. Additional examples for chart types (pie, scatter, heatmap) can be appended as needed.
+Two complete worked examples cover the core patterns: parallel `set_conversation_title` + `execute_sql` on the first turn, parallel `control_map` + `execute_sql` on a location query, and advanced ECharts chart types. Additional examples for other chart types can be appended as needed.
 
 ```python
 FEW_SHOT_EXAMPLES: list = [
-    HumanMessage(content="Show me the breakdown of alert severity in Sindh this year."),
 
+    # ════════════════════════════════════════════════════════════════════════
+    # EXAMPLE 1 — Scatter3D
+    # Shows: set_conversation_title in parallel on first turn, no location query
+    # Query: 3D breakdown of alert counts by province, event type, and severity
+    # ════════════════════════════════════════════════════════════════════════
+
+    HumanMessage(content="Give me a 3D breakdown of alert counts by province and event type this year."),
+
+    # ── Turn 1: query DB + set title in parallel ──────────────────────────
     AIMessage(
-        content="I'll query the alert data for Sindh and prepare a visualization.",
+        content="I'll query the alert data and build a 3D visualization — let me also title this conversation.",
         tool_calls=[
             {
                 "id": "call_sql_1", "name": "execute_sql",
                 "args": {
                     "query": (
-                        "SELECT severity, COUNT(*) AS count "
+                        "SELECT province, category, severity, COUNT(*) AS count "
                         "FROM alert_search_index "
-                        "WHERE 'Sindh' = ANY(affected_places) "
-                        "  AND posted_date >= date_trunc('year', CURRENT_DATE) "
-                        "GROUP BY severity "
-                        "ORDER BY CASE severity "
-                        "  WHEN 'Extreme' THEN 1 WHEN 'Severe' THEN 2 "
-                        "  WHEN 'Moderate' THEN 3 WHEN 'Minor' THEN 4 ELSE 5 END"
+                        "WHERE effective_from >= date_trunc('year', CURRENT_DATE) "
+                        "GROUP BY province, category, severity "
+                        "ORDER BY count DESC "
+                        "LIMIT 200"
                     )
                 }
             },
             {
-                "id": "call_map_1", "name": "control_map",
-                "args": {
-                    "place_names": ["Sindh"]
-                }
+                "id": "call_title_1", "name": "set_conversation_title",
+                "args": {"title": "3D alert breakdown — province & event type"}
             }
         ]
     ),
-
     ToolMessage(
-        content='{"columns":["severity","count"],"rows":[{"severity":"Extreme","count":8},{"severity":"Severe","count":22},{"severity":"Moderate","count":35},{"severity":"Minor","count":14}],"row_count":4}',
+        content=json.dumps({
+            "columns": ["province", "category", "severity", "count"],
+            "rows": [
+                {"province": "Punjab",      "category": "Met",   "severity": "Moderate", "count": 42},
+                {"province": "Sindh",       "category": "Met",   "severity": "Severe",   "count": 35},
+                {"province": "Balochistan", "category": "Geo",   "severity": "Severe",   "count": 22},
+                {"province": "Sindh",       "category": "Met",   "severity": "Extreme",  "count": 18},
+                {"province": "KPK",         "category": "Geo",   "severity": "Severe",   "count": 14},
+                {"province": "KPK",         "category": "Met",   "severity": "Extreme",  "count": 12},
+                {"province": "Punjab",      "category": "Infra", "severity": "Moderate", "count": 11},
+                {"province": "Balochistan", "category": "Met",   "severity": "Minor",    "count": 9},
+            ],
+            "row_count": 8
+        }),
         tool_call_id="call_sql_1"
     ),
     ToolMessage(
-        content='{"unioned_polygon":{"type":"Polygon","coordinates":[[[66.5,23.5],[67.0,23.5],[67.0,24.0],[66.5,24.0],[66.5,23.5]]]},"centroid":{"type":"Point","coordinates":[68.5,26.0]},"bbox":{"type":"Polygon","coordinates":[[[60.5,23.5],[75.0,23.5],[75.0,28.5],[60.5,28.5],[60.5,23.5]]]}}',
-        tool_call_id="call_map_1"
+        content=json.dumps({"ok": True, "title": "3D alert breakdown — province & event type"}),
+        tool_call_id="call_title_1"
     ),
 
+    # ── Turn 2: summarize ─────────────────────────────────────────────────
     AIMessage(
         content="",
         tool_calls=[{
             "id": "call_sum_1", "name": "summarize_data",
             "args": {
-                "columns": ["severity", "count"],
+                "columns": ["province", "category", "severity", "count"],
                 "rows": [
-                    {"severity": "Extreme", "count": 8},
-                    {"severity": "Severe", "count": 22},
-                    {"severity": "Moderate", "count": 35},
-                    {"severity": "Minor", "count": 14}
+                    {"province": "Punjab",      "category": "Met",   "severity": "Moderate", "count": 42},
+                    {"province": "Sindh",       "category": "Met",   "severity": "Severe",   "count": 35},
+                    {"province": "Balochistan", "category": "Geo",   "severity": "Severe",   "count": 22},
+                    {"province": "Sindh",       "category": "Met",   "severity": "Extreme",  "count": 18},
+                    {"province": "KPK",         "category": "Geo",   "severity": "Severe",   "count": 14},
+                    {"province": "KPK",         "category": "Met",   "severity": "Extreme",  "count": 12},
+                    {"province": "Punjab",      "category": "Infra", "severity": "Moderate", "count": 11},
+                    {"province": "Balochistan", "category": "Met",   "severity": "Minor",    "count": 9},
                 ]
             }
         }]
     ),
     ToolMessage(
-        content='{"shape":{"rows":4,"columns":2},"dtypes":{"severity":"object","count":"int64"},"describe":{"severity":{"count":"4","unique":"4","top":"Moderate","freq":"1"},"count":{"count":"4.0","mean":"19.75","min":"8.0","max":"35.0"}},"sample":[{"severity":"Extreme","count":8},{"severity":"Severe","count":22},{"severity":"Moderate","count":35},{"severity":"Minor","count":14}]}',
+        content=json.dumps({
+            "shape": {"rows": 8, "columns": 4},
+            "dtypes": {"province": "object", "category": "object", "severity": "object", "count": "int64"},
+            "describe": {
+                "province": {"unique": "4", "top": "Sindh"},
+                "category": {"unique": "3", "top": "Met"},
+                "severity": {"unique": "4", "top": "Moderate"},
+                "count": {"min": "9", "max": "42", "mean": "20.4"}
+            },
+            "sample": [
+                {"province": "Punjab", "category": "Met", "severity": "Moderate", "count": 42},
+                {"province": "Sindh",  "category": "Met", "severity": "Severe",   "count": 35}
+            ]
+        }),
         tool_call_id="call_sum_1"
     ),
 
+    # ── Turn 3: publish Scatter3D chart ───────────────────────────────────
     AIMessage(
         content="",
         tool_calls=[{
             "id": "call_chart_1", "name": "publish_chart",
             "args": {
-                "description": "Alert severity distribution in Sindh (current year)",
+                "description": "3D scatter of alert counts by province, event type, and severity (current year)",
                 "echart_options_json": json.dumps({
-                    "title": {"text": "Alert Severity in Sindh", "subtext": "Current year", "left": "center"},
+                    "backgroundColor": "#0d1117",
+                    "title": {
+                        "text": "Alert Distribution — Province × Event Type",
+                        "left": "center",
+                        "textStyle": {"color": "#e0e0e0", "fontSize": 14}
+                    },
                     "tooltip": {"trigger": "item"},
-                    "legend": {"bottom": 0},
-                    "color": ["#f5222d", "#ff7a45", "#faad14", "#52c41a"],
+                    "visualMap": {
+                        "show": True,
+                        "dimension": "count",
+                        "min": 9,
+                        "max": 42,
+                        "inRange": {
+                            "symbolSize": [5, 40],
+                            "color": ["#313695","#4575b4","#74add1","#fee090","#f46d43","#a50026"],
+                            "colorAlpha": [0.6, 1]
+                        },
+                        "textStyle": {"color": "#ccc"},
+                        "orient": "vertical",
+                        "right": 10
+                    },
+                    "xAxis3D": {
+                        "type": "category", "name": "Province",
+                        "nameTextStyle": {"color": "#aaa"}, "axisLabel": {"color": "#ccc"}
+                    },
+                    "yAxis3D": {
+                        "type": "category", "name": "Event Type",
+                        "nameTextStyle": {"color": "#aaa"}, "axisLabel": {"color": "#ccc"}
+                    },
+                    "zAxis3D": {
+                        "type": "value", "name": "Alert Count",
+                        "nameTextStyle": {"color": "#aaa"}, "axisLabel": {"color": "#ccc"}
+                    },
+                    "grid3D": {
+                        "axisLine": {"lineStyle": {"color": "#444"}},
+                        "axisPointer": {"lineStyle": {"color": "#666"}},
+                        "viewControl": {"autoRotate": False, "distance": 250, "alpha": 20, "beta": 40}
+                    },
                     "series": [{
-                        "type": "pie",
-                        "radius": ["40%", "70%"],
-                        "encode": {"itemName": "severity", "value": "count"},
-                        "emphasis": {"itemStyle": {"shadowBlur": 10}}
+                        "type": "scatter3D",
+                        "symbolSize": 8,
+                        "encode": {"x": "province", "y": "category", "z": "count"}
                     }]
                 })
             }
@@ -704,53 +776,206 @@ FEW_SHOT_EXAMPLES: list = [
     ToolMessage(
         content=json.dumps({
             "action": "render_chart",
-            "config": {
-                "title": {"text": "Alert Severity in Sindh", "subtext": "Current year", "left": "center"},
-                "tooltip": {"trigger": "item"},
-                "legend": {"bottom": 0},
-                "color": ["#f5222d", "#ff7a45", "#faad14", "#52c41a"],
-                "series": [{"type": "pie", "radius": ["40%", "70%"], "encode": {"itemName": "severity", "value": "count"}}]
-            },
-            "dataset": {
-                "source": [
-                    ["severity", "count"],
-                    ["Extreme", 8],
-                    ["Severe", 22],
-                    ["Moderate", 35],
-                    ["Minor", 14]
-                ]
-            },
-            "description": "Alert severity distribution in Sindh (current year)"
+            "config": {"backgroundColor": "#0d1117", "series": [{"type": "scatter3D", "encode": {"x": "province", "y": "category", "z": "count"}}]},
+            "dataset": {"source": [["province","category","severity","count"],["Punjab","Met","Moderate",42]]},
+            "description": "3D scatter of alert counts by province, event type, and severity (current year)"
         }),
         tool_call_id="call_chart_1"
     ),
 
+    # ── Turn 4: final response ────────────────────────────────────────────
     AIMessage(content=(
-        "Sindh currently has **79 alerts** active this year. "
-        "Moderate-severity alerts dominate (44%), while Extreme alerts "
-        "represent a concerning 10% of all active incidents.\n\n"
-        "| Severity | Count |\n"
-        "|---|---|\n"
-        "| Extreme | 8 |\n"
-        "| Severe | 22 |\n"
-        "| Moderate | 35 |\n"
-        "| Minor | 14 |\n\n"
-        "The map shows the Sindh boundary highlighted, and the donut chart "
-        "above breaks down the severity distribution in full."
+        "Here's the 3D breakdown of alerts issued this year across provinces and event types.\n\n"
+        "| Province | Category | Severity | Count |\n"
+        "|---|---|---|---|\n"
+        "| Punjab | Met | Moderate | 42 |\n"
+        "| Sindh | Met | Severe | 35 |\n"
+        "| Balochistan | Geo | Severe | 22 |\n"
+        "| Sindh | Met | Extreme | 18 |\n"
+        "| KPK | Geo | Severe | 14 |\n\n"
+        "**Meteorological events dominate** across all provinces, with Punjab recording the "
+        "highest single combination (42 moderate-severity weather alerts). "
+        "Balochistan stands out for geological activity (22 severe events), "
+        "reflecting its seismically active terrain. Bubble size and color both encode alert count — "
+        "rotate the 3D view to explore clusters by axis."
     )),
 
-    # ── Final turn: set a descriptive title now that intent is clear ──
+
+    # ════════════════════════════════════════════════════════════════════════
+    # EXAMPLE 2 — Radar
+    # Shows: control_map in parallel with execute_sql for a multi-province query
+    # Query: disaster category profile comparison across Pakistan's provinces
+    # ════════════════════════════════════════════════════════════════════════
+
+    HumanMessage(content="Compare the disaster alert profiles across Pakistan's main provinces."),
+
+    # ── Turn 1: query DB + move map in parallel ───────────────────────────
+    AIMessage(
+        content="I'll query the per-province category breakdown and highlight all four provinces on the map.",
+        tool_calls=[
+            {
+                "id": "call_sql_1", "name": "execute_sql",
+                "args": {
+                    "query": (
+                        "SELECT province, "
+                        "  SUM(CASE WHEN category = 'Met'    THEN 1 ELSE 0 END) AS met_alerts, "
+                        "  SUM(CASE WHEN category = 'Geo'    THEN 1 ELSE 0 END) AS geo_alerts, "
+                        "  SUM(CASE WHEN category = 'Health' THEN 1 ELSE 0 END) AS health_alerts, "
+                        "  SUM(CASE WHEN category = 'Infra'  THEN 1 ELSE 0 END) AS infra_alerts, "
+                        "  SUM(CASE WHEN category = 'Rescue' THEN 1 ELSE 0 END) AS rescue_alerts "
+                        "FROM alert_search_index "
+                        "WHERE province IN ('KPK','Sindh','Punjab','Balochistan') "
+                        "  AND effective_from >= NOW() - INTERVAL '1 year' "
+                        "GROUP BY province ORDER BY province"
+                    )
+                }
+            },
+            {
+                "id": "call_map_1", "name": "control_map",
+                "args": {"place_names": ["KPK", "Sindh", "Punjab", "Balochistan"]}
+            }
+        ]
+    ),
+    ToolMessage(
+        content=json.dumps({
+            "columns": ["province","met_alerts","geo_alerts","health_alerts","infra_alerts","rescue_alerts"],
+            "rows": [
+                {"province": "Balochistan", "met_alerts": 22, "geo_alerts": 28, "health_alerts": 2,  "infra_alerts": 6,  "rescue_alerts": 15},
+                {"province": "KPK",         "met_alerts": 48, "geo_alerts": 15, "health_alerts": 5,  "infra_alerts": 8,  "rescue_alerts": 12},
+                {"province": "Punjab",      "met_alerts": 38, "geo_alerts": 2,  "health_alerts": 8,  "infra_alerts": 24, "rescue_alerts": 4},
+                {"province": "Sindh",       "met_alerts": 62, "geo_alerts": 3,  "health_alerts": 12, "infra_alerts": 18, "rescue_alerts": 6},
+            ],
+            "row_count": 4
+        }),
+        tool_call_id="call_sql_1"
+    ),
+    ToolMessage(
+        content=json.dumps({
+            "action": "map_update",
+            "unioned_polygon": {"type": "MultiPolygon", "coordinates": []},
+            "centroid": {"type": "Point", "coordinates": [69.0, 30.0]},
+            "bbox": {"type": "Polygon", "coordinates": [[[60.0,23.0],[60.0,37.0],[77.0,37.0],[77.0,23.0],[60.0,23.0]]]}
+        }),
+        tool_call_id="call_map_1"
+    ),
+
+    # ── Turn 2: summarize ─────────────────────────────────────────────────
     AIMessage(
         content="",
         tool_calls=[{
-            "id": "call_title_1", "name": "set_conversation_title",
-            "args": {"title": "Alert severity breakdown — Sindh 2025"}
+            "id": "call_sum_1", "name": "summarize_data",
+            "args": {
+                "columns": ["province","met_alerts","geo_alerts","health_alerts","infra_alerts","rescue_alerts"],
+                "rows": [
+                    {"province": "Balochistan", "met_alerts": 22, "geo_alerts": 28, "health_alerts": 2,  "infra_alerts": 6,  "rescue_alerts": 15},
+                    {"province": "KPK",         "met_alerts": 48, "geo_alerts": 15, "health_alerts": 5,  "infra_alerts": 8,  "rescue_alerts": 12},
+                    {"province": "Punjab",      "met_alerts": 38, "geo_alerts": 2,  "health_alerts": 8,  "infra_alerts": 24, "rescue_alerts": 4},
+                    {"province": "Sindh",       "met_alerts": 62, "geo_alerts": 3,  "health_alerts": 12, "infra_alerts": 18, "rescue_alerts": 6},
+                ]
+            }
         }]
     ),
     ToolMessage(
-        content='{"ok": true, "title": "Alert severity breakdown — Sindh 2025"}',
-        tool_call_id="call_title_1"
+        content=json.dumps({
+            "shape": {"rows": 4, "columns": 6},
+            "dtypes": {"province": "object", "met_alerts": "int64", "geo_alerts": "int64", "health_alerts": "int64", "infra_alerts": "int64", "rescue_alerts": "int64"},
+            "describe": {
+                "met_alerts":    {"min": "22", "max": "62", "mean": "42.5"},
+                "geo_alerts":    {"min": "2",  "max": "28", "mean": "12.0"},
+                "infra_alerts":  {"min": "6",  "max": "24", "mean": "14.0"},
+                "rescue_alerts": {"min": "4",  "max": "15", "mean": "9.25"}
+            },
+            "sample": [
+                {"province": "Balochistan", "met_alerts": 22, "geo_alerts": 28},
+                {"province": "Sindh",       "met_alerts": 62, "geo_alerts": 3}
+            ]
+        }),
+        tool_call_id="call_sum_1"
     ),
+
+    # ── Turn 3: publish Radar chart ───────────────────────────────────────
+    AIMessage(
+        content="",
+        tool_calls=[{
+            "id": "call_chart_1", "name": "publish_chart",
+            "args": {
+                "description": "Disaster alert profile comparison across Pakistan's four main provinces",
+                "echart_options_json": json.dumps({
+                    "backgroundColor": "#0d1117",
+                    "title": {
+                        "text": "Provincial Disaster Alert Profiles",
+                        "left": "center",
+                        "textStyle": {"color": "#e0e0e0", "fontSize": 14}
+                    },
+                    "legend": {
+                        "bottom": 5,
+                        "textStyle": {"color": "#ccc", "fontSize": 12},
+                        "selectedMode": "single"
+                    },
+                    "tooltip": {"trigger": "item"},
+                    "radar": {
+                        "indicator": [
+                            {"name": "Meteorological", "max": 70},
+                            {"name": "Geological",     "max": 35},
+                            {"name": "Health",         "max": 15},
+                            {"name": "Infrastructure", "max": 30},
+                            {"name": "Rescue",         "max": 20}
+                        ],
+                        "shape": "circle",
+                        "splitNumber": 5,
+                        "axisName": {"color": "#91cc75"},
+                        "splitLine": {
+                            "lineStyle": {
+                                "color": [
+                                    "rgba(145,204,117,0.1)", "rgba(145,204,117,0.2)",
+                                    "rgba(145,204,117,0.4)", "rgba(145,204,117,0.6)",
+                                    "rgba(145,204,117,0.8)", "rgba(145,204,117,1.0)"
+                                ]
+                            }
+                        },
+                        "splitArea": {"show": False},
+                        "axisLine": {"lineStyle": {"color": "rgba(145,204,117,0.3)"}}
+                    },
+                    "color": ["#5470c6", "#91cc75", "#fac858", "#ee6666"],
+                    "series": [{
+                        "type": "radar",
+                        "encode": {
+                            "itemName": "province",
+                            "value": ["met_alerts","geo_alerts","health_alerts","infra_alerts","rescue_alerts"]
+                        },
+                        "symbol": "none",
+                        "lineStyle": {"width": 1.5, "opacity": 0.8},
+                        "areaStyle": {"opacity": 0.1}
+                    }]
+                })
+            }
+        }]
+    ),
+    ToolMessage(
+        content=json.dumps({
+            "action": "render_chart",
+            "config": {"backgroundColor": "#0d1117", "series": [{"type": "radar", "encode": {"itemName": "province", "value": ["met_alerts","geo_alerts","health_alerts","infra_alerts","rescue_alerts"]}}]},
+            "dataset": {"source": [["province","met_alerts","geo_alerts","health_alerts","infra_alerts","rescue_alerts"],["Balochistan",22,28,2,6,15],["KPK",48,15,5,8,12],["Punjab",38,2,8,24,4],["Sindh",62,3,12,18,6]]},
+            "description": "Disaster alert profile comparison across Pakistan's four main provinces"
+        }),
+        tool_call_id="call_chart_1"
+    ),
+
+    # ── Turn 4: final response ────────────────────────────────────────────
+    AIMessage(content=(
+        "Each axis of the radar represents a disaster category — each polygon one province.\n\n"
+        "| Province | Met | Geo | Health | Infra | Rescue |\n"
+        "|---|---|---|---|---|---|\n"
+        "| Sindh | 62 | 3 | 12 | 18 | 6 |\n"
+        "| KPK | 48 | 15 | 5 | 8 | 12 |\n"
+        "| Punjab | 38 | 2 | 8 | 24 | 4 |\n"
+        "| Balochistan | 22 | 28 | 2 | 6 | 15 |\n\n"
+        "**Sindh** leads on meteorological alerts, driven by monsoon flooding. "
+        "**Balochistan** has the highest geological risk — nearly 10× its meteorological count — "
+        "reflecting seismic and landslide activity. **Punjab** stands out for infrastructure alerts, "
+        "consistent with its dense urban and road network. "
+        "Use the legend to isolate individual provinces for a clearer comparison."
+    )),
 ]
 ```
 
@@ -789,13 +1014,13 @@ from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import SystemMessage, ToolMessage
 from .state import AgentState
-from .tools import execute_sql, summarize_data, publish_chart, control_map
+from .tools import execute_sql, summarize_data, publish_chart, control_map, set_conversation_title
 from .prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
 from .llm_factory import get_model
 from .config import settings
 import json
 
-ALL_TOOLS = [execute_sql, summarize_data, publish_chart, control_map]
+ALL_TOOLS = [execute_sql, summarize_data, publish_chart, control_map, set_conversation_title]
 
 
 def build_graph():
@@ -853,8 +1078,8 @@ def build_graph():
                     "dataset": content.get("dataset", {}),
                     "description": content.get("description", "")
                 })
-            elif action in ("fly_to", "highlight"):
-                ui_actions.append({"action": action, "payload": content})
+            elif action == "map_update":
+                ui_actions.append({"action": "map_update", "payload": content})
 
         return {"ui_actions": ui_actions, "query_results": query_results}
 
@@ -969,17 +1194,18 @@ def save_messages(
 def ensure_conversation(
     user_id: str,
     conversation_id: Optional[str],
-    first_message: str
 ) -> str:
-    """Create a new conversation if needed. Returns the conversation_id."""
+    """
+    Create a new conversation (with no title) if needed. Returns the conversation_id.
+    The title is set later by the LLM via the set_conversation_title tool.
+    """
     client = get_supabase()
     if conversation_id:
         return conversation_id
 
-    title = first_message[:60] + ("…" if len(first_message) > 60 else "")
     result = (
         client.table("conversations")
-        .insert({"user_id": user_id, "title": title})
+        .insert({"user_id": user_id})
         .execute()
     )
     return result.data[0]["id"]
@@ -1057,7 +1283,15 @@ Every chunk sent over SSE follows a single discriminated-union schema. The React
     "description": "Alert severity in Sindh"
   }
 }
-{ "event": "ui_action",   "data": { "action": "highlight", "center": [68.5, 26.0], "zoom": 7, "geometry": […] } }
+{ "event": "ui_action",   "data": {
+    "action": "map_update",
+    "payload": {
+      "unioned_polygon": { "type": "MultiPolygon", "coordinates": […] },
+      "centroid":        { "type": "Point", "coordinates": [68.5, 26.0] },
+      "bbox":            { "type": "Polygon", "coordinates": […] }
+    }
+  }
+}
 { "event": "error",       "data": { "content": "Database error: …" } }
 ```
 
@@ -1102,7 +1336,7 @@ app = FastAPI(title="REACH Analytics Agent", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],   # Restrict to your frontend domain in production
-    allow_methods=["POST"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -1123,19 +1357,20 @@ def _sse(event: str, data: dict) -> str:
 
 
 STATUS_MAP = {
-    "execute_sql":    "Querying database…",
-    "summarize_data": "Analyzing data structure…",
-    "publish_chart":  "Rendering visualization…",
-    "control_map":    "Updating map view…",
+    "execute_sql":              "Querying database…",
+    "summarize_data":           "Analyzing data structure…",
+    "publish_chart":            "Rendering visualization…",
+    "control_map":              "Updating map view…",
+    "set_conversation_title":   "Saving conversation…",
 }
 
 
 # ── Core streaming generator ─────────────────────────────────────────────────
 
 async def stream_agent(request: ChatRequest):
-    # 1. Ensure conversation exists
+    # 1. Ensure conversation exists (title set later by LLM tool)
     conversation_id = ensure_conversation(
-        request.user_id, request.conversation_id, request.message
+        request.user_id, request.conversation_id
     )
 
     # 2. Load history and prepend to new message
@@ -1145,6 +1380,7 @@ async def stream_agent(request: ChatRequest):
     initial_state: AgentState = {
         "messages": history + [user_message],
         "ui_actions": [],
+        "query_results": None,
         "conversation_id": conversation_id,
         "user_id": request.user_id,
     }
@@ -1205,7 +1441,7 @@ async def stream_agent(request: ChatRequest):
                     yield _sse("ui_action", payload)
                     final_ui_state = payload
 
-                elif action in ("fly_to", "highlight"):
+                elif action == "map_update":
                     yield _sse("ui_action", output)
                     final_ui_state = output
 
@@ -1353,7 +1589,7 @@ The React client consumes the SSE stream with the `EventSource` API (or `fetch` 
 | `status` | Set `agentStatus` label |
 | `data_preview` | Show row count badge inside the chat bubble |
 | `ui_action { action: "render_chart" }` | Initial render: `setOption({ ...config, dataset })`. Data-only update: `setOption({ dataset }, false)` |
-| `ui_action { action: "highlight" \| "fly_to" }` | Call `map.flyTo()` / add GeoJSON source layer in Mapbox |
+| `ui_action { action: "map_update" }` | `map.flyTo(centroid.coordinates)` + `map.fitBounds(bbox)` + add `unioned_polygon` as a GeoJSON highlight layer |
 | `[DONE]` | Clear `agentStatus`, unlock input, flush `currentMessage` to history |
 
 Branching is handled by passing `parent_id` (the `id` of the message being edited) with the new request, then replacing the subsequent messages in local state.
@@ -1382,12 +1618,12 @@ LangGraph (agent)
     │    │                    builds dataset.source as array-of-arrays with pandas
     │    │                    validates ECharts config (encode mappings only, no data)
     │    │                    returns config + dataset as separate keys
-    │    ├─ control_map ──► get_places RPC → unioned_polygon, centroid, bbox
-    │    └─ set_conversation_title ──► UPDATE conversations SET title (first turn only)
+    │    ├─ control_map ──► get_places RPC → { action:"map_update", unioned_polygon, centroid, bbox }
+    │    └─ set_conversation_title ──► UPDATE conversations SET title WHERE title IS NULL (first turn, idempotent)
     │        │
     │        ▼
     │   process_results
-    │    ├─ promotes ui_actions (render_chart {config,dataset}, fly_to, highlight)
+    │    ├─ promotes ui_actions (render_chart {config,dataset}, map_update)
     │    └─ writes execute_sql rows → state["query_results"]
     │        │
     │        └──────────────► back to reasoner
@@ -1400,7 +1636,7 @@ SSE stream → React client
     ├─ status events → "Querying database…" badge
     ├─ ui_action render_chart → setOption({ ...config, dataset })
     │                           data-only refresh → setOption({ dataset }, false)
-    └─ ui_action highlight/fly_to → Mapbox camera
+    └─ ui_action map_update → flyTo(centroid) + fitBounds(bbox) + highlight layer
     │
 FastAPI (after stream)
     └─ save_messages → Supabase messages table

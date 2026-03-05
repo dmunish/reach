@@ -224,3 +224,29 @@ def control_map(place_names: List[str]) -> dict:
         }
     except Exception as e:
         return {"error": str(e)}
+
+@tool
+def set_conversation_title(title: str, state: Annotated[AgentState, InjectedState]) -> dict:
+    """
+    Set a descriptive title for the current conversation.
+
+    Call this ONCE on your first response turn, in PARALLEL with execute_sql.
+    Keep the title short (under 60 characters) and specific to the user's query.
+    Examples: "Flood alerts in Sindh — 2025", "KPK extreme weather frequency"
+
+    Do NOT call this on subsequent turns — it is a no-op if a title already exists.
+    """
+    conversation_id = state.get("conversation_id")
+    if not conversation_id:
+        return {"error": "No conversation_id in state."}
+
+    try:
+        client = get_supabase()
+        client.table("conversations") \
+            .update({"title": title[:60]}) \
+            .eq("id", conversation_id) \
+            .is_("title", "null") \
+            .execute()
+        return {"ok": True, "title": title[:60]}
+    except Exception as e:
+        return {"error": str(e)}

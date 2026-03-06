@@ -75,7 +75,7 @@ sglang_image = (
     .env({
         "HF_HUB_ENABLE_HF_TRANSFER": "1",
         "DEEPGEMM_CACHE_DIR": KERNEL_DIR,
-        "SGL_ENABLE_JIT_DEEPGEMM": "1",
+        "SGL_ENABLE_JIT_DEEPGEMM": "0",
     })
     .run_function(
         _download_model,
@@ -92,7 +92,7 @@ sglang_image = (
 app = modal.App("inference")
 
 
-def _wait_for_server(timeout: int = 300):
+def _wait_for_server(timeout: int = 600):
     import urllib.request
     import urllib.error
     deadline = time.time() + timeout
@@ -157,16 +157,18 @@ class SGLangServer:
         #   latency-first serving. Reduces GPU memory overhead.
 
         cmd = [
-            SGLANG_PYTHON, "-m", "sglang.launch_server",
+            "/usr/bin/python3", "-m", "sglang.launch_server",
             "--model-path",         MODEL_DIR,
             "--host",               "0.0.0.0",
             "--port",               str(SGLANG_PORT),
-            "--tp",                 str(1),
+            "--tp",                 "1",
             "--quantization",       "fp8",
             "--context-length",     "16384",
             "--chunked-prefill-size", "512",
             "--cuda-graph-max-bs",  "8",
-            "--api-key", os.environ.get("INFERENCE")
+            "--api-key", os.environ.get("INFERENCE"),
+            "--disable-cuda-graph-padding",  # reduces warmup work
+            "--enable-mixed-chunk"         # better for MoE throughput
         ]
         print("Starting SGLang:", " ".join(cmd))
         self._server = subprocess.Popen(cmd)

@@ -216,5 +216,5 @@ FEW_SHOT_EXAMPLES: list = [
         "| Minor | 14 |\n\n"
         "The map shows the Sindh boundary highlighted, and the donut chart "
         "above breaks down the severity distribution in full."
-    )),
+    ))
 ]

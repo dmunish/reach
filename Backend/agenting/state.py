@@ -4,7 +4,7 @@ import operator
 
 class UIAction(TypedDict):
     """A typed command for the React frontend to execute."""
-    action: str      # "map" | "chart"
+    action: str      # "map_update" | "chart"
     payload: dict
 
 

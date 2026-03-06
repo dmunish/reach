@@ -61,7 +61,7 @@ def build_graph():
                     "dataset": content.get("dataset", {}),
                     "description": content.get("description", "")
                 })
-            elif action in ("fly_to", "highlight"):
+            elif action == "map_update":
                 ui_actions.append({"action": action, "payload": content})
 
         return {"ui_actions": ui_actions, "query_results": query_results}

@@ -633,7 +633,7 @@ FEW_SHOT_EXAMPLES: list = [
     # Query: 3D breakdown of alert counts by province, event type, and severity
     # ════════════════════════════════════════════════════════════════════════
 
-    HumanMessage(content="Give me a 3D breakdown of alert counts by province and event type this year."),
+    HumanMessage(content="Give me a breakdown of alert counts by province and event type this year."),
 
     # ── Turn 1: query DB + set title in parallel ──────────────────────────
     AIMessage(
@@ -643,10 +643,13 @@ FEW_SHOT_EXAMPLES: list = [
                 "id": "call_sql_1", "name": "execute_sql",
                 "args": {
                     "query": (
-                        "SELECT province, category, severity, COUNT(*) AS count "
-                        "FROM alert_search_index "
-                        "WHERE effective_from >= date_trunc('year', CURRENT_DATE) "
-                        "GROUP BY province, category, severity "
+                        "SELECT p.name AS province, asi.category, asi.severity, COUNT(*) AS count "
+                        "FROM alert_search_index asi "
+                        "JOIN unnest(asi.place_ids) AS pid ON true "
+                        "JOIN places p ON p.id = pid "
+                        "WHERE p.hierarchy_level = 1 "
+                        "  AND asi.effective_from >= date_trunc('year', CURRENT_DATE) "
+                        "GROUP BY p.name, asi.category, asi.severity "
                         "ORDER BY count DESC "
                         "LIMIT 200"
                     )
@@ -654,7 +657,7 @@ FEW_SHOT_EXAMPLES: list = [
             },
             {
                 "id": "call_title_1", "name": "set_conversation_title",
-                "args": {"title": "3D alert breakdown — province & event type"}
+                "args": {"title": "Alert breakdown — province & event type"}
             }
         ]
     ),
@@ -735,7 +738,7 @@ FEW_SHOT_EXAMPLES: list = [
                     "tooltip": {"trigger": "item"},
                     "visualMap": {
                         "show": True,
-                        "dimension": "count",
+                        "dimension": 3,
                         "min": 9,
                         "max": 42,
                         "inRange": {
@@ -785,7 +788,7 @@ FEW_SHOT_EXAMPLES: list = [
 
     # ── Turn 4: final response ────────────────────────────────────────────
     AIMessage(content=(
-        "Here's the 3D breakdown of alerts issued this year across provinces and event types.\n\n"
+        "Here's the breakdown of alerts issued this year across provinces and event types.\n\n"
         "| Province | Category | Severity | Count |\n"
         "|---|---|---|---|\n"
         "| Punjab | Met | Moderate | 42 |\n"
@@ -817,16 +820,19 @@ FEW_SHOT_EXAMPLES: list = [
                 "id": "call_sql_1", "name": "execute_sql",
                 "args": {
                     "query": (
-                        "SELECT province, "
-                        "  SUM(CASE WHEN category = 'Met'    THEN 1 ELSE 0 END) AS met_alerts, "
-                        "  SUM(CASE WHEN category = 'Geo'    THEN 1 ELSE 0 END) AS geo_alerts, "
-                        "  SUM(CASE WHEN category = 'Health' THEN 1 ELSE 0 END) AS health_alerts, "
-                        "  SUM(CASE WHEN category = 'Infra'  THEN 1 ELSE 0 END) AS infra_alerts, "
-                        "  SUM(CASE WHEN category = 'Rescue' THEN 1 ELSE 0 END) AS rescue_alerts "
-                        "FROM alert_search_index "
-                        "WHERE province IN ('KPK','Sindh','Punjab','Balochistan') "
-                        "  AND effective_from >= NOW() - INTERVAL '1 year' "
-                        "GROUP BY province ORDER BY province"
+                        "SELECT p.name AS province, "
+                        "  SUM(CASE WHEN asi.category = 'Met'    THEN 1 ELSE 0 END) AS met_alerts, "
+                        "  SUM(CASE WHEN asi.category = 'Geo'    THEN 1 ELSE 0 END) AS geo_alerts, "
+                        "  SUM(CASE WHEN asi.category = 'Health' THEN 1 ELSE 0 END) AS health_alerts, "
+                        "  SUM(CASE WHEN asi.category = 'Infra'  THEN 1 ELSE 0 END) AS infra_alerts, "
+                        "  SUM(CASE WHEN asi.category = 'Rescue' THEN 1 ELSE 0 END) AS rescue_alerts "
+                        "FROM alert_search_index asi "
+                        "JOIN unnest(asi.place_ids) AS pid ON true "
+                        "JOIN places p ON p.id = pid "
+                        "WHERE p.hierarchy_level = 1 "
+                        "  AND p.name IN ('KPK','Sindh','Punjab','Balochistan') "
+                        "  AND asi.effective_from >= NOW() - INTERVAL '1 year' "
+                        "GROUP BY p.name ORDER BY p.name"
                     )
                 }
             },

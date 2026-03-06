@@ -2,6 +2,9 @@ from langchain_openai import ChatOpenAI
 import langchain_openai.chat_models.base as openai_base
 import os
 
+########################################################################
+## PRESERVED THINKING FOR BETTER AGENTIC PERFORMANCE WITH GLM 4.7
+########################################################################
 # 1. Save the original converter
 _original_convert_message_to_dict = openai_base._convert_message_to_dict
 
@@ -18,6 +21,9 @@ def custom_convert_message_to_dict(message):
 
 # 3. Apply the patch globally
 openai_base._convert_message_to_dict = custom_convert_message_to_dict
+
+########################################################################
+########################################################################
 
 def get_model():
     return ChatOpenAI(

@@ -1,6 +1,5 @@
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage
-from Backend.agenting import get_supabase
-import json
+from agenting import get_supabase
 from typing import Optional
 
 

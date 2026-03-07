@@ -2,8 +2,8 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 import json
 import pandas as pd
-from Backend.agenting import get_supabase
-from Backend.agenting.state import AgentState
+from agenting import get_supabase
+from agenting.state import AgentState
 from typing import Annotated, List
 
 

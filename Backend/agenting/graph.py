@@ -1,10 +1,10 @@
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import SystemMessage, ToolMessage
-from Backend.agenting.state import AgentState
-from Backend.agenting.tools import execute_sql, summarize_data, publish_chart, control_map
-from Backend.agenting.prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
-from Backend.agenting.config import get_model
+from agenting.state import AgentState
+from agenting.tools import execute_sql, summarize_data, publish_chart, control_map
+from agenting.prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
+from agenting.config import get_model
 import json
 
 TOOLS = [execute_sql, summarize_data, publish_chart, control_map]

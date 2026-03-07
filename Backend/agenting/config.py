@@ -31,6 +31,7 @@ def get_model():
         base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
         api_key=os.environ.get("CLOUDFLARE_API_KEY"),
         max_tokens=16384,
+        top_p=1.0,
         temperature=0.7,
         extra_body={
             "thinking": {

@@ -24,15 +24,13 @@ The agent is a **LangGraph-based, provider-agnostic AI pipeline** that lives ins
 
 ```
 agenting/
-├── agent.py              # FastAPI app — the only public interface
-├── graph.py              # LangGraph graph definition and compilation
-├── state.py              # AgentState TypedDict (single source of truth)
-├── tools.py              # All tool definitions (@tool decorated functions)
-├── prompts.py            # SYSTEM_PROMPT + FEW_SHOT_EXAMPLES
-├── llm_factory.py        # Provider-agnostic LLM factory
-├── persistence.py        # Supabase conversation & message persistence
-├── supabase_client.py    # Supabase singleton client
-└── config.py             # Pydantic settings (env vars, model defaults)
+├── agent.py              # FastAPI app — the public interface
+├── auth.py               # JWT verification & UserContext
+├── graph.py              # LangGraph definition & state transitions
+├── state.py              # AgentState & TypedDicts
+├── tools.py              # @tool functions (SQL, Charts, Maps)
+├── prompts.py            # System prompts & DB Schema definitions
+└── config.py             # NEW: Consolidated Config, DB, and LLM Factory
 ```
 
 The `agenting/` folder is a self-contained Python package. Nothing outside it should be imported — it connects to the existing Supabase instance via environment variables.
@@ -116,6 +114,83 @@ END;
 $$;
 ```
 
+### 3.5 Row-Level Security Policies
+
+RLS is **defense-in-depth** — it protects against direct database access (Supabase dashboard, anon key misuse, any future client-side queries). The FastAPI layer, not RLS, is the primary enforcement mechanism, since the backend uses the service role key which bypasses RLS intentionally.
+
+Enable RLS on both tables and define one policy per operation:
+
+```sql
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages      ENABLE ROW LEVEL SECURITY;
+
+-- ── conversations ─────────────────────────────────────────────────────────────
+-- All operations are scoped to the authenticated user's own rows.
+-- Anonymous users (is_anonymous = true) follow the same rules — they can read
+-- and write their own conversations, but the FastAPI layer blocks them from the
+-- history endpoints so they never reach these policies via the API.
+
+CREATE POLICY "conversations: owner full access"
+    ON conversations
+    FOR ALL
+    USING     (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+-- ── messages ──────────────────────────────────────────────────────────────────
+-- Messages are accessible only through conversations owned by the user.
+-- The join prevents any row-level bypass via a guessed conversation_id.
+
+CREATE POLICY "messages: owner read"
+    ON messages FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM conversations
+            WHERE conversations.id = messages.conversation_id
+              AND conversations.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "messages: owner insert"
+    ON messages FOR INSERT
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM conversations
+            WHERE conversations.id = messages.conversation_id
+              AND conversations.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "messages: owner delete"
+    ON messages FOR DELETE
+    USING (
+        EXISTS (
+            SELECT 1 FROM conversations
+            WHERE conversations.id = messages.conversation_id
+              AND conversations.user_id = auth.uid()
+        )
+    );
+```
+
+### 3.6 Anonymous Session Cleanup
+
+Anonymous users' conversations are not exposed via the API, but data still accumulates in the database. A nightly `pg_cron` job purges conversations belonging to anonymous users older than 30 days. The `ON DELETE CASCADE` on `messages.conversation_id` means messages are removed automatically.
+
+```sql
+-- Requires pg_cron extension (enabled by default on Supabase)
+SELECT cron.schedule(
+    'cleanup-anonymous-conversations',
+    '0 3 * * *',   -- daily at 03:00 UTC
+    $$
+        DELETE FROM conversations
+        WHERE user_id IN (
+            SELECT id FROM auth.users
+            WHERE  is_anonymous = true
+            AND    created_at < NOW() - INTERVAL '30 days'
+        );
+    $$
+);
+```
+
 ---
 
 ## 4. Agent State
@@ -179,7 +254,7 @@ Runs a read-only SQL query via the `execute_readonly_sql` RPC. A secondary keywo
 # agenting/tools.py (excerpt)
 
 from langchain_core.tools import tool
-from .supabase_client import get_supabase
+from .config import get_supabase
 
 FORBIDDEN_KEYWORDS = frozenset({
     "drop", "delete", "update", "insert",
@@ -429,87 +504,27 @@ def set_conversation_title(
 
 ## 6. LLM Factory
 
-`llm_factory.py` decouples the graph from any specific provider. Adding a new provider is a one-line addition to the `elif` chain.
-
-```python
-# agenting/llm_factory.py
-
-import os
-from langchain_core.language_models.chat_models import BaseChatModel
-
-
-def get_model(provider: str, model_name: str, temperature: float = 0) -> BaseChatModel:
-    """
-    Return a LangChain-compatible chat model for the given provider.
-    All returned models support .bind_tools() and streaming.
-    """
-
-    if provider in ("novita", "together", "deepseek", "modal", "openai-compat"):
-        from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
-            model=model_name,
-            openai_api_key=os.environ[f"{provider.upper()}_API_KEY"],
-            openai_api_base=os.environ[f"{provider.upper()}_BASE_URL"],
-            temperature=temperature,
-            streaming=True,
-        )
-
-    elif provider == "google":
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        return ChatGoogleGenerativeAI(
-            model=model_name,
-            google_api_key=os.environ["GOOGLE_API_KEY"],
-            temperature=temperature,
-        )
-
-    elif provider == "openai":
-        from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
-            model=model_name,
-            temperature=temperature,
-            streaming=True,
-        )
-
-    elif provider == "litellm":
-        # Universal bridge — handles 100+ providers via LiteLLM
-        from langchain_community.chat_models import ChatLiteLLM
-        return ChatLiteLLM(model=model_name, temperature=temperature)
-
-    raise ValueError(f"Unsupported provider: '{provider}'")
-```
-
-**Provider configuration** lives in `.env`:
-
-```dotenv
-# Active model (change these two lines to swap providers)
-LLM_PROVIDER=google
-LLM_MODEL=gemini-2.5-flash
-
-# Provider credentials
-GOOGLE_API_KEY=...
-NOVITA_API_KEY=...
-NOVITA_BASE_URL=https://api.novita.ai/v3/openai
-MODAL_API_KEY=...
-MODAL_BASE_URL=https://your-modal-endpoint/v1
-```
-
-`config.py` loads these via Pydantic `BaseSettings`:
 
 ```python
 # agenting/config.py
-from pydantic_settings import BaseSettings
+import os
+from langchain_openai import ChatOpenAI
+from supabase import create_client, Client
 
-class Settings(BaseSettings):
-    supabase_url: str
-    supabase_service_key: str
-    llm_provider: str = "google"
-    llm_model: str = "gemini-2.5-flash"
-    llm_temperature: float = 0.0
+def get_supabase() -> Client:
+    """Returns a synchronized Supabase client."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    return create_client(url, key)
 
-    class Config:
-        env_file = ".env"
-
-settings = Settings()
+def get_model():
+    """Returns the configured ChatOpenAI instance via Cloudflare AI Gateway."""
+    account_id = os.environ.get('CLOUDFLARE_ACCOUNT_ID')
+    return ChatOpenAI(
+        model="",
+        base_url="",
+        api_key=,
+    )
 ```
 
 ---
@@ -1022,7 +1037,7 @@ from langchain_core.messages import SystemMessage, ToolMessage
 from .state import AgentState
 from .tools import execute_sql, summarize_data, publish_chart, control_map, set_conversation_title
 from .prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
-from .llm_factory import get_model
+from .config import get_model
 from .config import settings
 import json
 
@@ -1125,11 +1140,13 @@ agent = build_graph()
 
 `persistence.py` handles reading conversation history from Supabase and writing messages back after each turn. It is called by the API endpoint, not by the graph — keeping the graph stateless and testable.
 
+All functions that read or delete data accept a `user_id` parameter and verify ownership before operating. This provides a second enforcement layer below the FastAPI auth guards, keeping the persistence layer independently safe.
+
 ```python
 # agenting/persistence.py
 
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage
-from .supabase_client import get_supabase
+from .config import get_supabase
 import json
 from typing import Optional
 
@@ -1234,10 +1251,11 @@ def list_conversations(user_id: str) -> list[dict]:
     return rows or []
 
 
-def load_messages_for_display(conversation_id: str) -> list[dict]:
+def load_messages_for_display(conversation_id: str, user_id: str) -> list[dict] | None:
     """
     Return all messages in a conversation for frontend rendering.
-    Returns raw dicts (not LangChain objects) — the frontend decides what to show.
+    Returns None if the conversation does not exist or does not belong to user_id —
+    the caller maps this to a 404. Returns raw dicts; the frontend decides what to show.
 
     Role rendering guide:
       user      → user chat bubble
@@ -1248,6 +1266,18 @@ def load_messages_for_display(conversation_id: str) -> list[dict]:
       tool, other → hidden or collapsed
     """
     client = get_supabase()
+
+    # Ownership check — prevents enumeration of other users' conversations
+    conv = (
+        client.table("conversations")
+        .select("user_id")
+        .eq("id", conversation_id)
+        .maybe_single()
+        .execute()
+    )
+    if not conv.data or conv.data["user_id"] != user_id:
+        return None
+
     rows = (
         client.table("messages")
         .select("id, role, content, tool_calls, tool_call_id, ui_state, created_at")
@@ -1257,11 +1287,119 @@ def load_messages_for_display(conversation_id: str) -> list[dict]:
         .data
     )
     return rows or []
+
+
+def delete_conversation(conversation_id: str, user_id: str) -> bool:
+    """
+    Delete a conversation and all its messages (cascaded by the DB).
+    Returns False if the conversation does not exist or does not belong to user_id.
+    The caller maps False to a 404.
+    """
+    client = get_supabase()
+    result = (
+        client.table("conversations")
+        .delete()
+        .eq("id", conversation_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    return len(result.data) > 0
 ```
 
 ---
 
-## 10. Streaming Protocol
+## 10. Auth Module
+
+`auth.py` is the only file that knows about JWTs. It exposes a single FastAPI dependency — `get_current_user` — that every protected endpoint injects. All other modules are auth-agnostic.
+
+### How it works
+
+Every request must carry an `Authorization: Bearer <token>` header. The token is the Supabase JWT issued either at `signIn` (authenticated users) or `signInAnonymously` (anonymous users). Both token types are structurally identical — the `is_anonymous` claim in the payload is the only difference.
+
+The dependency verifies the token's signature with the `SUPABASE_JWT_SECRET`, extracts `sub` (user_id) and `is_anonymous`, and returns a frozen `UserContext`. Endpoints that require a full account call `_require_authenticated(user)`, which raises a clean 403.
+
+```python
+# agenting/auth.py
+
+from dataclasses import dataclass
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import ExpiredSignatureError, JWTError, jwt
+from .config import settings
+
+_bearer = HTTPBearer()
+
+
+@dataclass(frozen=True)
+class UserContext:
+    user_id: str       # Supabase auth.users.id (UUID as string)
+    is_anonymous: bool
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> UserContext:
+    """
+    Verify the Supabase JWT and return a UserContext.
+
+    Raises:
+        401 — token missing, malformed, or expired
+        401 — token lacks a 'sub' claim
+    """
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.supabase_jwt_secret,
+            algorithms=["HS256"],
+            options={"verify_aud": False},  # Supabase JWTs omit 'aud' by default
+        )
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id: str | None = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token is missing subject claim.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return UserContext(
+        user_id=user_id,
+        is_anonymous=payload.get("is_anonymous", False),
+    )
+
+
+def require_authenticated(user: UserContext) -> None:
+    """
+    Raise 403 if the user holds an anonymous session.
+    Call this at the top of any endpoint that requires a full account.
+    """
+    if user.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This endpoint requires a logged-in account. "
+                   "Sign up or log in to access conversation history.",
+        )
+```
+
+### Anonymous-to-authenticated upgrade
+
+When an anonymous user creates a full account, Supabase's `linkIdentity()` / sign-up flow **preserves their existing `auth.users.id`**. Their `user_id` does not change. All conversations written during the anonymous session automatically become visible in their new authenticated account — no migration required.
+
+---
+
+## 11. Streaming Protocol
 
 Every chunk sent over SSE follows a single discriminated-union schema. The React client switches on `event` to decide where to route the payload.
 
@@ -1313,26 +1451,39 @@ echartsInstance.setOption({ dataset }, false)  // notMerge: false → merges int
 
 ---
 
-## 11. FastAPI Endpoint
+---
+
+## 12. FastAPI Endpoint
 
 `agent.py` is the **only public file** in `agenting/`. It:
 
-1. Validates the request with Pydantic.
-2. Loads conversation history from Supabase.
-3. Runs the graph with `astream_events`.
-4. Translates LangGraph events into the typed SSE protocol above.
-5. Persists new messages after the stream completes.
+1. Verifies the JWT via `Depends(get_current_user)` on every request.
+2. Enforces anonymous access restrictions before any DB or graph work.
+3. Loads conversation history from Supabase.
+4. Runs the graph with `astream_events`.
+5. Translates LangGraph events into the typed SSE protocol above.
+6. Persists new messages after the stream completes.
+
+`user_id` is never read from the request body — it is always sourced from the verified `UserContext`.
 
 ```python
 # agenting/agent.py
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
+from .auth import UserContext, get_current_user, require_authenticated
 from .graph import agent
-from .persistence import load_history, save_messages, ensure_conversation, list_conversations, load_messages_for_display
+from .persistence import (
+    delete_conversation,
+    ensure_conversation,
+    list_conversations,
+    load_history,
+    load_messages_for_display,
+    save_messages,
+)
 from .state import AgentState
 import json
 from typing import Optional
@@ -1341,45 +1492,43 @@ app = FastAPI(title="REACH Analytics Agent", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # Restrict to your frontend domain in production
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    allow_origins=["*"],                        # Restrict to your frontend domain in production
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
-# ── Request / Response schemas ───────────────────────────────────────────────
+# ── Request schemas ───────────────────────────────────────────────────────────
 
 class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
-    parent_id: Optional[str] = None   # For branching: ID of message being edited
-    user_id: str                       # Passed by authenticated frontend
+    parent_id: Optional[str] = None            # For branching: ID of the message being edited
+    # user_id is intentionally absent — always sourced from the verified JWT
 
 
-# ── SSE helpers ──────────────────────────────────────────────────────────────
+# ── SSE helpers ───────────────────────────────────────────────────────────────
 
 def _sse(event: str, data: dict) -> str:
     return f"data: {json.dumps({'event': event, 'data': data})}\n\n"
 
 
 STATUS_MAP = {
-    "execute_sql":              "Querying database…",
-    "summarize_data":           "Analyzing data structure…",
-    "publish_chart":            "Rendering visualization…",
-    "control_map":              "Updating map view…",
-    "set_conversation_title":   "Saving conversation…",
+    "execute_sql":            "Querying database…",
+    "summarize_data":         "Analyzing data structure…",
+    "publish_chart":          "Rendering visualization…",
+    "control_map":            "Updating map view…",
+    "set_conversation_title": "Saving conversation…",
 }
 
 
-# ── Core streaming generator ─────────────────────────────────────────────────
+# ── Core streaming generator ──────────────────────────────────────────────────
 
-async def stream_agent(request: ChatRequest):
+async def stream_agent(request: ChatRequest, user: UserContext):
     # 1. Ensure conversation exists (title set later by LLM tool)
-    conversation_id = ensure_conversation(
-        request.user_id, request.conversation_id
-    )
+    conversation_id = ensure_conversation(user.user_id, request.conversation_id)
 
-    # 2. Load history and prepend to new message
+    # 2. Load history and build initial state
     history = load_history(conversation_id) if request.conversation_id else []
     user_message = HumanMessage(content=request.message)
 
@@ -1388,7 +1537,7 @@ async def stream_agent(request: ChatRequest):
         "ui_actions": [],
         "query_results": None,
         "conversation_id": conversation_id,
-        "user_id": request.user_id,
+        "user_id": user.user_id,
     }
 
     # 3. Collect generated messages for persistence after stream
@@ -1410,14 +1559,12 @@ async def stream_agent(request: ChatRequest):
                 tool_name = event["name"]
                 yield _sse("status", {
                     "tool": tool_name,
-                    "content": STATUS_MAP.get(tool_name, "Processing…")
+                    "content": STATUS_MAP.get(tool_name, "Processing…"),
                 })
 
             # ── Tool ends ────────────────────────────────────────────────
             elif kind == "on_tool_end":
-                tool_name = event["name"]
                 raw = event["data"].get("output", "")
-
                 try:
                     output = json.loads(raw) if isinstance(raw, str) else raw
                 except (json.JSONDecodeError, TypeError):
@@ -1426,23 +1573,21 @@ async def stream_agent(request: ChatRequest):
                 if not isinstance(output, dict):
                     continue
 
-                # Data preview (execute_sql result)
+                # Data preview after execute_sql
                 if "row_count" in output:
                     yield _sse("data_preview", {
                         "row_count": output["row_count"],
-                        "columns": output.get("columns", [])
+                        "columns": output.get("columns", []),
                     })
 
-                # UI actions (chart, map)
+                # UI actions — chart and map
                 action = output.get("action")
                 if action == "render_chart":
-                    # Pass config and dataset as separate keys — the frontend
-                    # merges them for first render and can update dataset-only later.
                     payload = {
                         "action": "render_chart",
                         "config": output.get("config", {}),
                         "dataset": output.get("dataset", {}),
-                        "description": output.get("description", "")
+                        "description": output.get("description", ""),
                     }
                     yield _sse("ui_action", payload)
                     final_ui_state = payload
@@ -1451,61 +1596,72 @@ async def stream_agent(request: ChatRequest):
                     yield _sse("ui_action", output)
                     final_ui_state = output
 
-            # ── Node ends: collect final messages for persistence ─────────
+            # ── Graph end: collect messages for persistence ───────────────
             elif kind == "on_chain_end" and event.get("name") == "LangGraph":
                 output_state = event["data"].get("output", {})
                 generated = output_state.get("messages", [])
-                # Only the messages after the history we loaded
                 new_messages.extend(generated[len(history):])
 
     except Exception as e:
         yield _sse("error", {"content": str(e)})
 
     finally:
-        # 4. Persist all new messages
+        # 4. Persist all new messages regardless of success/failure
         save_messages(
             conversation_id=conversation_id,
             messages=new_messages,
             parent_id=request.parent_id,
             ui_state=final_ui_state if final_ui_state else None,
         )
-        yield f"data: [DONE]\n\n"
+        yield "data: [DONE]\n\n"
 
 
-# ── Endpoint ─────────────────────────────────────────────────────────────────
+# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/chat")
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    user: UserContext = Depends(get_current_user),
+):
+    """
+    Start or continue a conversation. Available to all users (anonymous and authenticated).
+    Returns an SSE stream.
+    """
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
     return StreamingResponse(
-        stream_agent(request),
+        stream_agent(request, user),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",   # Prevent nginx from buffering SSE
+            "X-Accel-Buffering": "no",      # Prevent nginx from buffering SSE
         },
     )
 
 
 @app.get("/api/conversations")
-async def get_conversations(user_id: str):
+async def get_conversations(
+    user: UserContext = Depends(get_current_user),
+):
     """
-    Return the conversation list for the sidebar.
-    Ordered by most recently updated — no message content included.
+    List all conversations for the authenticated user, ordered by most recently updated.
+    Anonymous users receive 403.
 
     Response: [ { id, title, created_at, updated_at }, … ]
     """
-    if not user_id:
-        raise HTTPException(status_code=400, detail="user_id is required.")
-    return list_conversations(user_id)
+    require_authenticated(user)
+    return list_conversations(user.user_id)
 
 
 @app.get("/api/conversations/{conversation_id}/messages")
-async def get_messages(conversation_id: str):
+async def get_messages(
+    conversation_id: str,
+    user: UserContext = Depends(get_current_user),
+):
     """
-    Return all messages in a conversation for rendering a full chat history.
+    Load full message history for a conversation.
+    Anonymous users receive 403. A conversation belonging to a different user returns 404.
 
     Response: [ { id, role, content, tool_calls, tool_call_id, ui_state, created_at }, … ]
 
@@ -1513,11 +1669,30 @@ async def get_messages(conversation_id: str):
       role=user                              → user bubble
       role=assistant, content, no tool_calls → AI response bubble
       role=assistant, tool_calls             → optional collapsed "thinking" step
-      role=tool, action=render_chart         → ECharts component
-                                               (use ui_state.config + ui_state.dataset)
+      role=tool, action=render_chart         → ECharts component (use ui_state.config + dataset)
       role=tool, other                       → hidden or collapsed
     """
-    return load_messages_for_display(conversation_id)
+    require_authenticated(user)
+    messages = load_messages_for_display(conversation_id, user.user_id)
+    if messages is None:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    return messages
+
+
+@app.delete("/api/conversations/{conversation_id}")
+async def delete_conversation_endpoint(
+    conversation_id: str,
+    user: UserContext = Depends(get_current_user),
+):
+    """
+    Permanently delete a conversation and all its messages.
+    Anonymous users receive 403. A conversation belonging to a different user returns 404.
+    """
+    require_authenticated(user)
+    deleted = delete_conversation(conversation_id, user.user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    return {"ok": True}
 
 
 @app.get("/health")
@@ -1527,9 +1702,9 @@ async def health():
 
 ---
 
-## 12. Deployment
+## 13. Deployment
 
-### 12.1 Dependencies (`requirements.txt`)
+### 13.1 Dependencies (`requirements.txt`)
 
 ```
 langgraph>=0.2
@@ -1541,9 +1716,30 @@ fastapi>=0.115
 uvicorn[standard]>=0.30
 supabase>=2.9
 pydantic-settings>=2.0
+python-jose[cryptography]>=3.3
 ```
 
-### 12.2 Modal (recommended)
+### 13.2 Environment variables (`.env`)
+
+```dotenv
+# Supabase
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SERVICE_KEY=...          # Service role key — bypasses RLS, backend only
+SUPABASE_JWT_SECRET=...           # Settings → API → JWT Secret in the Supabase dashboard
+
+# Active model (change these two lines to swap providers)
+LLM_PROVIDER=google
+LLM_MODEL=gemini-2.5-flash
+
+# Provider credentials
+GOOGLE_API_KEY=...
+NOVITA_API_KEY=...
+NOVITA_BASE_URL=https://api.novita.ai/v3/openai
+MODAL_API_KEY=...
+MODAL_BASE_URL=https://your-modal-endpoint/v1
+```
+
+### 13.3 Modal (recommended)
 
 The agent runs on Modal as a persistent FastAPI container, matching how REACH's other Python services are deployed.
 
@@ -1576,7 +1772,7 @@ def serve():
 modal deploy modal_app.py
 ```
 
-### 12.3 Local development
+### 13.4 Local development
 
 ```bash
 cd agenting
@@ -1585,9 +1781,69 @@ uvicorn agent:app --reload --port 8001
 
 ---
 
-## 13. Frontend Integration (React — summary)
+## 14. Frontend Integration (React — summary)
 
-The React client consumes the SSE stream with the `EventSource` API (or `fetch` with a `ReadableStream` for POST requests). The event loop is a `useReducer` that maps incoming events to state updates:
+The React client consumes the SSE stream with `fetch` and a `ReadableStream` (required for POST requests with a body — `EventSource` only supports GET). The event loop is a `useReducer` that maps incoming events to state updates.
+
+### 14.1 Auth bootstrap
+
+Every request to the agent API requires an `Authorization: Bearer <token>` header. Implement this once at app startup:
+
+```typescript
+// lib/auth.ts
+
+import { supabase } from './supabaseClient'
+
+/**
+ * Ensure there is always an active Supabase session.
+ * - If the user is logged in, their session is returned as-is.
+ * - If there is no session, sign in anonymously to get a valid JWT.
+ * Called once on app mount; the Supabase client handles token refresh automatically.
+ */
+export async function bootstrapAuth() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    await supabase.auth.signInAnonymously()
+  }
+}
+
+/** Get the current access token for use in API request headers. */
+export async function getAccessToken(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('No active session.')
+  return session.access_token
+}
+```
+
+Call `bootstrapAuth()` in your root component or app initialiser. Then attach the token to every agent request:
+
+```typescript
+const token = await getAccessToken()
+
+const response = await fetch('/api/chat', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  },
+  body: JSON.stringify({ message, conversation_id, parent_id }),
+})
+```
+
+Listen for auth state changes (e.g. after sign-up/login) to update any stored session reference:
+
+```typescript
+supabase.auth.onAuthStateChange((event, session) => {
+  // After sign-up or login, the user_id stays the same if they were anonymous first.
+  // All their previous conversations are automatically accessible.
+  if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+    // Re-fetch conversation list for the sidebar
+    refreshConversations()
+  }
+})
+```
+
+### 14.2 SSE event loop
 
 | Event | State update |
 |---|---|
@@ -1602,14 +1858,17 @@ Branching is handled by passing `parent_id` (the `id` of the message being edite
 
 ---
 
-## 14. Summary
+## 15. Summary
 
 ```
-User message
-    │
+Browser
+    │  bootstrapAuth() → signInAnonymously() if no session
+    │  Authorization: Bearer <jwt>
     ▼
-FastAPI /api/chat
-    │  loads history from Supabase
+FastAPI
+    │  get_current_user(token) → UserContext { user_id, is_anonymous }
+    │  require_authenticated(user) for history/delete endpoints
+    │  loads conversation history from Supabase
     │  builds AgentState
     ▼
 LangGraph (agent)
@@ -1622,10 +1881,9 @@ LangGraph (agent)
     │    ├─ summarize_data ──► pandas describe/info → shape + sample
     │    ├─ publish_chart ──► reads state["query_results"] via InjectedState
     │    │                    builds dataset.source as array-of-arrays with pandas
-    │    │                    validates ECharts config (encode mappings only, no data)
     │    │                    returns config + dataset as separate keys
     │    ├─ control_map ──► get_places RPC → { action:"map_update", unioned_polygon, centroid, bbox }
-    │    └─ set_conversation_title ──► UPDATE conversations SET title WHERE title IS NULL (first turn, idempotent)
+    │    └─ set_conversation_title ──► UPDATE conversations SET title WHERE title IS NULL (idempotent)
     │        │
     │        ▼
     │   process_results
@@ -1635,7 +1893,6 @@ LangGraph (agent)
     │        └──────────────► back to reasoner
     │
     └─► final AIMessage (no tool_calls) → stream ends
-         LLM response includes markdown table from summarize_data sample
     │
 SSE stream → React client
     ├─ chunk events → chat bubble text (including markdown table)
@@ -1645,16 +1902,17 @@ SSE stream → React client
     └─ ui_action map_update → flyTo(centroid) + fitBounds(bbox) + highlight layer
     │
 FastAPI (after stream)
-    └─ save_messages → Supabase messages table
+    └─ save_messages → Supabase messages table (all users)
 ```
 
-Every component has a single responsibility. The LLM designs charts; pandas moves the data. The graph is stateless and independently testable. Adding a new tool requires only editing `tools.py` and the `ALL_TOOLS` list in `graph.py`. Swapping the LLM is a two-line change to `.env`.
+Every component has a single responsibility. The LLM designs charts; pandas moves the data. The graph is stateless and independently testable. Adding a new tool requires only editing `tools.py` and `ALL_TOOLS` in `graph.py`. Swapping the LLM is a two-line change to `.env`. Adding a new auth-protected endpoint is three lines: define it, call `Depends(get_current_user)`, call `require_authenticated(user)`.
 
 ### API surface
 
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/chat` | Start or continue a conversation. Returns SSE stream. |
-| `GET` | `/api/conversations?user_id=` | List all conversations for a user (sidebar). |
-| `GET` | `/api/conversations/{id}/messages` | Load full message history for a conversation. |
-| `GET` | `/health` | Health check. |
+| Method | Path | Auth | Anonymous | Purpose |
+|---|---|---|---|---|
+| `POST` | `/api/chat` | Required | ✅ Allowed | Start or continue a conversation. Returns SSE stream. |
+| `GET` | `/api/conversations` | Required | ❌ 403 | List all conversations for the sidebar. |
+| `GET` | `/api/conversations/{id}/messages` | Required | ❌ 403 | Load full message history. |
+| `DELETE` | `/api/conversations/{id}` | Required | ❌ 403 | Permanently delete a conversation. |
+| `GET` | `/health` | None | ✅ Allowed | Health check. |

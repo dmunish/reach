@@ -1,17 +1,17 @@
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from langchain_core.messages import SystemMessage, ToolMessage
+from langchain_core.messages import SystemMessage, ToolMessage, AIMessage
 from agenting.state import AgentState
-from agenting.tools import execute_sql, summarize_data, publish_chart, control_map
+from agenting.tools import execute_sql, summarize_data, publish_chart, control_map, set_conversation_title
 from agenting.prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
 from agenting.config import get_model
 import json
 
-TOOLS = [execute_sql, summarize_data, publish_chart, control_map]
+TOOLS = [execute_sql, summarize_data, publish_chart, control_map, set_conversation_title]
 
 
 def build_graph():
-    llm = get_model.bind_tools(TOOLS)
+    llm = get_model().bind_tools(TOOLS)
 
     # ── Node 1: Reasoner ────────────────────────────────────────────────
     def reasoner(state: AgentState) -> dict:
@@ -29,7 +29,7 @@ def build_graph():
     def process_results(state: AgentState) -> dict:
         """
         Inspect the latest ToolMessages and:
-          1. Promote structured UI payloads (render_chart, fly_to, highlight)
+          1. Promote structured UI payloads (render_chart, map_update)
              into ui_actions so the streamer can route them cleanly.
           2. Capture the latest execute_sql result into state["query_results"]
              so publish_chart can read it via InjectedState without the LLM
@@ -69,9 +69,20 @@ def build_graph():
     # ── Routing ──────────────────────────────────────────────────────────
     def should_continue(state: AgentState) -> str:
         last = state["messages"][-1]
-        if hasattr(last, "tool_calls") and last.tool_calls:
-            return "tools"
-        return "end"
+        
+        # Check iteration limit
+        iteration_count = sum(1 for msg in state["messages"] if isinstance(msg, AIMessage))
+        
+        # Check if last message has tool calls
+        has_tool_calls = hasattr(last, "tool_calls") and last.tool_calls
+        
+        if iteration_count >= 10: # reasonable max turns to prevent infinite loops
+            print(f"[DEBUG GRAPH] 🛑 MAX ITERATIONS REACHED ({iteration_count}). Force ending.")
+            return "end"
+            
+        route = "tools" if has_tool_calls else "end"
+        print(f"[DEBUG GRAPH] 🔄 Turn {iteration_count}: routing to -> {route}")
+        return route
 
     # ── Assemble Graph ───────────────────────────────────────────────────
     graph = StateGraph(AgentState)

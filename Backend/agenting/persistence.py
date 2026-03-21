@@ -1,5 +1,5 @@
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage
-from agenting import get_supabase
+from agenting.config import get_supabase
 from typing import Optional
 
 
@@ -103,10 +103,11 @@ def list_conversations(user_id: str) -> list[dict]:
     return rows or []
 
 
-def load_messages_for_display(conversation_id: str) -> list[dict]:
+def load_messages_for_display(conversation_id: str, user_id: str) -> list[dict] | None:
     """
     Return all messages in a conversation for frontend rendering.
-    Returns raw dicts (not LangChain objects) — the frontend decides what to show.
+    Returns None if the conversation does not exist or does not belong to user_id —
+    the caller maps this to a 404. Returns raw dicts; the frontend decides what to show.
 
     Role rendering guide:
       user      → user chat bubble
@@ -117,6 +118,18 @@ def load_messages_for_display(conversation_id: str) -> list[dict]:
       tool, other → hidden or collapsed
     """
     client = get_supabase()
+
+    # Ownership check — prevents enumeration of other users' conversations
+    conv = (
+        client.table("conversations")
+        .select("user_id")
+        .eq("id", conversation_id)
+        .maybe_single()
+        .execute()
+    )
+    if not conv.data or conv.data["user_id"] != user_id:
+        return None
+
     rows = (
         client.table("messages")
         .select("id, role, content, tool_calls, tool_call_id, ui_state, created_at")
@@ -126,3 +139,20 @@ def load_messages_for_display(conversation_id: str) -> list[dict]:
         .data
     )
     return rows or []
+
+
+def delete_conversation(conversation_id: str, user_id: str) -> bool:
+    """
+    Delete a conversation and all its messages (cascaded by the DB).
+    Returns False if the conversation does not exist or does not belong to user_id.
+    The caller maps False to a 404.
+    """
+    client = get_supabase()
+    result = (
+        client.table("conversations")
+        .delete()
+        .eq("id", conversation_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    return len(result.data) > 0

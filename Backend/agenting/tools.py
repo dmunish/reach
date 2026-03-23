@@ -31,7 +31,7 @@ def execute_sql(query: str) -> dict:
 
     try:
         client = get_supabase()
-        print(f"[DEBUG SQL] 🛠️ Executing query: {query[:150]}...")
+        print(f"[DEBUG SQL] 🛠️ Executing query: {query}...")
         result = client.rpc("execute_readonly_sql", {"query_text": query}).execute()
         rows = result.data or []
         columns = list(rows[0].keys()) if rows else []

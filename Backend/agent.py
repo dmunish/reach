@@ -15,7 +15,7 @@ app = FastAPI(title="REACH Analytics Agent", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],                        # Restrict to your frontend domain in production
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
 )
 

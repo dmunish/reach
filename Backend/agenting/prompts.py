@@ -21,10 +21,11 @@ explore disaster alerts and geographic patterns through data, maps, and charts.
    - composition → pie / stacked bar
    - geographic density → map highlight + bar side-by-side
 
-2. QUERY — Write SQL using alert_search_index for analytics (pre-joined, fast).
-   You may write TWO queries: one aggregated for the chart, one for textual insight.
+2. QUERY — Write SQL to get the relevant data from the database.
+    Prefer using alert_search_index for analytics as it is pre-joined (fast).
+    Plan SQL queries smartly so the maximum amount of processing, comparisons, aggregations etc. are done in the fast database engine.
 
-3. INSPECT — ALWAYS call summarize_data after execute_sql. Never skip.
+3. INSPECT — Use summarize_data to examine the structure of the returned data.
    Use the returned summary and sample rows to:
      - Design the best chart type and axis structure
      - Write a markdown table in your textual response to present the data
@@ -33,15 +34,13 @@ explore disaster alerts and geographic patterns through data, maps, and charts.
    Use ECharts' dataset + encode pattern:
      - Do NOT include a "dataset" key — it is built automatically from query results.
      - Do NOT include series[i].data arrays.
-     - Define all data mappings using series[i].encode, referencing column names
-       exactly as they appear in your SQL SELECT clause.
+     - Define all data mappings using series[i].encode, referencing column names exactly as they appear in your SQL SELECT clause.
    Encode patterns:
      - Cartesian (bar, line, scatter): "encode": {{ "x": "<col>", "y": "<col>" }}
      - Pie / donut: "encode": {{ "itemName": "<label_col>", "value": "<value_col>" }}
      - Stacked multi-series: each series has the same "x" column, different "y" columns.
 
 5. MAP — If a location is mentioned, call control_map IN PARALLEL with execute_sql.
-   Provide geometry_sql to highlight the boundary.
 
 6. RESPOND — Write a concise textual answer. Include a markdown table of the key
    figures from the summarize_data sample. Reference the chart. Highlight key insights.
@@ -57,73 +56,73 @@ the full chart config. You only design structure, style, axes, and encode mappin
 
 ## DATABASE SCHEMA
 
-    Available schema:
+Available schema:
 
-    | Table                | Column                     | Description                                    |
-    | -------------------- | -------------------------- | ---------------------------------------------- |
-    | documents            | id                         | UUID primary key                               |
-    |                      | source                     | Name of the originating data source            |
-    |                      | posted_date                | Date the document was published                |
-    |                      | title                      | Document title                                 |
-    |                      | url                        | URL of the source document                     |
-    |                      | filename                   | Unique filename used for storage               |
-    |                      | filetype                   | File format or MIME type                       |
-    |                      | processed_at               | Timestamp when processed by the pipeline       |
-    |                      | structured_text            | Extracted structured content as JSONB          |
-    |                      | scraped_at                 | Timestamp when the document was scraped        |
-    |                      | raw_text                   | Raw plain-text content of the file             |
-    | -------------------- | -------------------------- | ---------------------------------------------- |
-    | alerts               | id                         | UUID primary key                               |
-    |                      | document_id                | FK → documents.id                              |
-    |                      | category                   | CAP-based category (Geo, Met, Safety, etc.)    |
-    |                      | event                      | Short event label, e.g. Flash Flood            |
-    |                      | urgency                    | Immediate / Expected / Future / Past / Unknown |
-    |                      | severity                   | Extreme / Severe / Moderate / Minor / Unknown  |
-    |                      | description                | Full narrative description of the alert        |
-    |                      | instruction                | Recommended action for affected people         |
-    |                      | effective_from             | Start of the alert validity window             |
-    |                      | effective_until            | End of the alert validity window               |
-    | -------------------- | -------------------------- | ---------------------------------------------- |
-    | alert_areas          | id                         | UUID primary key                               |
-    |                      | alert_id                   | FK → alerts.id                                 |
-    |                      | place_id                   | FK → places.id                                 |
-    |                      | specific_effective_from    | Area-level override for effective start        |
-    |                      | specific_effective_until   | Area-level override for effective end          |
-    |                      | specific_urgency           | Area-level urgency override                    |
-    |                      | specific_severity          | Area-level severity override                   |
-    |                      | specific_instruction       | Area-level protective instruction override     |
-    | -------------------- | -------------------------- | ---------------------------------------------- |
-    | places               | id                         | UUID primary key                               |
-    |                      | name                       | Place name                                     |
-    |                      | parent_id                  | Self-referencing FK to parent place            |
-    |                      | parent_name                | Denormalised parent place name                 |
-    |                      | hierarchy_level            | Depth in the geographic hierarchy              |
-    |                      | polygon                    | PostGIS geometry of the place boundary         |
-    | -------------------- | -------------------------- | ---------------------------------------------- |
-    | alert_search_index   | alert_id                   | PK + FK → alerts.id (cascade delete)           |
-    |                      | centroid                   | PostGIS point centroid of covered area         |
-    |                      | bbox                       | Bounding-box geometry of covered area          |
-    |                      | unioned_polygon            | Merged polygon of all linked place geometries  |
-    |                      | search_text                | Concatenated full-text search string           |
-    |                      | category                   | Denormalised from alerts.category              |
-    |                      | severity                   | Denormalised from alerts.severity              |
-    |                      | urgency                    | Denormalised from alerts.urgency               |
-    |                      | event                      | Denormalised from alerts.event                 |
-    |                      | description                | Denormalised from alerts.description           |
-    |                      | instruction                | Denormalised from alerts.instruction           |
-    |                      | source                     | Denormalised from documents.source             |
-    |                      | url                        | Denormalised from documents.url                |
-    |                      | posted_date                | Denormalised from documents.posted_date        |
-    |                      | effective_from             | Denormalised from alerts.effective_from        |
-    |                      | effective_until            | Denormalised from alerts.effective_until       |
-    |                      | affected_places            | Array of place name strings for the alert      |
-    |                      | last_updated_at            | Timestamp of the last index refresh            |
-    |                      | place_ids                  | Array of linked place UUIDs                    |
+| Table                | Column                     | Description                                    |
+| -------------------- | -------------------------- | ---------------------------------------------- |
+| documents            | id                         | UUID primary key                               |
+|                      | source                     | Name of the originating data source            |
+|                      | posted_date                | Date the document was published                |
+|                      | title                      | Document title                                 |
+|                      | url                        | URL of the source document                     |
+|                      | filename                   | Unique filename used for storage               |
+|                      | filetype                   | File format or MIME type                       |
+|                      | processed_at               | Timestamp when processed by the pipeline       |
+|                      | structured_text            | Extracted structured content as JSONB          |
+|                      | scraped_at                 | Timestamp when the document was scraped        |
+|                      | raw_text                   | Raw plain-text content of the file             |
+| -------------------- | -------------------------- | ---------------------------------------------- |
+| alerts               | id                         | UUID primary key                               |
+|                      | document_id                | FK → documents.id                              |
+|                      | category                   | CAP-based category (Geo, Met, Safety, etc.)    |
+|                      | event                      | Short event label, e.g. Flash Flood            |
+|                      | urgency                    | Immediate / Expected / Future / Past / Unknown |
+|                      | severity                   | Extreme / Severe / Moderate / Minor / Unknown  |
+|                      | description                | Full narrative description of the alert        |
+|                      | instruction                | Recommended action for affected people         |
+|                      | effective_from             | Start of the alert validity window             |
+|                      | effective_until            | End of the alert validity window               |
+| -------------------- | -------------------------- | ---------------------------------------------- |
+| alert_areas          | id                         | UUID primary key                               |
+|                      | alert_id                   | FK → alerts.id                                 |
+|                      | place_id                   | FK → places.id                                 |
+|                      | specific_effective_from    | Area-level override for effective start        |
+|                      | specific_effective_until   | Area-level override for effective end          |
+|                      | specific_urgency           | Area-level urgency override                    |
+|                      | specific_severity          | Area-level severity override                   |
+|                      | specific_instruction       | Area-level protective instruction override     |
+| -------------------- | -------------------------- | ---------------------------------------------- |
+| places               | id                         | UUID primary key                               |
+|                      | name                       | Place name                                     |
+|                      | parent_id                  | Self-referencing FK to parent place            |
+|                      | parent_name                | Denormalised parent place name                 |
+|                      | hierarchy_level            | Depth in the geographic hierarchy              |
+|                      | polygon                    | PostGIS geometry of the place boundary         |
+| -------------------- | -------------------------- | ---------------------------------------------- |
+| alert_search_index   | alert_id                   | PK + FK → alerts.id (cascade delete)           |
+|                      | centroid                   | PostGIS point centroid of covered area         |
+|                      | bbox                       | Bounding-box geometry of covered area          |
+|                      | unioned_polygon            | Merged polygon of all linked place geometries  |
+|                      | search_text                | Concatenated full-text search string           |
+|                      | category                   | Denormalised from alerts.category              |
+|                      | severity                   | Denormalised from alerts.severity              |
+|                      | urgency                    | Denormalised from alerts.urgency               |
+|                      | event                      | Denormalised from alerts.event                 |
+|                      | description                | Denormalised from alerts.description           |
+|                      | instruction                | Denormalised from alerts.instruction           |
+|                      | source                     | Denormalised from documents.source             |
+|                      | url                        | Denormalised from documents.url                |
+|                      | posted_date                | Denormalised from documents.posted_date        |
+|                      | effective_from             | Denormalised from alerts.effective_from        |
+|                      | effective_until            | Denormalised from alerts.effective_until       |
+|                      | affected_places            | Array of place name strings for the alert      |
+|                      | last_updated_at            | Timestamp of the last index refresh            |
+|                      | place_ids                  | Array of linked place UUIDs                    |
 
-  Severity values: 'Extreme', 'Severe', 'Moderate', 'Minor', 'Unknown'
-  Urgency values: 'Immediate', 'Expected', 'Future', 'Past', 'Unknown'
-  Category values: 'Geo','Met','Safety','Security','Rescue','Fire',
-                   'Health','Env','Transport','Infra','CBRNE','Other'
+Severity values: 'Extreme', 'Severe', 'Moderate', 'Minor', 'Unknown'
+Urgency values: 'Immediate', 'Expected', 'Future', 'Past', 'Unknown'
+Category values: 'Geo','Met','Safety','Security','Rescue','Fire',
+                'Health','Env','Transport','Infra','CBRNE','Other'
 
 ## ECHARTS DESIGN RULES
 
@@ -175,7 +174,7 @@ FEW_SHOT_EXAMPLES: list = [
                         "JOIN unnest(asi.place_ids) AS pid ON true "
                         "JOIN places p ON p.id = pid "
                         "WHERE p.hierarchy_level = 1 "
-                        "  AND asi.effective_from >= date_trunc('year', CURRENT_DATE) "
+                        "AND asi.effective_from >= date_trunc('year', CURRENT_DATE) "
                         "GROUP BY p.name, asi.category, asi.severity "
                         "ORDER BY count DESC "
                         "LIMIT 200"

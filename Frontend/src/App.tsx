@@ -12,6 +12,7 @@ import { FilterAlertsPanel } from "./components/FilterAlertsPanel";
 import { DetailCard, type DetailData } from "./components/DetailCard";
 import { SettingsPanel, type UserSettings } from "./components/SettingsPanel";
 import { UserGuide } from "./components/UserGuide";
+import { AgentPanel } from "./components/AgentPanel";
 import { TeamPopup } from "./components/TeamPopup";
 import { useAlerts, useAlertGeometry } from "./hooks/useAlerts";
 import type {
@@ -83,6 +84,7 @@ export const App: React.FC = () => {
   const [isSettingsPanelVisible, setIsSettingsPanelVisible] = useState(false);
   const [isUserGuideVisible, setIsUserGuideVisible] = useState(false);
   const [isTeamPopupVisible, setIsTeamPopupVisible] = useState(false);
+  const [isAgentPanelVisible, setIsAgentPanelVisible] = useState(false);
 
   // Resizable panel states
   const [alertsPanelHeight, setAlertsPanelHeight] = useState(400);
@@ -361,6 +363,7 @@ export const App: React.FC = () => {
 
       setSelectedAlert(alert);
       setIsDetailCardVisible(true);
+      setIsAgentPanelVisible(false);
 
       if (alert.id) {
         activeAlertIdRef.current = alert.id;
@@ -444,6 +447,15 @@ export const App: React.FC = () => {
         break;
     }
   };
+
+  const handleAgentMapFlyTo = useCallback(
+    (lng: number, lat: number, zoom?: number) => {
+      if (mapRef.current) {
+        mapRef.current.flyTo([lng, lat], zoom || 12);
+      }
+    },
+    []
+  );
 
   const refreshAlerts = useCallback(() => {
     refetch();
@@ -549,6 +561,7 @@ export const App: React.FC = () => {
     setIsAlertsPanelVisible(!isAlertsPanelVisible);
     if (!isAlertsPanelVisible) {
       setIsSettingsPanelVisible(false);
+      setIsAgentPanelVisible(false);
     }
   };
 
@@ -559,7 +572,16 @@ export const App: React.FC = () => {
       setIsDetailCardVisible(true);
       if (isDetailCardVisible !== true) {
         setIsSettingsPanelVisible(false);
+        setIsAgentPanelVisible(false);
       }
+    }
+  };
+
+  const handleToggleAgent = () => {
+    setIsAgentPanelVisible(!isAgentPanelVisible);
+    if (!isAgentPanelVisible) {
+      setIsSettingsPanelVisible(false);
+      setIsDetailCardVisible(false);
     }
   };
 
@@ -573,6 +595,7 @@ export const App: React.FC = () => {
       if (isDetailCardVisible) {
         handleDetailCardClose();
       }
+      setIsAgentPanelVisible(false);
     }
   };
 
@@ -594,11 +617,11 @@ export const App: React.FC = () => {
       {/* Navigation Bar */}
       <Navbar
         onToggleFilter={handleToggleFilter}
-        onToggleDetails={handleToggleDetails}
+        onToggleAgent={handleToggleAgent}
         onToggleSettings={handleToggleSettings}
         onTeamClick={() => setIsTeamPopupVisible(true)}
         isFilterOpen={isAlertsPanelVisible}
-        isDetailsOpen={isDetailCardVisible}
+        isAgentOpen={isAgentPanelVisible}
         isSettingsOpen={isSettingsPanelVisible}
       />
 
@@ -654,6 +677,14 @@ export const App: React.FC = () => {
         isVisible={isUserGuideVisible}
         onClose={handleCloseUserGuide}
       />
+
+      {/* Agent Panel (Bottom) */}
+      <AgentPanel
+        isVisible={isAgentPanelVisible}
+        onClose={() => setIsAgentPanelVisible(false)}
+        onMapFlyTo={handleAgentMapFlyTo}
+      />
+
       {/* <TeamPopup
         isVisible={isTeamPopupVisible}
         onClose={() => setIsTeamPopupVisible(false)}

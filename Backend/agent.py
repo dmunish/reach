@@ -65,14 +65,28 @@ async def stream_agent(request: ChatRequest, user: UserContext):
     # 3. Collect generated messages for persistence after stream
     new_messages: list = [user_message]
     final_ui_state: dict = {}
+    
+    # Track thinking state for better UX
+    has_emitted_thinking = False
 
     try:
         async for event in agent.astream_events(initial_state, version="v2"):
             kind = event["event"]
 
-            # ── LLM text tokens ──────────────────────────────────────────
+            # ── LLM text tokens (thinking + response) ────────────────────
             if kind == "on_chat_model_stream":
                 chunk = event["data"]["chunk"]
+                
+                # Stream thinking content separately (from reasoning_content in additional_kwargs)
+                if hasattr(chunk, "additional_kwargs") and "reasoning_content" in chunk.additional_kwargs:
+                    thinking_content = chunk.additional_kwargs["reasoning_content"]
+                    if thinking_content:
+                        if not has_emitted_thinking:
+                            yield _sse("thinking_start", {"content": ""})
+                            has_emitted_thinking = True
+                        yield _sse("thinking", {"content": thinking_content})
+                
+                # Stream regular response content
                 if chunk.content:
                     yield _sse("chunk", {"content": chunk.content})
 

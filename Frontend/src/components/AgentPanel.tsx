@@ -17,6 +17,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+  thinking?: string;
   toolCalls?: any[];
   uiAction?: {
     action: string;
@@ -46,6 +47,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
   const [inputValue, setInputValue] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -130,7 +132,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
       abortControllerRef.current = new AbortController();
 
       const response = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL || "http://localhost:8000"}/api/chat`,
+        `${import.meta.env.VITE_BACKEND_URL}/api/chat`,
         {
           method: "POST",
           headers: {
@@ -152,10 +154,11 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
         throw new Error("Failed to send message");
       }
 
-      const reader = response.body?.getReader();
+      let reader = response.body?.getReader();
       if (!reader) throw new Error("No response body");
 
       let assistantContent = "";
+      let thinkingContent = "";
       let chartAction: Message["uiAction"] | undefined;
 
       while (true) {
@@ -170,7 +173,34 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
             try {
               const data = JSON.parse(line.slice(6));
 
-              if (data.event === "chunk") {
+              if (data.event === "thinking") {
+                // Accumulate thinking tokens
+                thinkingContent += data.data.content || "";
+                // Update thinking in the assistant message
+                setMessages((prev) => {
+                  const lastMsg = prev[prev.length - 1];
+                  if (lastMsg && lastMsg.role === "assistant") {
+                    return [
+                      ...prev.slice(0, -1),
+                      { ...lastMsg, thinking: thinkingContent },
+                    ];
+                  }
+                  return prev;
+                });
+              } else if (data.event === "thinking_start") {
+                // Initialize thinking section
+                thinkingContent = "";
+                setMessages((prev) => {
+                  const lastMsg = prev[prev.length - 1];
+                  if (lastMsg && lastMsg.role === "assistant") {
+                    return [
+                      ...prev.slice(0, -1),
+                      { ...lastMsg, thinking: "" },
+                    ];
+                  }
+                  return prev;
+                });
+              } else if (data.event === "chunk") {
                 assistantContent += data.data.content || "";
                 // Update the assistant message in real-time
                 setMessages((prev) => {
@@ -318,19 +348,21 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth="2"
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                 />
               </svg>
             </div>
-            <h4 className="text-lg font-semibold text-white mb-2">Sign In Required</h4>
+            <h3 className="text-xl font-bold text-white mb-2">
+              Uh oh, it seems you are not signed in yet.
+            </h3>
             <p className="text-stone text-sm mb-6">
               Please sign in to access the Analytics & QA Agent.
             </p>
             <button
               onClick={() => setShowLoginPage(true)}
-              className="px-6 py-2 bg-bangladesh-green hover:bg-mountain-meadow text-white font-medium rounded transition-colors"
+              className="px-6 py-2.5 bg-bangladesh-green hover:bg-mountain-meadow rounded-lg text-white hover:text-dark-green font-semibold transition-colors"
             >
-              Sign In
+              Sign In / Sign Up
             </button>
           </div>
         ) : (
@@ -358,32 +390,100 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                 messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                     <div
-                      className={`max-w-[85%] sm:max-w-[70%] rounded-lg px-4 py-3 ${
+                      className={`max-w-[85%] sm:max-w-[70%] px-4 py-3 ${
                         msg.role === "user"
                           ? "bg-bangladesh-green text-white"
                           : "bg-white/5 border border-white/10 text-gray-100"
                       }`}
                     >
                       {msg.role === "assistant" ? (
-                        <div className="prose prose-invert max-w-none text-sm">
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                              p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
-                              code: ({ inline, node, ...props }: any) => (
-                                <code
-                                  className={`${
-                                    inline
-                                      ? "bg-white/10 px-1.5 py-0.5 rounded text-xs font-mono"
-                                      : "block bg-white/10 p-2 rounded mt-2 mb-2 text-xs font-mono"
-                                  }`}
-                                  {...props}
-                                />
-                              ),
-                            }}
-                          >
-                            {msg.content}
-                          </ReactMarkdown>
+                        <div>
+                          {msg.thinking && (
+                            <div className="mb-4">
+                              <div className="bg-white/5 border border-white/10 rounded-lg overflow-hidden transition-all duration-200">
+                                <button
+                                  onClick={() => {
+                                    setExpandedThinking((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(msg.id)) {
+                                        next.delete(msg.id);
+                                      } else {
+                                        next.add(msg.id);
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                  className="w-full flex items-center justify-between gap-2 px-4 py-2 text-xs font-medium text-stone hover:text-gray-300 hover:bg-white/5 transition-all"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <svg
+                                      className={`w-3.5 h-3.5 transition-transform duration-200 ${expandedThinking.has(msg.id) ? "rotate-90" : ""}`}
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                    <span className="flex items-center gap-1.5 uppercase tracking-wider">
+                                      <svg className="w-3 h-3 opacity-60" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+                                      </svg>
+                                      Agent Reasoning
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] opacity-40 font-mono">
+                                    {expandedThinking.has(msg.id) ? "COLLAPSE" : "EXPAND"}
+                                  </span>
+                                </button>
+                                
+                                {expandedThinking.has(msg.id) && (
+                                  <div className="px-4 pb-4 animate-in fade-in duration-300 overflow-hidden">
+                                    <div className="mt-1 pl-4 border-l border-white/10 text-xs text-stone/60 leading-relaxed font-light italic whitespace-pre-wrap max-h-[250px] overflow-y-auto dark-scrollbar selection:bg-bangladesh-green/20">
+                                      {msg.thinking}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          <div className="prose prose-invert max-w-none text-sm leading-relaxed">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                                code: ({ inline, node, ...props }: any) => (
+                                  <code
+                                    className={`${
+                                      inline
+                                        ? "bg-white/10 px-1.5 py-0.5 rounded text-xs font-mono"
+                                        : "block bg-white/10 p-2 rounded mt-2 mb-2 text-xs font-mono"
+                                    }`}
+                                    {...props}
+                                  />
+                                ),
+                                table: ({ node, ...props }: any) => (
+                                  <table className="border-collapse border border-white/20 my-2" {...props} />
+                                ),
+                                thead: ({ node, ...props }: any) => (
+                                  <thead className="bg-white/5" {...props} />
+                                ),
+                                tbody: ({ node, ...props }: any) => (
+                                  <tbody {...props} />
+                                ),
+                                tr: ({ node, ...props }: any) => (
+                                  <tr className="border-b border-white/20" {...props} />
+                                ),
+                                th: ({ node, ...props }: any) => (
+                                  <th className="border-r border-white/20 px-3 py-2 text-left font-semibold last:border-r-0" {...props} />
+                                ),
+                                td: ({ node, ...props }: any) => (
+                                  <td className="border-r border-white/20 px-3 py-2 last:border-r-0" {...props} />
+                                ),
+                              }}
+                            >
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
                         </div>
                       ) : (
                         <p className="text-sm break-words">{msg.content}</p>
@@ -461,17 +561,11 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
         )}
       </div>
 
-      {showLoginPage && (
-        <div className="absolute inset-0 z-50 bg-rich-black/90 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="max-w-md mx-auto mt-12">
-            <LoginPage
-              isVisible={true}
-              onClose={() => setShowLoginPage(false)}
-              onSuccess={handleLoginSuccess}
-            />
-          </div>
-        </div>
-      )}
+      <LoginPage
+        isVisible={showLoginPage}
+        onClose={() => setShowLoginPage(false)}
+        onSuccess={handleLoginSuccess}
+      />
     </div>
   );
 };

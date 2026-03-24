@@ -5,10 +5,16 @@ from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
 from agenting.auth import UserContext, get_current_user, require_authenticated
 from agenting.graph import agent
-from agenting.persistence import delete_conversation, ensure_conversation, list_conversations,load_history, load_messages_for_display, save_messages
+from agenting.persistence import delete_conversation, ensure_conversation, list_conversations, load_history, load_messages_for_display, save_messages
 from agenting.state import AgentState
+from agenting.logging_config import get_logger, LogContext, configure_logging
 import json
 from typing import Optional
+
+# Configure logging at startup
+configure_logging("INFO")
+
+logger = get_logger(__name__)
 
 app = FastAPI(title="REACH Analytics Agent", version="1.0.0")
 
@@ -47,11 +53,33 @@ STATUS_MAP = {
 # ── Core streaming generator ──────────────────────────────────────────────────
 
 async def stream_agent(request: ChatRequest, user: UserContext):
+    log = LogContext(logger).set(
+        user_id=user.user_id,
+        is_anonymous=user.is_anonymous,
+        chat_message_len=len(request.message)
+    )
+    
+    log.info("📨 STREAM START: Incoming chat request")
+    log.debug(f"   Message (first 100 chars): {request.message[:100]}...")
+    log.debug(f"   Conversation ID: {request.conversation_id or 'NEW'}")
+    
     # 1. Ensure conversation exists (title set later by LLM tool)
-    conversation_id = ensure_conversation(user.user_id, request.conversation_id)
+    try:
+        conversation_id = ensure_conversation(user.user_id, request.conversation_id)
+        log.info(f"✅ Conversation prepared: {conversation_id}")
+    except Exception as e:
+        log.error(f"❌ Conversation Setup Failed: {str(e)}", exc_info=True)
+        yield _sse("error", {"content": "Failed to set up conversation."})
+        return
 
     # 2. Load history and build initial state
-    history = load_history(conversation_id) if request.conversation_id else []
+    try:
+        history = load_history(conversation_id) if request.conversation_id else []
+        log.info(f"✅ Loaded history: {len(history)} previous messages")
+    except Exception as e:
+        log.error(f"❌ History Loading Failed: {str(e)}", exc_info=True)
+        history = []
+    
     user_message = HumanMessage(content=request.message)
 
     initial_state: AgentState = {
@@ -66,10 +94,14 @@ async def stream_agent(request: ChatRequest, user: UserContext):
     new_messages: list = [user_message]
     final_ui_state: dict = {}
     
-    # Track thinking state for better UX
+    # Track streaming stats
     has_emitted_thinking = False
+    chunk_count = 0
+    tool_execution_count = 0
+    ui_action_count = 0
 
     try:
+        log.info("🚀 Starting agent stream...")
         async for event in agent.astream_events(initial_state, version="v2"):
             kind = event["event"]
 
@@ -82,17 +114,21 @@ async def stream_agent(request: ChatRequest, user: UserContext):
                     thinking_content = chunk.additional_kwargs["reasoning_content"]
                     if thinking_content:
                         if not has_emitted_thinking:
+                            log.info("💭 Thinking content detected, starting stream")
                             yield _sse("thinking_start", {"content": ""})
                             has_emitted_thinking = True
                         yield _sse("thinking", {"content": thinking_content})
                 
                 # Stream regular response content
                 if chunk.content:
+                    chunk_count += 1
                     yield _sse("chunk", {"content": chunk.content})
 
             # ── Tool starts ──────────────────────────────────────────────
             elif kind == "on_tool_start":
                 tool_name = event["name"]
+                tool_execution_count += 1
+                log.info(f"🔧 Tool Start: {tool_name} (#{tool_execution_count})")
                 yield _sse("status", {
                     "tool": tool_name,
                     "content": STATUS_MAP.get(tool_name, "Processing…"),
@@ -100,6 +136,7 @@ async def stream_agent(request: ChatRequest, user: UserContext):
 
             # ── Tool ends ────────────────────────────────────────────────
             elif kind == "on_tool_end":
+                tool_name = event.get("name", "unknown")
                 raw = event["data"].get("output", "")
                 try:
                     output = json.loads(raw) if isinstance(raw, str) else raw
@@ -107,7 +144,11 @@ async def stream_agent(request: ChatRequest, user: UserContext):
                     output = raw
 
                 if not isinstance(output, dict):
+                    log.debug(f"   Tool output not a dict, skipping processing")
                     continue
+
+                log.info(f"✅ Tool End: {tool_name}")
+                log.debug(f"   Output (first 200 chars): {json.dumps(output)[:200]}...")
 
                 # Data preview after execute_sql
                 if "row_count" in output:
@@ -115,10 +156,12 @@ async def stream_agent(request: ChatRequest, user: UserContext):
                         "row_count": output["row_count"],
                         "columns": output.get("columns", []),
                     })
+                    log.info(f"   📊 SQL Result: {output.get('row_count')} rows")
 
                 # UI actions — chart and map
                 action = output.get("action")
                 if action == "render_chart":
+                    ui_action_count += 1
                     payload = {
                         "action": "render_chart",
                         "config": output.get("config", {}),
@@ -127,10 +170,13 @@ async def stream_agent(request: ChatRequest, user: UserContext):
                     }
                     yield _sse("ui_action", payload)
                     final_ui_state = payload
+                    log.info(f"   📈 Chart Action: {output.get('description', 'unnamed')}")
 
                 elif action == "map_update":
+                    ui_action_count += 1
                     yield _sse("ui_action", output)
                     final_ui_state = output
+                    log.info(f"   🗺️  Map Action")
 
             # ── Graph end: collect messages for persistence ───────────────
             elif kind == "on_chain_end" and event.get("name") == "LangGraph":
@@ -138,21 +184,27 @@ async def stream_agent(request: ChatRequest, user: UserContext):
                 if isinstance(output_state, dict) and "messages" in output_state:
                     generated = output_state.get("messages", [])
                     new_messages.extend(generated[len(history):])
+                    log.info(f"✅ Graph Complete: {len(generated)} messages generated")
 
     except Exception as e:
-        print(f"[DEBUG AGENT] 🔴 Stream Error: {e}")
-        import traceback
-        traceback.print_exc()
+        log.error(f"❌ Stream Error: {str(e)}", exc_info=True)
         yield _sse("error", {"content": "An internal error occurred."})
 
     finally:
         # 4. Persist all new messages regardless of success/failure
-        save_messages(
-            conversation_id=conversation_id,
-            messages=new_messages,
-            parent_id=request.parent_id,
-            ui_state=final_ui_state if final_ui_state else None,
-        )
+        try:
+            log.info(f"💾 Persisting {len(new_messages)} messages...")
+            save_messages(
+                conversation_id=conversation_id,
+                messages=new_messages,
+                parent_id=request.parent_id,
+                ui_state=final_ui_state if final_ui_state else None,
+            )
+            log.info(f"✅ Messages persisted successfully")
+        except Exception as e:
+            log.error(f"❌ Persistence Failed: {str(e)}", exc_info=True)
+        
+        log.info(f"📊 STREAM COMPLETE: {chunk_count} chunks, {tool_execution_count} tools, {ui_action_count} UI actions")
         yield "data: [DONE]\n\n"
 
 

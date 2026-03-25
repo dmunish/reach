@@ -52,18 +52,6 @@ Use the information below to query the database properly, answer questions, etc.
 
 | Table                | Column                     | Description                                    |
 | -------------------- | -------------------------- | ---------------------------------------------- |
-| documents            | id                         | UUID primary key                               |
-|                      | source                     | Name of the originating data source            |
-|                      | posted_date                | Date the document was published                |
-|                      | title                      | Document title                                 |
-|                      | url                        | URL of the source document                     |
-|                      | filename                   | Unique filename used for storage               |
-|                      | filetype                   | File format or MIME type                       |
-|                      | processed_at               | Timestamp when processed by the pipeline       |
-|                      | structured_text            | Extracted structured content as JSONB          |
-|                      | scraped_at                 | Timestamp when the document was scraped        |
-|                      | raw_text                   | Raw plain-text content of the file             |
-| -------------------- | -------------------------- | ---------------------------------------------- |
 | alerts               | id                         | UUID primary key                               |
 |                      | document_id                | FK → documents.id                              |
 |                      | category                   | CAP-based category (Geo, Met, Safety, etc.)    |

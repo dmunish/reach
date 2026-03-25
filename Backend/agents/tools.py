@@ -19,7 +19,7 @@ def query(query: str) -> List[dict]:
         client = get_supabase()
         result = client.rpc("execute_readonly_sql", {"query_text": query}).execute()
         rows = result.data or []
-        return {"rows": rows}
+        return {"data": rows}
     
     except Exception as e:
         return {"error": str(e)}

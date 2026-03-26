@@ -6,11 +6,15 @@ from typing import Annotated, List
 import json
 import os
 from agents.state import State
+from utils import load_env
 
+load_env()
 
 def get_supabase(config: RunnableConfig):
     jwt = config["configurable"]["jwt"]
-    return create_client(os.environ.get("SUPABASE_URL"), jwt)
+    client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
+    client.auth.set_session(access_token=jwt, refresh_token="")
+    return client
 
 @tool
 def query(query: str, config: RunnableConfig) -> List[dict]:

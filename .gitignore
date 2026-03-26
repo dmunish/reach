@@ -22,3 +22,4 @@ Prompts.md
 *.ipynb
 Backend/old_funcs.sql
 hehe.sql
+Backend/agents/test.py

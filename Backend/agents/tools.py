@@ -53,7 +53,9 @@ def chart(echarts_options: str, state: Annotated[State, InjectedState]) -> dict:
     config["dataset"] = data
     result = {
         "action": "render_chart",
-        "config": config,
+        "data": {
+            "config": config,
+        }
     }
     
     return result
@@ -83,9 +85,11 @@ def map(places: List[str]) -> dict:
         row = result.data[0]
         return {
             "action": "map_update",
-            "unioned_polygon": row["unioned_polygon"],
-            "centroid": row["centroid"],
-            "bbox": row["bbox"]
+            "data":{
+                "polygon": row["unioned_polygon"],
+                "centroid": row["centroid"],
+                "bbox": row["bbox"]
+            }
         }
     except Exception as e:
         return {"error": str(e)}

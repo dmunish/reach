@@ -2,6 +2,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
+from langchain_core.runnables import RunnableConfig
 import os
 import json
 
@@ -15,16 +16,18 @@ load_env()
 
 def create_llm():
     return ChatOpenAI(
-        model="zai-org/glm-4.7-flash",
-        base_url="https://api.novita.ai/openai",
-        api_key=os.environ.get("NOVITA_KEY"),
-        max_tokens=128000,
+        model="@cf/zai-org/glm-4.7-flash",
+        base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
+        api_key=os.environ.get("CLOUDFLARE_API_KEY"),
+        max_tokens=16384,
         temperature=1.0,
         top_p=0.95,
         presence_penalty=1.5,
         extra_body={
-            "enable_thinking": True,
-            "clear_thinking": False
+            "thinking": {
+                "type": "enabled",
+                "clear_thinking": False
+            }
         }
     )
 
@@ -53,12 +56,12 @@ def graph():
             "iteration_count": state.get("iteration_count", 0) + 1
         }
     
-    def tools(state: State) -> State:
+    def tools(state: State, config: RunnableConfig) -> State:
         """
         Execute tools that the agent requested.
         """
         tool_node = ToolNode(TOOLS)
-        result = tool_node.invoke(state)
+        result = tool_node.invoke(state, config = config)
 
         if hasattr(result, "messages")    :
             messages = getattr(result, "messages")

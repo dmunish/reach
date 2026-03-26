@@ -42,27 +42,41 @@ def chart(echarts_options: str, state: Annotated[State, InjectedState]) -> dict:
     Define mappings using series[i].encode, reference column names exactly as they appear in your SQL query.
     Do NOT include a 'dataset' key — it is built automatically.
     Do NOT include series[i].data arrays - data is injected automatically.
-    """    
+    """
+
+    # Strip markdown
+    echarts_options = echarts_options[echarts_options.find("{") : echarts_options.rfind("}") + 1]
+
     try:
         config = json.loads(echarts_options)
-    except json.JSONDecodeError as e:
-        return {"error": str(e)}
 
-    data = state.get("db_results")
-    if not data:
-        return {"error": "No query results available. Call 'query' first."}
+        data = state.get("db_results")
+        if not data:
+            return {"error": "No query results available. Call 'query' first."}
+        
+        if "dataset" in config:
+            del config["dataset"]
+        for series in config.get("series", []):
+            if "data" in series:
+                del series["data"]
 
-    # Inject data into config as a list of dicts
-    config["dataset"] = {"source": data}
+        # Inject data into config as a list of dicts
+        echarts_options["dataset"] = {"source": data}
 
-    result = {
-        "action": "render_chart",
-        "data": {
-            "config": config,
+        result = {
+            "action": "render_chart",
+            "data": {
+                "config": echarts_options,
+            }
         }
-    }
+        return result
     
-    return result
+    except json.JSONDecodeError as e:
+        return {"error": f"JSON Decode error: {str(e)}"}
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return {"error": str(e)}
     
 @tool
 def map(places: List[str], config: RunnableConfig) -> dict:
@@ -70,14 +84,14 @@ def map(places: List[str], config: RunnableConfig) -> dict:
     Control the Mapbox camera and highlight a geometry.
     
     YOU provide:
-    place_names: List of places to focus on and highlight.
+    place_names: List of string containing names of places to focus on and highlight.
 
     Returns a dict with keys:
         - unioned_polygon: dict  (GeoJSON geometry, for highlighting)
         - centroid: dict         (GeoJSON geometry, to move camera)
         - bbox: dict             (GeoJSON geometry, to set zoom)
 
-    Call in PARALLEL with 'query' to save latency — emit both in one tool_calls array.
+    Call in PARALLEL with 'query' tool to save latency — emit both in one tool_calls array.
     """    
     try:
         client = get_supabase(config)        

@@ -37,7 +37,7 @@ def chart(echarts_options: str, state: Annotated[State, InjectedState]) -> dict:
     You will utlize the dataset property for clean seperation between data and presentation.
     Define mappings using series[i].encode, reference column names exactly as they appear in your SQL query.
     Do NOT include a 'dataset' key — it is built automatically.
-    Do NOT include series[i].data arrays.
+    Do NOT include series[i].data arrays - data is injected automatically.
     """    
     try:
         config = json.loads(echarts_options)
@@ -46,16 +46,11 @@ def chart(echarts_options: str, state: Annotated[State, InjectedState]) -> dict:
 
     data = state.get("db_results")
     if not data:
-        return {"error": "No query results in state."}
+        return {"error": "No query results available. Call 'query' first."}
 
-    # Convert list-of-dicts to list-of-lists for Echarts
-    headers = list(data[0].keys())
-    rows = []
-    for entry in data:
-        rows.append([entry.get(h) for h in headers])
-    data = [headers] + rows
+    # Inject data into config as a list of dicts
+    config["dataset"] = {"source": data}
 
-    config["dataset"] = data
     result = {
         "action": "render_chart",
         "data": {

@@ -3,6 +3,7 @@ from langgraph.prebuilt import ToolNode
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 import os
+import json
 
 from agents.state import State
 from agents.prompts import SYSTEM_PROMPT
@@ -44,6 +45,11 @@ def graph():
             messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
         
         response = llm.invoke(messages)
+
+        return {
+            "messages": [response],
+            "iteration_count": state.get("iteration_count", 0) + 1
+        }
     
     def tools(state: State) -> State:
         """
@@ -51,10 +57,25 @@ def graph():
         """
         tool_node = ToolNode(TOOLS)
         result = tool_node.invoke(state)
-    
+
+        if hasattr(result, "messages")    :
+            messages = getattr(result, "messages")
+            for msg in messages:
+                if msg.type == "tool" and msg.name == "query":
+                    try:
+                        tool_output = json.loads(msg.content)
+                        if "data" in tool_output:
+                            return {
+                                "messages": messages,
+                                "db_results": tool_output["data"]
+                            }
+                    except json.JSONDecodeError:
+                        pass
+        return result
+
     def should_continue(state: State) -> str:
         """
-        Routing function (not nodes): Should we continue or end?
+        Routing function (not node): Should we continue or end?
         """
         messages = state["messages"]
         last = messages[-1]

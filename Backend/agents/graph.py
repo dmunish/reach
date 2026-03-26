@@ -16,20 +16,30 @@ load_env()
 
 def create_llm():
     return ChatOpenAI(
-        model="@cf/zai-org/glm-4.7-flash",
-        base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
-        api_key=os.environ.get("CLOUDFLARE_API_KEY"),
+        model="zai-org/glm-4.7-flash",
+        base_url="https://api.novita.ai/openai",
+        api_key=os.environ.get("NOVITA_KEY"),
         max_tokens=16384,
         temperature=1.0,
         top_p=0.95,
-        presence_penalty=1.5,
-        extra_body={
-            "thinking": {
-                "type": "enabled",
-                "clear_thinking": False
-            }
-        }
     )
+
+# def create_llm():
+#     return ChatOpenAI(
+#         model="@cf/zai-org/glm-4.7-flash",
+#         base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
+#         api_key=os.environ.get("CLOUDFLARE_API_KEY"),
+#         max_tokens=16384,
+#         temperature=1.0,
+#         top_p=0.95,
+#         presence_penalty=1.5,
+#         extra_body={
+#             "thinking": {
+#                 "type": "enabled",
+#                 "clear_thinking": False
+#             }
+#         }
+#     )
 
 def graph():
     # ===== LLM Client =====
@@ -43,11 +53,12 @@ def graph():
         Main agent reasoning node.
         LLM decides what tools to call or provides final answer.
         """
-        messages = state["messages"]
+        messages = list(state["messages"])
 
-        # Add system prompt if only 1 message i.e. user message
-        if len(messages) == 1:
-            messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
+        # Add system prompt
+        has_system = any(isinstance(m, SystemMessage) for m in messages)
+        if not has_system:
+            messages.insert(0, SystemMessage(content=SYSTEM_PROMPT))
         
         response = llm.invoke(messages)
 
@@ -60,23 +71,33 @@ def graph():
         """
         Execute tools that the agent requested.
         """
+        if "configurable" not in config:
+            config["configurable"] = {}
+        config["configurable"]["db_results"] = state.get("db_results")
+
         tool_node = ToolNode(TOOLS)
         result = tool_node.invoke(state, config = config)
 
         if isinstance(result, dict) and "messages" in result:
             messages = result["messages"]
+            db_results_update = None
+            
+            # Allow the loop to finish so we don't accidentally swallow parallel tool calls (like map)
             for msg in messages:
                 if msg.type == "tool" and msg.name == "query":
                     try:
                         tool_output = json.loads(msg.content)
                         if "data" in tool_output:
-                            # Return both the messages AND the data update
-                            return {
-                                "messages": messages,
-                                "db_results": tool_output["data"]
-                            }
+                            db_results_update = tool_output["data"]
                     except json.JSONDecodeError:
                         pass
+            
+            # Return updated state safely
+            state_update = {"messages": messages}
+            if db_results_update is not None:
+                state_update["db_results"] = db_results_update
+            return state_update
+        
         return result
 
     def should_continue(state: State) -> str:

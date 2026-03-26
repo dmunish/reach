@@ -5,5 +5,5 @@ from operator import add
 class State(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add]
     db_results: dict
-    iteration_count: int = 0
-    is_complete: bool = False
+    iteration_count: int
+    is_complete: bool

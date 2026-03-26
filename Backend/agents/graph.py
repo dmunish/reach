@@ -8,8 +8,10 @@ import json
 from agents.state import State
 from agents.prompts import SYSTEM_PROMPT
 from agents.tools import query, chart, map
+from utils import load_env
 
 TOOLS = [query, chart, map]
+load_env()
 
 def create_llm():
     return ChatOpenAI(
@@ -84,7 +86,7 @@ def graph():
         if last.tool_calls:
             return "continue"
         
-        if state["iteration_count"] >= 25:
+        if state["iteration_count"] >= 10:
             return "end"
         
         state["is_complete"] = True

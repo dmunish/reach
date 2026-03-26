@@ -13,7 +13,7 @@ def get_supabase(config: RunnableConfig):
     return create_client(os.environ.get("SUPABASE_URL"), jwt)
 
 @tool
-def query(query: str) -> List[dict]:
+def query(query: str, config: RunnableConfig) -> List[dict]:
     """
     Execute a read-only SQL query against the REACH PostgreSQL database.
     Returns the raw data from the Supabase client.
@@ -21,7 +21,7 @@ def query(query: str) -> List[dict]:
     The schema of REACH is based on the Common Alerting Protocol standard, with some modifications.
     """
     try:
-        client = get_supabase()
+        client = get_supabase(config)
         result = client.rpc("execute_readonly_sql", {"query_text": query}).execute()
         rows = result.data or []
         return {"data": rows}
@@ -61,7 +61,7 @@ def chart(echarts_options: str, state: Annotated[State, InjectedState]) -> dict:
     return result
     
 @tool
-def map(places: List[str]) -> dict:
+def map(places: List[str], config: RunnableConfig) -> dict:
     """
     Control the Mapbox camera and highlight a geometry.
     
@@ -76,7 +76,7 @@ def map(places: List[str]) -> dict:
     Call in PARALLEL with 'query' to save latency — emit both in one tool_calls array.
     """    
     try:
-        client = get_supabase()        
+        client = get_supabase(config)        
         result = client.rpc("get_places", {"place_names": places}).execute()
         
         if not result.data:

@@ -1,11 +1,16 @@
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
-from agents.state import State
+from langchain_core.runnables import RunnableConfig
+from supabase import create_client
 from typing import Annotated, List
 import json
+import os
+from agents.state import State
 
-def get_supabase():
-    pass
+
+def get_supabase(config: RunnableConfig):
+    jwt = config["configurable"]["jwt"]
+    return create_client(os.environ.get("SUPABASE_URL"), jwt)
 
 @tool
 def query(query: str) -> List[dict]:

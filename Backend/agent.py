@@ -1,5 +1,7 @@
-from agents.state import State
+from fastapi import FastAPI
 from langchain_core.messages import HumanMessage
+
+from agents.state import State
 from agents.graph import graph
 import json
 
@@ -36,7 +38,7 @@ def serialize_state(state: State) -> dict:
 
     return transcript
 
-def run_agent(question: str):
+def run_agent(question: str, jwt):
     """Execute agent and return clean output"""
     state: State = {
         "messages": [HumanMessage(content=question)],
@@ -46,5 +48,5 @@ def run_agent(question: str):
     }
 
     agent_graph = graph()
-    final_state = agent_graph.invoke(state)
+    final_state = agent_graph.invoke(state, config={"configurable": {"jwt": jwt}})
     return serialize_state(final_state)

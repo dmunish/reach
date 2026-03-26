@@ -63,13 +63,14 @@ def graph():
         tool_node = ToolNode(TOOLS)
         result = tool_node.invoke(state, config = config)
 
-        if hasattr(result, "messages")    :
-            messages = getattr(result, "messages")
+        if isinstance(result, dict) and "messages" in result:
+            messages = result["messages"]
             for msg in messages:
                 if msg.type == "tool" and msg.name == "query":
                     try:
                         tool_output = json.loads(msg.content)
                         if "data" in tool_output:
+                            # Return both the messages AND the data update
                             return {
                                 "messages": messages,
                                 "db_results": tool_output["data"]

@@ -1,8 +1,10 @@
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 from langchain_core.runnables import RunnableConfig
+from langchain_core.output_parsers import JsonOutputParser
+
 from supabase import create_client
-from typing import Annotated, List
+from typing import Annotated, List, Dict, Any
 import json
 import os
 from agents.state import State
@@ -34,49 +36,53 @@ def query(query: str, config: RunnableConfig) -> List[dict]:
         return {"error": str(e)}
 
 @tool
-def chart(echarts_options: str, state: Annotated[State, InjectedState]) -> dict:
+def chart(echart_options: str, state: Annotated[State, InjectedState]) -> Any:
     """
-    Publish a chart by combining your ECharts config with the query data.
-    You need to provide a complete ECharts option object as a JSON string.
-    You will utlize the dataset property for clean seperation between data and presentation.
-    Define mappings using series[i].encode, reference column names exactly as they appear in your SQL query.
-    Do NOT include a 'dataset' key — it is built automatically.
-    Do NOT include series[i].data arrays - data is injected automatically.
-    """
+    Publish a chart by providing a JavaScript ECharts option object.
+    This method allows for advanced features like JS functions (formatters, etc.).
 
-    # Strip markdown
-    echarts_options = echarts_options[echarts_options.find("{") : echarts_options.rfind("}") + 1]
+    Args:
+        echart_options: A string containing a valid JavaScript object literal (NOT just JSON).
+                 - Use the placeholder 'DATA_SOURCE' for the dataset.source value.
+                 - Use series[i].encode to map SQL column names to axes.
+                 - You can include 'formatter' functions for tooltips or labels.
 
+    Example:
+        echart_options = {
+            title: { text: 'Alerts per Region' },
+            tooltip: { trigger: 'axis' },
+            dataset: { source: DATA_SOURCE },
+            xAxis: { type: 'category' },
+            yAxis: { type: 'value' },
+            series: [{ 
+                type: 'bar', 
+                encode: { x: 'region', y: 'count' },
+                label: { show: true, formatter: (params) => params.value.count + ' alerts' }
+            }]
+        }
+    """ 
     try:
-        config = json.loads(echarts_options)
-
         data = state.get("db_results")
         if not data:
-            return {"error": "No query results available. Call 'query' first."}
+            return {"error": "No query results available. Call 'query' tool first to fetch data."}
         
-        if "dataset" in config:
-            del config["dataset"]
-        for series in config.get("series", []):
-            if "data" in series:
-                del series["data"]
-
-        # Inject data into config as a list of dicts
-        echarts_options["dataset"] = {"source": data}
-
+        clean_config = echart_options[echart_options.find("{") : echart_options.rfind("}")].strip()
+        clean_config = clean_config.replace("DATA_SOURCE", json.dumps(data, default = str))
+  
         result = {
             "action": "render_chart",
             "data": {
-                "config": echarts_options,
+                "config": clean_config,
             }
         }
         return result
     
-    except json.JSONDecodeError as e:
-        return {"error": f"JSON Decode error: {str(e)}"}
     except Exception as e:
         import traceback
-        print(traceback.format_exc())
-        return {"error": str(e)}
+        error_details = traceback.format_exc()
+        print(f"Chart tool error:\n{error_details}")
+        return {"error": f"Chart generation failed: {str(e)}\n\nDetails:\n{error_details}"}
+
     
 @tool
 def map(places: List[str], config: RunnableConfig) -> dict:

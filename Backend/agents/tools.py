@@ -36,7 +36,7 @@ def query(query: str, config: RunnableConfig) -> List[dict]:
         return {"error": str(e)}
 
 @tool
-def chart(echart_options: str, state: Annotated[State, InjectedState]) -> Any:
+def chart(echart_options: str, config: RunnableConfig) -> Any:
     """
     Publish a chart by providing a JavaScript ECharts option object.
     This method allows for advanced features like JS functions (formatters, etc.).
@@ -62,11 +62,11 @@ def chart(echart_options: str, state: Annotated[State, InjectedState]) -> Any:
         }
     """ 
     try:
-        data = state.get("db_results")
+        data = config.get("configurable", {}).get("db_results")
         if not data:
             return {"error": "No query results available. Call 'query' tool first to fetch data."}
         
-        clean_config = echart_options[echart_options.find("{") : echart_options.rfind("}")].strip()
+        clean_config = echart_options[echart_options.find("{") : echart_options.rfind("}") + 1].strip()
         clean_config = clean_config.replace("DATA_SOURCE", json.dumps(data, default = str))
   
         result = {

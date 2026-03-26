@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
 
@@ -69,7 +69,7 @@ def serialize_state(state: State) -> dict:
 
 # ===== API Endpoints =====
 @app.post("/query", response_model=AgentResponse)
-def run_agent(query: QueryRequest, authorization: str):
+def run_agent(query: QueryRequest, authorization: str = Header(...)):
     """
     Main endpoint: Send a question to the agent.
     
@@ -109,6 +109,7 @@ def run_agent(query: QueryRequest, authorization: str):
 
         # Serialize
         result = serialize_state(final_state)
+        print(json.dumps(result, indent=2, default=str))
         return AgentResponse(
             transcript=result["transcript"],
             session_id=query.session_id,

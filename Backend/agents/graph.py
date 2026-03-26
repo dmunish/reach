@@ -11,7 +11,7 @@ from agents.tools import query, chart, map
 
 TOOLS = [query, chart, map]
 
-def llm():
+def create_llm():
     return ChatOpenAI(
         model="zai-org/glm-4.7-flash",
         base_url="https://api.novita.ai/openai",
@@ -29,8 +29,8 @@ def llm():
 def graph():
     # ===== LLM Client =====
     """Build the LangGraph workflow"""
-    llm = llm()
-    llm = llm.bind_tools(TOOLS)
+    llm_client = create_llm()
+    llm = llm_client.bind_tools(TOOLS)
 
     # ===== Nodes =====
     def agent(state: State) -> State:

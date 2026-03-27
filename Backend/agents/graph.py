@@ -16,12 +16,15 @@ load_env()
 
 def create_llm():
     return ChatOpenAI(
-        model="zai-org/glm-4.7-flash",
-        base_url="https://api.novita.ai/openai",
-        api_key=os.environ.get("NOVITA_KEY"),
-        max_tokens=16384,
+        model="moonshotai/kimi-k2-instruct-0905",
+        base_url="https://api.groq.com/openai/v1",
+        api_key=os.environ.get("GROQ_KEY"),
+        max_tokens=8192,
         temperature=1.0,
         top_p=0.95,
+        # extra_body={
+        #     "reasoning_effort": "low"
+        # }
     )
 
 # def create_llm():

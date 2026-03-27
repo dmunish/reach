@@ -12,7 +12,7 @@ load_env()
 async def get_supabase(config: RunnableConfig):
     jwt = config["configurable"]["jwt"]
     client = await create_async_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
-    client.auth.set_session(access_token=jwt, refresh_token="")
+    await client.auth.set_session(access_token=jwt, refresh_token="")
     return client
 
 @tool

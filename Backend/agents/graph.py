@@ -15,34 +15,36 @@ TOOLS = [query, chart, map]
 load_env()
 
 def create_llm():
+    # return ChatOpenAI(
+    #     model="qwen-3-235b-a22b-instruct-2507",
+    #     base_url="https://api.cerebras.ai/v1",
+    #     api_key=os.environ.get("CEREBRAS_KEY"),
+    #     max_tokens=16000,
+    #     temperature=0.7,
+    #     top_p=0.95,
+    # )
+    # return ChatOpenAI(
+    #     model="minimax/minimax-m2.5-highspeed",
+    #     base_url="https://api.novita.ai/openai",
+    #     api_key=os.environ.get("NOVITA_KEY"),
+    #     max_tokens=16000,
+    #     temperature=0.7,
+    #     top_p=0.95,
+    # )
     return ChatOpenAI(
-        model="moonshotai/kimi-k2-instruct-0905",
-        base_url="https://api.groq.com/openai/v1",
-        api_key=os.environ.get("GROQ_KEY"),
-        max_tokens=8192,
-        temperature=1.0,
+        model="@cf/nvidia/nemotron-3-120b-a12b",
+        base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
+        api_key=os.environ.get("CLOUDFLARE_API_KEY"),
+        max_tokens=16384,
+        temperature=0.7,
         top_p=0.95,
         # extra_body={
-        #     "reasoning_effort": "low"
+        #     "thinking": {
+        #         "type": "enabled",
+        #         "clear_thinking": False
+        #     }
         # }
     )
-
-# def create_llm():
-#     return ChatOpenAI(
-#         model="@cf/zai-org/glm-4.7-flash",
-#         base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
-#         api_key=os.environ.get("CLOUDFLARE_API_KEY"),
-#         max_tokens=16384,
-#         temperature=1.0,
-#         top_p=0.95,
-#         presence_penalty=1.5,
-#         extra_body={
-#             "thinking": {
-#                 "type": "enabled",
-#                 "clear_thinking": False
-#             }
-#         }
-#     )
 
 def graph():
     # ===== LLM Client =====
@@ -65,9 +67,13 @@ def graph():
         
         response = await llm.ainvoke(messages)
 
+        # Check if this is a final answer (no tool calls means completion)
+        is_complete = not response.tool_calls
+
         return {
             "messages": [response],
-            "iteration_count": state.get("iteration_count", 0) + 1
+            "iteration_count": state.get("iteration_count", 0) + 1,
+            "is_complete": is_complete
         }
     
     async def tools(state: State, config: RunnableConfig) -> State:
@@ -106,6 +112,9 @@ def graph():
         """
         Routing function (not node): Should we continue or end?
         """
+        if state.get("iteration_count") >= 15:
+            return "end"
+        
         messages = state["messages"]
         last = messages[-1]
 
@@ -113,10 +122,6 @@ def graph():
         if last.tool_calls:
             return "continue"
         
-        if state["iteration_count"] >= 10:
-            return "end"
-        
-        state["is_complete"] = True
         return "end"
     
     # ===== Graph =====

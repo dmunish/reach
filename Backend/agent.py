@@ -69,7 +69,7 @@ def serialize_state(state: State) -> dict:
 
 # ===== API Endpoints =====
 @app.post("/query", response_model=AgentResponse)
-def run_agent(query: QueryRequest, authorization: str = Header(...)):
+async def run_agent(query: QueryRequest, authorization: str = Header(...)):
     """
     Main endpoint: Send a question to the agent.
     
@@ -102,7 +102,7 @@ def run_agent(query: QueryRequest, authorization: str = Header(...)):
 
         # Create graph and execute
         agent_graph = graph()
-        final_state = agent_graph.invoke(
+        final_state = await agent_graph.ainvoke(
             initial_state,
             config={"configurable": {"jwt": jwt}}
         )

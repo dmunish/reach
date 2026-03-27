@@ -51,7 +51,7 @@ def graph():
     llm = llm_client.bind_tools(TOOLS)
 
     # ===== Nodes =====
-    def agent(state: State) -> State:
+    async def agent(state: State) -> State:
         """
         Main agent reasoning node.
         LLM decides what tools to call or provides final answer.
@@ -63,14 +63,14 @@ def graph():
         if not has_system:
             messages.insert(0, SystemMessage(content=SYSTEM_PROMPT))
         
-        response = llm.invoke(messages)
+        response = await llm.ainvoke(messages)
 
         return {
             "messages": [response],
             "iteration_count": state.get("iteration_count", 0) + 1
         }
     
-    def tools(state: State, config: RunnableConfig) -> State:
+    async def tools(state: State, config: RunnableConfig) -> State:
         """
         Execute tools that the agent requested.
         """
@@ -79,7 +79,7 @@ def graph():
         config["configurable"]["db_results"] = state.get("db_results")
 
         tool_node = ToolNode(TOOLS)
-        result = tool_node.invoke(state, config = config)
+        result = await tool_node.ainvoke(state, config = config)
 
         if isinstance(result, dict) and "messages" in result:
             messages = result["messages"]
@@ -95,7 +95,6 @@ def graph():
                     except json.JSONDecodeError:
                         pass
             
-            # Return updated state safely
             state_update = {"messages": messages}
             if db_results_update is not None:
                 state_update["db_results"] = db_results_update

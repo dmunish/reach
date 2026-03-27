@@ -1,7 +1,7 @@
 from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
 
-from supabase import create_client
+from supabase import create_async_client
 from typing import List, Any
 import json
 import os
@@ -9,14 +9,14 @@ from utils import load_env
 
 load_env()
 
-def get_supabase(config: RunnableConfig):
+async def get_supabase(config: RunnableConfig):
     jwt = config["configurable"]["jwt"]
-    client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
+    client = await create_async_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
     client.auth.set_session(access_token=jwt, refresh_token="")
     return client
 
 @tool
-def query(query: str, config: RunnableConfig) -> List[dict]:
+async def query(query: str, config: RunnableConfig) -> List[dict]:
     """
     Execute a read-only SQL query against the REACH PostgreSQL database.
     Returns the raw data from the Supabase client.
@@ -24,8 +24,8 @@ def query(query: str, config: RunnableConfig) -> List[dict]:
     The schema of REACH is based on the Common Alerting Protocol standard, with some modifications.
     """
     try:
-        client = get_supabase(config)
-        result = client.rpc("execute_readonly_sql", {"query_text": query}).execute()
+        client = await get_supabase(config)
+        result = await client.rpc("execute_readonly_sql", {"query_text": query}).execute()
         rows = result.data or []
         return {"data": rows}
     
@@ -82,7 +82,7 @@ def chart(echart_options: str, config: RunnableConfig) -> Any:
 
     
 @tool
-def map(places: List[str], config: RunnableConfig) -> dict:
+async def map(places: List[str], config: RunnableConfig) -> dict:
     """
     Control the Mapbox camera and highlight a geometry.
     
@@ -97,8 +97,8 @@ def map(places: List[str], config: RunnableConfig) -> dict:
     Call in PARALLEL with 'query' tool to save latency — emit both in one tool_calls array.
     """    
     try:
-        client = get_supabase(config)        
-        result = client.rpc("get_places", {"place_names": places}).execute()
+        client = await get_supabase(config)        
+        result = await client.rpc("get_places", {"place_names": places}).execute()
         
         if not result.data:
             return {"error": "No data found."}

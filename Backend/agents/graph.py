@@ -8,10 +8,10 @@ import json
 
 from agents.state import State
 from agents.prompts import SYSTEM_PROMPT
-from agents.tools import query, chart, map
+from agents.tools import examples, query, chart, map
 from utils import load_env
 
-TOOLS = [query, chart, map]
+TOOLS = [query, chart, map, examples]
 load_env()
 
 def create_llm():
@@ -24,10 +24,10 @@ def create_llm():
     #     top_p=0.95,
     # )
     # return ChatOpenAI(
-    #     model="minimax/minimax-m2.5-highspeed",
+    #     model="zai-org/glm-5",
     #     base_url="https://api.novita.ai/openai",
     #     api_key=os.environ.get("NOVITA_KEY"),
-    #     max_tokens=16000,
+    #     max_tokens=131072,
     #     temperature=0.7,
     #     top_p=0.95,
     # )

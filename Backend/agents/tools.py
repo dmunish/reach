@@ -86,6 +86,7 @@ async def query(query: str, config: RunnableConfig) -> List[dict]:
 def chart(option: str, data_transform: Optional[Dict], config: RunnableConfig) -> Any:
     """
     Publish a chart by providing a JavaScript ECharts option object.
+    Always include a toolbox in the option object. saveAsImage, dataView are compulsary. dataZoom, restore, magicType, and brush if appropriate/requested.
     
     Args:
         option: A string containing a valid JavaScript object literal.

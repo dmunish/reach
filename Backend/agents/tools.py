@@ -2,10 +2,11 @@ from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
 
 from supabase import create_async_client
-from typing import List, Any
+from typing import Any, Optional, Dict, List
 import json
 import os
 from utils import load_env
+from transforms import transform_to_graph, transform_to_matrix, transform_to_tree
 
 load_env()
 
@@ -20,8 +21,77 @@ async def query(query: str, config: RunnableConfig) -> List[dict]:
     """
     Execute a read-only SQL query against the REACH PostgreSQL database.
     Returns the raw data from the Supabase client.
-
     The schema of REACH is based on the Common Alerting Protocol standard, with some modifications.
+
+    Args:
+        query: The SQL string to execute against the database
+
+    # Instructions:
+    - Only write SELECT statements.
+    - Provide a single continuous string, no need for newlines.
+    - Structure data in a way that makes it easy to visualize and digest. E.g using aggregation, counts, and others a lot.
+    - Use TO_CHAR() to present dates in a more human-readable format when constructing charts. For example: TO_CHAR(effective_from, 'FMMonth, YYYY').
+    - You have the following schema available, only use the following columns:
+    | Table                | Column                     | Description                                    |
+    | -------------------- | -------------------------- | ---------------------------------------------- |
+    | documents            | id                         | UUID primary key                               |
+    |                      | source                     | Name of the originating data source            |
+    |                      | posted_date                | Date the document was published                |
+    |                      | title                      | Document title                                 |
+    |                      | url                        | URL of the source document                     |
+    | -------------------- | -------------------------- | ---------------------------------------------- |
+    | alerts               | id                         | UUID primary key                               |
+    |                      | document_id                | FK → documents.id                              |
+    |                      | category                   | CAP-based category (Geo, Met, Safety, etc.)    |
+    |                      | event                      | Short event label, e.g. Flash Flood            |
+    |                      | urgency                    | Immediate / Expected / Future / Past / Unknown |
+    |                      | severity                   | Extreme / Severe / Moderate / Minor / Unknown  |
+    |                      | description                | Full narrative description of the alert        |
+    |                      | instruction                | Recommended action for affected people         |
+    |                      | effective_from             | Start of the alert validity window             |
+    |                      | effective_until            | End of the alert validity window               |
+    | -------------------- | -------------------------- | ---------------------------------------------- |
+    | alert_areas          | id                         | UUID primary key                               |
+    |                      | alert_id                   | FK → alerts.id                                 |
+    |                      | place_id                   | FK → places.id                                 |
+    |                      | specific_effective_from    | Area-level override for effective start        |
+    |                      | specific_effective_until   | Area-level override for effective end          |
+    |                      | specific_urgency           | Area-level urgency override                    |
+    |                      | specific_severity          | Area-level severity override                   |
+    |                      | specific_instruction       | Area-level protective instruction override     |
+    | -------------------- | -------------------------- | ---------------------------------------------- |
+    | places               | id                         | UUID primary key                               |
+    |                      | name                       | Place name                                     |
+    |                      | parent_id                  | Self-referencing FK to parent place            |
+    |                      | parent_name                | Denormalised parent place name                 |
+    |                      | hierarchy_level            | Depth in the geographic hierarchy              |
+    |                      |                            | (0: country, 3: tehsil)                        |
+    |                      | polygon                    | PostGIS geometry of the place boundary         |
+    | -------------------- | -------------------------- | ---------------------------------------------- |
+    | alert_search_index   | alert_id                   | PK + FK → alerts.id (cascade delete)           |
+    |                      | centroid                   | PostGIS point centroid of covered area         |
+    |                      | bbox                       | Bounding-box geometry of covered area          |
+    |                      | unioned_polygon            | Merged polygon of all linked place geometries  |
+    |                      | search_text                | Concatenated full-text search string           |
+    |                      | category                   | Denormalised from alerts.category              |
+    |                      | severity                   | Denormalised from alerts.severity              |
+    |                      | urgency                    | Denormalised from alerts.urgency               |
+    |                      | event                      | Denormalised from alerts.event                 |
+    |                      | description                | Denormalised from alerts.description           |
+    |                      | instruction                | Denormalised from alerts.instruction           |
+    |                      | source                     | Denormalised from documents.source             |
+    |                      | url                        | Denormalised from documents.url                |
+    |                      | posted_date                | Denormalised from documents.posted_date        |
+    |                      | effective_from             | Denormalised from alerts.effective_from        |
+    |                      | effective_until            | Denormalised from alerts.effective_until       |
+    |                      | affected_places            | Array of place name strings for the alert      |
+    |                      | last_updated_at            | Timestamp of the last index refresh            |
+    |                      | place_ids                  | Array of linked place UUIDs                    |
+
+    - Severity values: 'Extreme', 'Severe', 'Moderate', 'Minor', 'Unknown'.
+    - Urgency values: 'Immediate', 'Expected', 'Future', 'Past', 'Unknown'.
+    - Category values: 'Geo','Met','Safety','Security','Rescue','Fire', 'Health','Env','Transport','Infra','CBRNE','Other'.
+    - alert_search_index is a denormalized and performant view.
     """
     try:
         client = await get_supabase(config)
@@ -33,52 +103,61 @@ async def query(query: str, config: RunnableConfig) -> List[dict]:
         return {"error": str(e)}
 
 @tool
-def chart(echart_options: str, config: RunnableConfig) -> Any:
+def chart(option: str, data_transform: Optional[Dict], config: RunnableConfig) -> Any:
     """
     Publish a chart by providing a JavaScript ECharts option object.
-    This method allows for advanced features like JS functions (formatters, etc.).
-
+    
     Args:
-        echart_options: A string containing a valid JavaScript object literal (NOT just JSON).
-                 - Use the placeholder 'DATA_SOURCE' for the dataset.source value.
-                 - Use series[i].encode to map SQL column names to axes.
-                 - You can include 'formatter' functions for tooltips or labels.
-
-    Example:
-        echart_options = {
-            title: { text: 'Alerts per Region' },
-            tooltip: { trigger: 'axis' },
-            dataset: { source: DATA_SOURCE },
-            xAxis: { type: 'category' },
-            yAxis: { type: 'value' },
-            series: [{ 
-                type: 'bar', 
-                encode: { x: 'region', y: 'count' },
-                label: { show: true, formatter: (params) => params.value.count + ' alerts' }
-            }]
+        option: A string containing a valid JavaScript object literal.
+                Use the placeholder 'DATA_SOURCE' for the dataset.source or series.data value.
+                
+        data_transform: Optional. A dictionary to restructure tabular SQL data for complex charts.
+                        - For 'tree', 'treemap', 'sunburst': 
+                          {"type": "hierarchy", "id_key": "id_col", "parent_key": "parent_col", "name_key": "name_col"}
+                        - For 'graph', 'sankey':
+                          {"type": "graph", "source_key": "from_col", "target_key": "to_col"}
+                        - For 'heatmap':
+                          {"type": "matrix", "x_key": "col_x", "y_key": "col_y", "v_key": "col_val"}
+    
+    Example (Tree Chart):
+        option = {
+            series: { type: 'tree', data: DATA_SOURCE }
         }
-    """ 
+        data_transform = {"type": "hierarchy", "id_key": "id", "parent_key": "parent_id"}
+    """
     try:
+        # Retrieve Data
         data = config.get("configurable", {}).get("db_results")
         if not data:
-            return {"error": "No query results available. Call 'query' tool first to fetch data."}
+            return {"error": "No query results available. Call 'query' tool first."}
+
+        # Apply Transformation Logic
+        if data_transform:
+            transform_type = data_transform.get("type")
+            
+            if transform_type == "hierarchy":
+                data = transform_to_tree(data, data_transform)
+            elif transform_type == "graph":
+                data = transform_to_graph(data, data_transform)
+            elif transform_type == "matrix":
+                data = transform_to_matrix(data, data_transform)
         
-        clean_config = echart_options[echart_options.find("{") : echart_options.rfind("}") + 1].strip()
-        clean_config = clean_config.replace("DATA_SOURCE", json.dumps(data, default = str))
-  
-        result = {
+        # Inject Data
+        data_json = json.dumps(data, default=str)
+        clean_config = option[option.find("{") : option.rfind("}") + 1].strip()
+        clean_config = clean_config.replace("DATA_SOURCE", data_json)
+
+        # Return Result
+        return {
             "action": "render_chart",
             "data": {
                 "config": clean_config,
             }
         }
-        return result
-    
+
     except Exception as e:
         import traceback
-        error_details = traceback.format_exc()
-        print(f"Chart tool error:\n{error_details}")
-        return {"error": f"Chart generation failed: {str(e)}\n\nDetails:\n{error_details}"}
+        return {"error": f"Chart generation failed: {str(e)}\n{traceback.format_exc()}"}
 
     
 @tool
@@ -86,13 +165,8 @@ async def map(places: List[str], config: RunnableConfig) -> dict:
     """
     Control the Mapbox camera and highlight a geometry.
     
-    YOU provide:
+    Args:
     place_names: List of string containing names of places to focus on and highlight.
-
-    Returns a dict with keys:
-        - unioned_polygon: dict  (GeoJSON geometry, for highlighting)
-        - centroid: dict         (GeoJSON geometry, to move camera)
-        - bbox: dict             (GeoJSON geometry, to set zoom)
 
     Call in PARALLEL with 'query' tool to save latency — emit both in one tool_calls array.
     """    
@@ -119,13 +193,16 @@ async def map(places: List[str], config: RunnableConfig) -> dict:
 async def examples(type: str, config: RunnableConfig) -> dict:
     """
     Get official ECharts examples for a specific chart type to understand how to format the 'option' object.
-    Each example contains:
-    - A dataset/data generation function(s) to show you how the data was structured.
-    - The option object settings all the styles and mapping the data.
 
-    The following chart types are available:
-    Here are the reworded descriptions tailored for the REACH agent, focusing on disaster data analysis and visualization design for the provided schema.
+    Args: 
+        type: The chart type to pull examples of. Must be one of the official types from below.
+    
+    Returns: 
+        A set of official examples, each with:
+        - A dataset/data generation function(s) to show you how the data was structured.
+        - The option object settings all the styles and mapping the data.
 
+    The following chart types are available (each `usage` guide is merely a suggestion):
     - bar
         - Description: A chart that presents categorical data with rectangular bars where heights are proportional to the values they represent.
         - Usage: Ideal for comparing discrete counts or aggregates. Use this to visualize the number of alerts per category (Met, Geo, Safety), the count of alerts per severity level, or the volume of alerts issued per province.
@@ -213,11 +290,11 @@ async def examples(type: str, config: RunnableConfig) -> dict:
         all_examples = []
         for example in result.data: # result.data is typically a list of dicts
             all_examples.append(
-                f"# Title: {example.get('title')}\n" +
-                f"## Data: \n```javascript\n{example.get('data')}```\n" +
-                f"## Option: \n```javascript\n{example.get('option')}```\n"
+                f"## Title: {example.get('title')}\n" +
+                f"### Data: \n```javascript\n{example.get('data')}```\n" +
+                f"### Option: \n```javascript\n{example.get('option')}```\n"
                 )
         all_examples_str = ("\n\n").join(all_examples)
-        return {"data": f"# Official examples for {result.get('type').title()} chart:\n\n" + all_examples_str}
+        return {"data": f"# Official examples for {result.data[0].get('type').title()} chart:\n\n" + all_examples_str}
     except Exception as e:
         return {"error": str(e)}

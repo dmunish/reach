@@ -99,11 +99,14 @@ def chart(option: str, data_transform: Optional[Dict], config: RunnableConfig) -
                         - For 'heatmap':
                           {"type": "matrix", "x_key": "col_x", "y_key": "col_y", "v_key": "col_val"}
     
-    Example (Tree Chart):
-        option = {
-            series: { type: 'tree', data: DATA_SOURCE }
+    Example:
+        option={ series: [{ type: 'graph', data: DATA_SOURCE.nodes, links: DATA_SOURCE.links }] },
+        data_transform={
+            "type": "graph",
+            "source_key": "sender",
+            "target_key": "receiver"
         }
-        data_transform = {"type": "hierarchy", "id_key": "id", "parent_key": "parent_id"}
+)
     """
     try:
         # Retrieve Data

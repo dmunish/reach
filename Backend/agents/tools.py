@@ -67,26 +67,6 @@ async def query(query: str, config: RunnableConfig) -> List[dict]:
     |                      | hierarchy_level            | Depth in the geographic hierarchy              |
     |                      |                            | (0: country, 3: tehsil)                        |
     |                      | polygon                    | PostGIS geometry of the place boundary         |
-    | -------------------- | -------------------------- | ---------------------------------------------- |
-    | alert_search_index   | alert_id                   | PK + FK → alerts.id (cascade delete)           |
-    |                      | centroid                   | PostGIS point centroid of covered area         |
-    |                      | bbox                       | Bounding-box geometry of covered area          |
-    |                      | unioned_polygon            | Merged polygon of all linked place geometries  |
-    |                      | search_text                | Concatenated full-text search string           |
-    |                      | category                   | Denormalised from alerts.category              |
-    |                      | severity                   | Denormalised from alerts.severity              |
-    |                      | urgency                    | Denormalised from alerts.urgency               |
-    |                      | event                      | Denormalised from alerts.event                 |
-    |                      | description                | Denormalised from alerts.description           |
-    |                      | instruction                | Denormalised from alerts.instruction           |
-    |                      | source                     | Denormalised from documents.source             |
-    |                      | url                        | Denormalised from documents.url                |
-    |                      | posted_date                | Denormalised from documents.posted_date        |
-    |                      | effective_from             | Denormalised from alerts.effective_from        |
-    |                      | effective_until            | Denormalised from alerts.effective_until       |
-    |                      | affected_places            | Array of place name strings for the alert      |
-    |                      | last_updated_at            | Timestamp of the last index refresh            |
-    |                      | place_ids                  | Array of linked place UUIDs                    |
 
     - Severity values: 'Extreme', 'Severe', 'Moderate', 'Minor', 'Unknown'.
     - Urgency values: 'Immediate', 'Expected', 'Future', 'Past', 'Unknown'.

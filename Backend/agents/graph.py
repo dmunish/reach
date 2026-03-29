@@ -16,7 +16,7 @@ load_env()
 
 def create_llm():
     # return ChatOpenAI(
-    #     model="qwen-3-235b-a22b-instruct-2507",
+    #     model="gpt-oss-120b",
     #     base_url="https://api.cerebras.ai/v1",
     #     api_key=os.environ.get("CEREBRAS_KEY"),
     #     max_tokens=16000,
@@ -24,15 +24,15 @@ def create_llm():
     #     top_p=0.95,
     # )
     # return ChatOpenAI(
-    #     model="zai-org/glm-5",
+    #     model="minimax/minimax-m2.7",
     #     base_url="https://api.novita.ai/openai",
     #     api_key=os.environ.get("NOVITA_KEY"),
     #     max_tokens=131072,
     #     temperature=0.7,
-    #     top_p=0.95,
+    #     top_p=0.95
     # )
     return ChatOpenAI(
-        model="@cf/nvidia/nemotron-3-120b-a12b",
+        model="@cf/zai-org/glm-4.7-flash",
         base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
         api_key=os.environ.get("CLOUDFLARE_API_KEY"),
         max_tokens=16384,

@@ -87,6 +87,7 @@ def chart(option: str, data_transform: Optional[Dict], config: RunnableConfig) -
     """
     Publish a chart by providing a JavaScript ECharts option object.
     Always include a toolbox in the option object. saveAsImage, dataView are compulsary. dataZoom, restore, magicType, and brush if appropriate/requested.
+    Chart is going to be rendered in dark mode, choose colors appropriately.
     
     Args:
         option: A string containing a valid JavaScript object literal.

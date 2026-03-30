@@ -83,11 +83,15 @@ async def query(query: str, config: RunnableConfig) -> List[dict]:
         return {"error": str(e)}
 
 @tool
-def chart(option: str, data_transform: Optional[Dict], config: RunnableConfig) -> Any:
+def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableConfig = None) -> Any:
     """
     Publish a chart by providing a JavaScript ECharts option object.
-    Always include a toolbox in the option object. saveAsImage, dataView are compulsary. dataZoom, restore, magicType, and brush if appropriate/requested.
-    Chart is going to be rendered in dark mode, choose colors appropriately.
+    Always include a toolbox in the option object. saveAsImage is compulsary. dataView, dataZoom, restore, magicType, and brush if appropriate/requested. Change the order of the tools as you please.
+    To style the chart in a beautiful and modern manner:
+    - Use a sophisticated, beautiful and meaningful, dark-mode optimized color pallete.
+    - Refined typography & spacing, padding and custom fonts.
+    - Custom tooltip UX and visual cues.
+    - Polished interactions with animationDuration and animationEasing.
     
     Args:
         option: A string containing a valid JavaScript object literal.
@@ -218,7 +222,7 @@ async def examples(type: str, config: RunnableConfig) -> dict:
 
     - graphGL
         - Description: A WebGL-accelerated graph chart optimized for massive datasets.
-        - Usage: Necessary when visualizing large-scale networks. Use this if the user queries a large subset of the `alert_search_index` to visualize thousands of connections between alerts and places without performance lag.
+        - Usage: Necessary when visualizing large-scale networks. Use this if the user queries a large subset of the database to visualize thousands of connections between alerts and places without performance lag.
 
     - heatmap
         - Description: A graphical representation of data where values in a matrix are represented as colors.

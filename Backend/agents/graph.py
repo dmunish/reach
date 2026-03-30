@@ -16,35 +16,42 @@ load_env()
 
 def create_llm():
     # return ChatOpenAI(
-    #     model="gpt-oss-120b",
+    #     model="meta-llama/llama-4-scout-17b-16e-instruct",
+    #     base_url="https://api.groq.com/openai/v1",
+    #     api_key=os.environ.get("GROQ_KEY"),
+    #     max_tokens=8192,
+    #     temperature=0.7,
+    # )
+    # return ChatOpenAI(
+    #     model="qwen-3-235b-a22b-instruct-2507",
     #     base_url="https://api.cerebras.ai/v1",
     #     api_key=os.environ.get("CEREBRAS_KEY"),
-    #     max_tokens=16000,
+    #     max_tokens=65536,
     #     temperature=0.7,
     #     top_p=0.95,
     # )
-    # return ChatOpenAI(
-    #     model="minimax/minimax-m2.7",
-    #     base_url="https://api.novita.ai/openai",
-    #     api_key=os.environ.get("NOVITA_KEY"),
-    #     max_tokens=131072,
-    #     temperature=0.7,
-    #     top_p=0.95
-    # )
     return ChatOpenAI(
-        model="@cf/zai-org/glm-4.7-flash",
-        base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
-        api_key=os.environ.get("CLOUDFLARE_API_KEY"),
-        max_tokens=16384,
+        model="minimax/minimax-m2.5-highspeed",
+        base_url="https://api.novita.ai/openai",
+        api_key=os.environ.get("NOVITA_KEY"),
+        max_tokens=128000,
         temperature=0.7,
-        top_p=0.95,
-        # extra_body={
-        #     "thinking": {
-        #         "type": "enabled",
-        #         "clear_thinking": False
-        #     }
-        # }
+        top_p=0.95
     )
+    # return ChatOpenAI(
+    #     model="@cf/zai-org/glm-4.7-flash",
+    #     base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
+    #     api_key=os.environ.get("CLOUDFLARE_API_KEY"),
+    #     max_tokens=16384,
+    #     temperature=0.7,
+    #     top_p=0.95,
+    #     # extra_body={
+    #     #     "thinking": {
+    #     #         "type": "enabled",
+    #     #         "clear_thinking": False
+    #     #     }
+    #     # }
+    # )
 
 def graph():
     # ===== LLM Client =====

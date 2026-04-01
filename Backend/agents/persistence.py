@@ -3,7 +3,7 @@ from typing import List, Optional
 import logging
 
 import jwt
-from supabase import acreate_client
+from supabase import acreate_client, ClientOptions
 from utils import load_env
 from langchain_core.messages import BaseMessage, HumanMessage, messages_to_dict, messages_from_dict
 
@@ -20,7 +20,7 @@ class ConversationManager:
     @classmethod
     async def create(cls, token: str):
         try:
-            client = await acreate_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_KEY"))
+            client = await acreate_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_KEY"), options = ClientOptions(postgrest_client_timeout=15))
             # Decode and validate provided JWT
             payload = jwt.decode(token, os.environ.get("SUPABASE_JWT_SECRET"), algorithms=["HS256"], audience="authenticated")
             return cls(client=client, user_id=payload["sub"])

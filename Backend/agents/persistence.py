@@ -47,7 +47,7 @@ class ConversationManager:
         if not conversation_id:
             # Find the first HumanMessage
             query = next((m for m in messages if isinstance(m, HumanMessage)), None)
-            new_title = query.content[:30]
+            new_title = query.content[:60]
             conversation_id = await self._create_conversation(new_title)
 
             if not conversation_id:

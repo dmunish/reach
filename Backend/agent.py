@@ -1,74 +1,28 @@
+import json
+from typing import Optional
+import traceback
+import logging
+
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
 
-from agents.state import State
 from agents.graph import graph
+from agents.persistence import ConversationManager
 
-import json
-from typing import Optional
-import traceback
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("reach_agent")
 
 app = FastAPI(title = "REACH Agent")
 
 # ===== Request/Response Models =====
 class QueryRequest(BaseModel):
     question: str
-    session_id: Optional[str] = None
-
-class AgentResponse(BaseModel):
-    transcript: list[dict]
-    session_id: Optional[str] = None
-    total_iterations: int
-    is_complete: bool
-
-# ===== Helper Functions =====
-def serialize_message(msg) -> dict:
-    """Convert a single message to clean dict"""
-    entry = {}
-    
-    # Reasoning tokens
-    if hasattr(msg, "reasoning_content") and msg.reasoning_content:
-        entry["reasoning"] = msg.reasoning_content
-    
-    # Chat content
-    if msg.content:
-        entry["content"] = msg.content
-        entry["role"] = msg.type  # 'human', 'ai', 'tool', 'system'
-
-    # Tool calls (from AI messages)
-    if hasattr(msg, "tool_calls") and msg.tool_calls:
-        entry["tool_calls"] = [
-            {
-                "name": call.get("name", ""),
-            }
-            for call in msg.tool_calls
-        ]
-    
-    # Tool results (from tool messages)
-    if msg.type == "tool":
-        entry["tool_name"] = msg.name
-        try:
-            tool_output = json.loads(msg.content) if isinstance(msg.content, str) else msg.content
-            entry["tool_output"] = tool_output
-        except (json.JSONDecodeError, AttributeError):
-            entry["tool_output"] = {"raw": msg.content}
-           
-    return entry
-
-def serialize_state(state: State) -> dict:
-    """Convert entire state into clean transcript"""
-    transcript = [serialize_message(msg) for msg in state["messages"]]
-    
-    return {
-        "transcript": transcript,
-        "total_iterations": state.get("iteration_count", 0),
-        "is_complete": state.get("is_complete", False),
-        "db_results": state.get("db_results")
-    }
+    conversation_id: Optional[str] = None
 
 # ===== API Endpoints =====
-@app.post("/query", response_model=AgentResponse)
+@app.post("/query")
 async def run_agent(query: QueryRequest, authorization: str = Header(...)):
     """
     Main endpoint: Send a question to the agent.
@@ -79,11 +33,11 @@ async def run_agent(query: QueryRequest, authorization: str = Header(...)):
     Body:
         {
             "question": "Show me flood alerts in Punjab",
-            "session_id": "optional-session-uuid"
+            "conversation_id": "optional-conversation-uuid"
         }
     
     Returns:
-        Complete transcript of agent's reasoning, tool calls, and responses
+        Complete transcript of agent's tool calls and responses
     """
 
     # Extract jwt
@@ -91,35 +45,40 @@ async def run_agent(query: QueryRequest, authorization: str = Header(...)):
         raise HTTPException(status_code=401, detail="Invalid authorization header")
     jwt = authorization.replace("Bearer ", "")
 
+    if len(query.question) > 1000:
+        raise HTTPException(
+            status_code=400,
+            detail="Request length too large"
+        )
+    
     try:
-        # Initialize state
-        initial_state: State = {
-            "messages": [HumanMessage(content=query.question)],
-            "db_results": None,
-            "iteration_count": 0,
-            "is_complete": False
-        }
+        manager = await ConversationManager.create(jwt)
+        if not manager:
+            raise HTTPException(status_code=500, detail="Failed to initialize persistence manager")
 
+        # Load conversation history and append the new query
+        history = await manager.load_conversation(query.conversation_id) if query.conversation_id else []
+        user_message = HumanMessage(content=query.question)
+        initial_state = history + [user_message]
+        
         # Create graph and execute
-        agent_graph = graph()
-        final_state = await agent_graph.ainvoke(
-            initial_state,
+        agent = graph()
+        result = await agent.ainvoke(
+            {"messages": initial_state},
             config={"configurable": {"jwt": jwt}}
         )
 
-        # Serialize
-        result = serialize_state(final_state)
-        print(json.dumps(result, indent=2, default=str))
-        return AgentResponse(
-            transcript=result["transcript"],
-            session_id=query.session_id,
-            total_iterations=result["total_iterations"],
-            is_complete=result["is_complete"]
-        )
+        new_messages = result["messages"][len(history):]
+        final_convo_id, respone_message = await manager.save_conversation(query.conversation_id, new_messages)
+        logger.info(f"Response saved successfully for conversation {final_convo_id}")
+        print(json.dumps(respone_message, indent=2, default=str))
+        return respone_message
     
+    except HTTPException:
+        raise
     except Exception as e:
         # Log full traceback for debugging
-        print(f"Agent execution error: {traceback.format_exc()}")
+        logger.exception("Agent execution error")
         
         raise HTTPException(
             status_code=500,

@@ -1,10 +1,11 @@
+import json
+import os
+from typing import Any, Optional, Dict, List
+
+from supabase import create_async_client
 from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
 
-from supabase import create_async_client
-from typing import Any, Optional, Dict, List
-import json
-import os
 from utils import load_env
 from agents.transforms import transform_to_graph, transform_to_matrix, transform_to_tree
 
@@ -17,14 +18,15 @@ async def get_supabase(config: RunnableConfig):
     return client
 
 @tool
-async def query(query: str, config: RunnableConfig) -> List[dict]:
+async def query(query: str, read: bool = False, config: RunnableConfig = None):
     """
     Execute a read-only SQL query against the REACH PostgreSQL database.
     Returns the raw data from the Supabase client.
     The schema of REACH is based on the Common Alerting Protocol standard, with some modifications.
 
     Args:
-        query: The SQL string to execute against the database
+        query: The SQL string to execute against the database.
+        read: Boolean for if you want to see the database results. Set to false so large amounts of data is only available to the chart tool for visualization.
 
     # Instructions:
     - Only write SELECT statements.
@@ -71,16 +73,32 @@ async def query(query: str, config: RunnableConfig) -> List[dict]:
     - Severity values: 'Extreme', 'Severe', 'Moderate', 'Minor', 'Unknown'.
     - Urgency values: 'Immediate', 'Expected', 'Future', 'Past', 'Unknown'.
     - Category values: 'Geo','Met','Safety','Security','Rescue','Fire', 'Health','Env','Transport','Infra','CBRNE','Other'.
-    - alert_search_index is a denormalized and performant view.
     """
     try:
         client = await get_supabase(config)
         result = await client.rpc("execute_readonly_sql", {"query_text": query}).execute()
-        rows = result.data or []
-        return {"data": rows}
+
+        # Store raw data in artifact because its invisible to LLM and doesn't flood context
+        artifact = result.data or []
+
+        # Get a summary for the LLM
+        num_rows = len(artifact)
+        column_names = list(artifact[0].keys())
+        content = f"""
+                ## Query Execution Summary
+                * **Total Rows:** {num_rows}
+                * **Columns:** {', '.join(f'`{col}`' for col in column_names)}
+
+                ### Data Preview (First 2 rows):
+                {artifact[:2]}
+                """
+        if read:
+            content = artifact
+        
+        return content, artifact
     
     except Exception as e:
-        return {"error": str(e)}
+        return f"Error: {str(e)}"
 
 @tool
 def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableConfig = None) -> Any:
@@ -116,14 +134,13 @@ def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableCo
     """
     try:
         # Retrieve Data
-        data = config.get("configurable", {}).get("db_results")
+        data = config.get("configurable", {}).get("dataset")
         if not data:
-            return {"error": "No query results available. Call 'query' tool first."}
+            return "Error: No data artifact found. Please run `query` first.", None
 
         # Apply Transformation Logic
         if data_transform:
             transform_type = data_transform.get("type")
-            
             if transform_type == "hierarchy":
                 data = transform_to_tree(data, data_transform)
             elif transform_type == "graph":
@@ -137,16 +154,19 @@ def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableCo
         clean_config = clean_config.replace("DATA_SOURCE", data_json)
 
         # Return Result
-        return {
+        content = "Chart generated with injected data."
+        artifact =  {
             "action": "render_chart",
             "data": {
                 "config": clean_config,
             }
         }
 
+        return content, artifact
+
     except Exception as e:
         import traceback
-        return {"error": f"Chart generation failed: {str(e)}\n{traceback.format_exc()}"}
+        return f"Chart generation failed: {str(e)}\n{traceback.format_exc()}"
 
     
 @tool
@@ -164,10 +184,11 @@ async def map(places: List[str], config: RunnableConfig) -> dict:
         result = await client.rpc("get_places", {"place_names": places}).execute()
         
         if not result.data:
-            return {"error": "No data found."}
+            return "Error: No data found."
         
         row = result.data[0]
-        return {
+        content = f"Found data for {(", ").join(places)}."
+        artifact = {
             "action": "map_update",
             "data":{
                 "polygon": row["unioned_polygon"],
@@ -175,8 +196,9 @@ async def map(places: List[str], config: RunnableConfig) -> dict:
                 "bbox": row["bbox"]
             }
         }
+        
     except Exception as e:
-        return {"error": str(e)}
+        return f"Error: {str(e)}"
 
 @tool
 async def examples(type: str, config: RunnableConfig) -> dict:
@@ -225,6 +247,7 @@ async def examples(type: str, config: RunnableConfig) -> dict:
                 f"### Option: \n```javascript\n{example.get('option')}```\n"
                 )
         all_examples_str = ("\n\n").join(all_examples)
-        return {"data": f"# Official examples for {result.data[0].get('type').title()} chart:\n\n" + all_examples_str}
+        content = f"# Official examples for {result.data[0].get('type').title()} chart:\n\n" + all_examples_str
+        return content
     except Exception as e:
-        return {"error": str(e)}
+        return f"Error: {str(e)}"

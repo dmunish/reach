@@ -1,25 +1,32 @@
+import os
+from operator import add
+from typing import TypedDict, Annotated, Sequence
+
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-import os
-import json
 
-from agents.state import State
 from agents.prompts import SYSTEM_PROMPT
 from agents.tools import examples, query, chart, map
 from utils import load_env
 
+
 TOOLS = [query, chart, map, examples]
 load_env()
 
+class State(TypedDict):
+    messages: Annotated[Sequence[BaseMessage], add]
+    iteration_count: int
+    is_complete: bool
+
 def create_llm():
     # return ChatOpenAI(
-    #     model="meta-llama/llama-4-scout-17b-16e-instruct",
+    #     model="openai/gpt-oss-20b",
     #     base_url="https://api.groq.com/openai/v1",
     #     api_key=os.environ.get("GROQ_KEY"),
-    #     max_tokens=8192,
+    #     max_tokens=16384,
     #     temperature=0.7,
     # )
     # return ChatOpenAI(
@@ -28,30 +35,30 @@ def create_llm():
     #     api_key=os.environ.get("CEREBRAS_KEY"),
     #     max_tokens=65536,
     #     temperature=0.7,
-    #     top_p=0.95,
+    #     top_p=0.8,
+    # )
+    # return ChatOpenAI(
+    #     model="minimax/minimax-m2.5-highspeed",
+    #     base_url="https://api.novita.ai/openai",
+    #     api_key=os.environ.get("NOVITA_KEY"),
+    #     max_tokens=65536,
+    #     temperature=0.7,
+    #     top_p=0.8,
     # )
     return ChatOpenAI(
-        model="minimax/minimax-m2.5-highspeed",
-        base_url="https://api.novita.ai/openai",
-        api_key=os.environ.get("NOVITA_KEY"),
-        max_tokens=128000,
+        model="@cf/zai-org/glm-4.7-flash",
+        base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
+        api_key=os.environ.get("CLOUDFLARE_API_KEY"),
+        max_tokens=16384,
         temperature=0.7,
-        top_p=0.95
+        top_p=0.95,
+        # extra_body={
+        #     "thinking": {
+        #         "type": "enabled",
+        #         "clear_thinking": False
+        #     }
+        # }
     )
-    # return ChatOpenAI(
-    #     model="@cf/zai-org/glm-4.7-flash",
-    #     base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
-    #     api_key=os.environ.get("CLOUDFLARE_API_KEY"),
-    #     max_tokens=16384,
-    #     temperature=0.7,
-    #     top_p=0.95,
-    #     # extra_body={
-    #     #     "thinking": {
-    #     #         "type": "enabled",
-    #     #         "clear_thinking": False
-    #     #     }
-    #     # }
-    # )
 
 def graph():
     # ===== LLM Client =====
@@ -89,37 +96,24 @@ def graph():
         """
         if "configurable" not in config:
             config["configurable"] = {}
-        config["configurable"]["db_results"] = state.get("db_results")
+
+        # Find the latest results of `query` execution and inject into config
+        dataset = None
+        for msg in reversed(state["messages"]):
+            if msg.type == "tool" and msg.name == "query":
+                dataset = getattr(msg, "artifact", None)
+                break
+        config["configurable"]["dataset"] = dataset
 
         tool_node = ToolNode(TOOLS)
-        result = await tool_node.ainvoke(state, config = config)
-
-        if isinstance(result, dict) and "messages" in result:
-            messages = result["messages"]
-            db_results_update = None
-            
-            # Allow the loop to finish so we don't accidentally swallow parallel tool calls (like map)
-            for msg in messages:
-                if msg.type == "tool" and msg.name == "query":
-                    try:
-                        tool_output = json.loads(msg.content)
-                        if "data" in tool_output:
-                            db_results_update = tool_output["data"]
-                    except json.JSONDecodeError:
-                        pass
-            
-            state_update = {"messages": messages}
-            if db_results_update is not None:
-                state_update["db_results"] = db_results_update
-            return state_update
-        
+        result = await tool_node.ainvoke(state, config = config)        
         return result
-
+    
     def should_continue(state: State) -> str:
         """
         Routing function (not node): Should we continue or end?
         """
-        if state.get("iteration_count") >= 15:
+        if state.get("iteration_count") >= 10:
             return "end"
         
         messages = state["messages"]

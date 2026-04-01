@@ -196,6 +196,7 @@ async def map(places: List[str], config: RunnableConfig) -> dict:
                 "bbox": row["bbox"]
             }
         }
+        return content, artifact
         
     except Exception as e:
         return f"Error: {str(e)}"

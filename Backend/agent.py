@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Optional
 import logging
 
@@ -21,9 +22,10 @@ logger.setLevel(logging.INFO)
 
 app = FastAPI(title = "REACH Agent")
 
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in allowed_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

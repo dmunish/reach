@@ -54,7 +54,13 @@ class ConversationManager:
                 logger.error("Failed to generate a valid conversation_id.")
                 return []
         
+        # Pop unnecessary keys
         serialized_messages = messages_to_dict(messages)
+        keys_to_remove = ["response_metadata", "usage_metadata", "additional_kwargs", "id", "invalid_tool_calls", "status"]
+        for message in serialized_messages:
+            for key in keys_to_remove:
+                message.get("data", {}).pop(key, None)
+        
         rows = [
             {
                 "conversation_id": conversation_id,

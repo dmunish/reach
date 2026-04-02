@@ -81,11 +81,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           }`}
           title="Analytics & QA Agent"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-            <polyline points="12 3 20 7.5 20 16.5 12 21 4 16.5 4 7.5 12 3"></polyline>
-            <polyline points="12 12 20 7.5"></polyline>
-            <polyline points="12 12 12 21"></polyline>
-            <polyline points="12 12 4 7.5"></polyline>
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M 8 4 a 1 1 0 0 1 2 0 c 0 2.5 1.5 4 4 4 a 1 1 0 0 1 0 2 c -2.5 0 -4 1.5 -4 4 a 1 1 0 0 1 -2 0 c 0 -2.5 -1.5 -4 -4 -4 a 1 1 0 0 1 0 -2 c 2.5 0 4 -1.5 4 -4 Z" />
+            <path d="M 16.5 14 a 0.5 0.5 0 0 1 1 0 c 0 1.5 1 2.5 2.5 2.5 a 0.5 0.5 0 0 1 0 1 c -1.5 0 -2.5 1 -2.5 2.5 a 0.5 0.5 0 0 1 -1 0 c 0 -1.5 -1 -2.5 -2.5 -2.5 a 0.5 0.5 0 0 1 0 -1 c 1.5 0 2.5 -1 2.5 -2.5 Z" />
           </svg>
         </button>
 

@@ -5,6 +5,7 @@ import logging
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
+from fastapi.middleware.cors import CORSMiddleware
 
 from agents.graph import graph
 from agents.persistence import ConversationManager
@@ -18,6 +19,14 @@ logger = logging.getLogger("reach_agent")
 logger.setLevel(logging.INFO)
 
 app = FastAPI(title = "REACH Agent")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ===== Request/Response Models =====
 class QueryRequest(BaseModel):

@@ -103,7 +103,8 @@ async def query(query: str, read: bool = False, config: RunnableConfig = None):
 @tool(response_format="content_and_artifact")
 def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableConfig = None) -> Any:
     """
-    Publish a chart by providing a JavaScript ECharts option object.
+    Publish a chart by providing a JavaScript ECharts option object. 
+    Never hardcode data, let it be injected through DATA_SOURCE as described below.
     Always include a toolbox in the option object. saveAsImage is compulsary. dataView, dataZoom, restore, magicType, and brush if appropriate/requested. Change the order of the tools as you please.
     To style the chart in a beautiful and modern manner:
     - Use a sophisticated, beautiful and meaningful, dark-mode optimized color pallete.

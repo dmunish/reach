@@ -52,12 +52,12 @@ def create_llm():
         max_tokens=16384,
         temperature=0.7,
         top_p=0.95,
-        # extra_body={
-        #     "thinking": {
-        #         "type": "enabled",
-        #         "clear_thinking": False
-        #     }
-        # }
+        extra_body={
+            "thinking": {
+                "type": "disabled",
+                # "clear_thinking": False
+            }
+        }
     )
 
 def graph():

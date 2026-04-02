@@ -17,7 +17,7 @@ async def get_supabase(config: RunnableConfig):
     await client.auth.set_session(access_token=jwt, refresh_token="")
     return client
 
-@tool
+@tool(response_format="content_and_artifact")
 async def query(query: str, read: bool = False, config: RunnableConfig = None):
     """
     Execute a read-only SQL query against the REACH PostgreSQL database.
@@ -98,9 +98,9 @@ async def query(query: str, read: bool = False, config: RunnableConfig = None):
         return content, artifact
     
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error: {str(e)}", None
 
-@tool
+@tool(response_format="content_and_artifact")
 def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableConfig = None) -> Any:
     """
     Publish a chart by providing a JavaScript ECharts option object.
@@ -166,10 +166,10 @@ def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableCo
 
     except Exception as e:
         import traceback
-        return f"Chart generation failed: {str(e)}\n{traceback.format_exc()}"
+        return f"Chart generation failed: {str(e)}\n{traceback.format_exc()}", None
 
     
-@tool
+@tool(response_format="content_and_artifact")
 async def map(places: List[str], config: RunnableConfig) -> dict:
     """
     Control the Mapbox camera and highlight a geometry.
@@ -199,7 +199,7 @@ async def map(places: List[str], config: RunnableConfig) -> dict:
         return content, artifact
         
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error: {str(e)}", None
 
 @tool
 async def examples(type: str, config: RunnableConfig) -> dict:

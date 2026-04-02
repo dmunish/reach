@@ -23,21 +23,6 @@ class State(TypedDict):
 
 def create_llm():
     # return ChatOpenAI(
-    #     model="openai/gpt-oss-20b",
-    #     base_url="https://api.groq.com/openai/v1",
-    #     api_key=os.environ.get("GROQ_KEY"),
-    #     max_tokens=16384,
-    #     temperature=0.7,
-    # )
-    # return ChatOpenAI(
-    #     model="qwen-3-235b-a22b-instruct-2507",
-    #     base_url="https://api.cerebras.ai/v1",
-    #     api_key=os.environ.get("CEREBRAS_KEY"),
-    #     max_tokens=65536,
-    #     temperature=0.7,
-    #     top_p=0.8,
-    # )
-    # return ChatOpenAI(
     #     model="minimax/minimax-m2.5-highspeed",
     #     base_url="https://api.novita.ai/openai",
     #     api_key=os.environ.get("NOVITA_KEY"),
@@ -49,13 +34,12 @@ def create_llm():
         model="@cf/zai-org/glm-4.7-flash",
         base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
         api_key=os.environ.get("CLOUDFLARE_API_KEY"),
-        max_tokens=16384,
+        max_tokens=128000,
         temperature=0.7,
         top_p=0.95,
         extra_body={
             "thinking": {
                 "type": "disabled",
-                # "clear_thinking": False
             }
         }
     )

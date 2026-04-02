@@ -37,12 +37,26 @@ interface Conversation {
   updated_at: string;
 }
 
-const TOOL_DESCRIPTIONS: Record<string, string> = {
-  query: "Fetched data",
-  chart: "Generated chart",
-  map: "Updated map",
-  examples: "Reading chart examples",
+const TOOL_DESCRIPTIONS: Record<string, {active: string, done: string}> = {
+  query: { active: "Fetching data", done: "Fetched data" },
+  chart: { active: "Generating chart", done: "Generated chart" },
+  map: { active: "Updating map", done: "Updated map" },
+  examples: { active: "Reading chart examples", done: "Read chart examples" },
 };
+
+const LoadingDots = () => (
+  <span className="inline-flex w-4" style={{ alignItems: 'baseline' }}>
+    <span style={{ animation: 'bounce 1.4s infinite ease-in-out both', animationDelay: '-0.32s' }}>.</span>
+    <span style={{ animation: 'bounce 1.4s infinite ease-in-out both', animationDelay: '-0.16s' }}>.</span>
+    <span style={{ animation: 'bounce 1.4s infinite ease-in-out both' }}>.</span>
+    <style>{`
+      @keyframes bounce {
+        0%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-3px); }
+      }
+    `}</style>
+  </span>
+);
 
 const ResizableChart: React.FC<{ config: string; description?: string }> = ({ config, description }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -447,6 +461,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
           body: JSON.stringify({
             question: message,
             conversation_id: conversationId || undefined,
+            stream: true,
           }),
           signal: abortControllerRef.current.signal,
         }
@@ -457,32 +472,119 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
         throw new Error("Failed to send message: " + response.status);
       }
 
-      const json = await response.json();
-      // The backend returns an array of messages, and may also be wrapped or directly JSON.
-      // Based on agent.py, response_message (the subset) is returned directly. 
-      // The list is already returned as a list of message dicts from save_conversation.
-      if (Array.isArray(json)) {
-        // Append these new messages to current history
-        setMessages((prev) => {
-          // Remove the temporary user message
-          const filtered = prev.filter(p => !p.id?.startsWith("user-"));
+      const tempId = `ai-${Date.now()}`;
+      // Instead of forcing streaming logic, we'll branch based on the content type
+      const contentType = response.headers.get("content-type");
+      
+      if (contentType && contentType.includes("text/event-stream")) {
+        const tempIdsCreated = new Set<string>();
+        let activeAiId = `ai-${Date.now()}`;
+        tempIdsCreated.add(activeAiId);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: activeAiId,
+            type: "ai",
+            data: { content: "", tool_calls: [] },
+          },
+        ]);
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        if (!reader) throw new Error("No reader available");
+
+        let finalMessages: any[] = [];
+        let done = false;
+        let buffer = "";
+        let activeToolId: string | null = null;
+
+        while (!done) {
+          const { value, done: readerDone } = await reader.read();
+          done = readerDone;
           
-          const newMessages = json.map((msg: any) => {
-            const { content, name, tool_calls, artifact } = msg.data || {};
-            return {
+          if (value) {
+            buffer += decoder.decode(value, { stream: !done });
+            let newlineIdx;
+            
+            while ((newlineIdx = buffer.indexOf('\n\n')) >= 0) {
+              const eventStr = buffer.slice(0, newlineIdx);
+              buffer = buffer.slice(newlineIdx + 2);
+              
+              if (eventStr.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(eventStr.slice(6));
+                  
+                  if (data.type === 'content_chunk') {
+                    setMessages((prev) => {
+                      const lastMsg = prev[prev.length - 1];
+                      if (lastMsg && lastMsg.type === 'ai') {
+                        return prev.map((p, i) => i === prev.length - 1 ? { ...p, data: { ...p.data, content: p.data.content + data.content } } : p);
+                      } else {
+                        activeAiId = `ai-${Date.now()}`;
+                        tempIdsCreated.add(activeAiId);
+                        return [...prev, { id: activeAiId, type: "ai", data: { content: data.content, tool_calls: [] } }];
+                      }
+                    });
+                  } else if (data.type === 'tool_start') {
+                    activeToolId = `tool-${data.name}-${Date.now()}`;
+                    tempIdsCreated.add(activeToolId);
+                    setMessages((prev) => [
+                      ...prev,
+                      { id: activeToolId as string, type: "tool", data: { content: "", name: data.name, _status: 'loading' } }
+                    ]);
+                  } else if (data.type === 'tool_end') {
+                    if (activeToolId) {
+                      const completeId = activeToolId; // copy to avoid closure issues
+                      setMessages((prev) => 
+                        prev.map(p => p.id === completeId ? { ...p, data: { ...p.data, _status: 'done', content: data.content, artifact: data.artifact } } : p)
+                      );
+                      activeToolId = null;
+                    }
+                  } else if (data.type === 'done') {
+                    finalMessages = data.messages;
+                    const firstMsg = finalMessages[0];
+                    if (!conversationId && firstMsg && firstMsg.conversation_id) {
+                      setConversationId(firstMsg.conversation_id);
+                      loadConversations();
+                    }
+                  } else if (data.type === 'error') {
+                    throw new Error(data.message);
+                  }
+                } catch (e) {
+                  // Ignore partial JSON
+                }
+              }
+            }
+          }
+        }
+
+        if (finalMessages && finalMessages.length > 0) {
+          setMessages((prev) => {
+            const filtered = prev.filter(p => !p.id?.startsWith("user-") && (p.id ? !tempIdsCreated.has(p.id) : true));
+            const newMessages = finalMessages.map((msg: any) => ({
               id: msg.id,
               type: msg.type,
-              data: { content, name, tool_calls, artifact }
-            };
+              data: msg.data || {}
+            }));
+            return [...filtered, ...newMessages];
           });
-          
-          return [...filtered, ...newMessages];
-        });
-        
-        // If we didn't have a conversation ID, set it to the one returned in the first message
-        if (!conversationId && json.length > 0 && json[0].conversation_id) {
-          setConversationId(json[0].conversation_id);
-          loadConversations();
+        }
+      } else {
+        // Non-streaming fallback
+        const json = await response.json();
+        if (Array.isArray(json)) {
+          setMessages((prev) => {
+            const filtered = prev.filter(p => !p.id?.startsWith("user-"));
+            const newMessages = json.map((msg: any) => ({
+              id: msg.id, type: msg.type, data: msg.data || {}
+            }));
+            return [...filtered, ...newMessages];
+          });
+          if (!conversationId && json.length > 0 && json[0].conversation_id) {
+            setConversationId(json[0].conversation_id);
+            loadConversations();
+          }
         }
       }
 
@@ -660,29 +762,51 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                   }
 
                   if (msg.type === "tool") {
-                    // Find all consecutive tool messages
+                    // Find all consecutive tool messages (skipping empty AI intermediate steps)
                     const toolGroup: typeof messages = [msg];
                     let nextIdx = idx + 1;
                     
-                    while (nextIdx < messages.length && messages[nextIdx].type === "tool") {
-                      toolGroup.push(messages[nextIdx]);
-                      renderedIndices.add(nextIdx);
-                      nextIdx++;
+                    while (nextIdx < messages.length) {
+                      const nextMsg = messages[nextIdx];
+                      if (nextMsg.type === "tool") {
+                        toolGroup.push(nextMsg);
+                        renderedIndices.add(nextIdx);
+                        nextIdx++;
+                      } else if (
+                        nextMsg.type === "ai" && 
+                        !nextMsg.data.content && 
+                        !(nextMsg.data.artifact && nextMsg.data.artifact.action === "render_chart" && nextMsg.data.artifact.data?.config)
+                      ) {
+                        // Skip empty AI messages that generated the tool calls
+                        renderedIndices.add(nextIdx);
+                        nextIdx++;
+                      } else {
+                        break;
+                      }
                     }
 
                     return (
                       <div key={msg.id || idx} className="w-full">
                         {/* Tool badges in a flex row */}
                         <div className="flex flex-wrap gap-2">
-                          {toolGroup.map((toolMsg) => (
-                            <div key={toolMsg.id} className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-full text-xs text-stone font-mono flex items-center gap-2">
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                              {TOOL_DESCRIPTIONS[toolMsg.data.name] || `Ran ${toolMsg.data.name}`}
-                            </div>
-                          ))}
+                          {toolGroup.map((toolMsg) => {
+                            const isloading = toolMsg.data._status === 'loading';
+                            const descObj = TOOL_DESCRIPTIONS[toolMsg.data.name];
+                            const badgeText = descObj 
+                                ? (isloading ? descObj.active : descObj.done) 
+                                : (isloading ? `Running ${toolMsg.data.name}` : `Ran ${toolMsg.data.name}`);
+
+                            return (
+                              <div key={toolMsg.id} className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-full text-xs text-stone font-mono flex items-center gap-2">
+                                <svg className={`w-3 h-3 ${isloading ? 'animate-spin text-caribbean-green' : 'text-stone'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>{badgeText}</span>
+                                {isloading && <LoadingDots />}
+                              </div>
+                            );
+                          })}
                         </div>
                         
                         {/* Artifacts below the badges */}

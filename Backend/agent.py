@@ -1,6 +1,5 @@
 import json
 from typing import Optional
-import traceback
 import logging
 
 from fastapi import FastAPI, HTTPException, Header
@@ -12,7 +11,11 @@ from agents.persistence import ConversationManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("supabase").setLevel(logging.WARNING)
 logger = logging.getLogger("reach_agent")
+logger.setLevel(logging.INFO)
 
 app = FastAPI(title = "REACH Agent")
 

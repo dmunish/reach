@@ -642,7 +642,16 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
 
                   if (msg.type === "human") {
                     return (
-                      <div key={msg.id || idx} className="human-message flex justify-end">
+                      <div key={msg.id || idx} className="human-message flex justify-end group items-center gap-2">
+                        <button
+                          onClick={() => navigator.clipboard.writeText(msg.data.content)}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 text-stone hover:text-white hover:bg-white/10 rounded transition-all"
+                          title="Copy message"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
                         <div className="max-w-[70%] px-4 py-3 bg-bangladesh-green text-white shadow-sm break-words min-w-0">
                           <p className="text-sm whitespace-pre-wrap">{msg.data.content}</p>
                         </div>
@@ -723,18 +732,44 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                           </div>
                           <div className="flex-1 min-w-0">
                             {msg.data.content && (
-                              <div className="prose prose-invert max-w-none text-sm leading-loose">
+                              <div className="prose prose-invert prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:m-0 max-w-none text-sm">
                                 <ReactMarkdown
                                   remarkPlugins={[remarkGfm]}
                                   components={{
-                                    p: ({ node, ...props }) => <p className="mb-4 break-words" {...props} />,
+                                    h1: ({ node, ...props }) => <h1 className="text-2xl font-semibold text-white mt-6 mb-4" {...props} />,
+                                    h2: ({ node, ...props }) => <h2 className="text-xl font-semibold text-white mt-5 mb-3" {...props} />,
+                                    h3: ({ node, ...props }) => <h3 className="text-lg font-medium text-white mt-4 mb-2" {...props} />,
+                                    ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-6 mb-4 space-y-1 marker:text-stone" {...props} />,
+                                    ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-6 mb-4 space-y-1 marker:text-stone" {...props} />,
+                                    li: ({ node, ...props }) => <li className="pl-1 text-gray-300" {...props} />,
+                                    a: ({ node, ...props }) => <a className="text-caribbean-green hover:text-mountain-meadow underline underline-offset-2" target="_blank" rel="noopener noreferrer" {...props} />,
+                                    blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-bangladesh-green pl-4 my-4 italic text-stone bg-white/5 py-2 rounded-r" {...props} />,
+                                    code: ({ inline, className, children, ...props }: any) => {
+                                      const match = /language-(\w+)/.exec(className || '');
+                                      return !inline ? (
+                                        <div className="not-prose rounded-lg bg-black/50 border border-white/10 my-4 overflow-hidden">
+                                          {match && <div className="bg-white/5 px-4 py-1.5 text-xs text-stone font-mono border-b border-white/10 capitalize">{match[1]}</div>}
+                                          <div className="p-4 overflow-x-auto dark-scrollbar">
+                                            <code className={`font-mono text-sm text-gray-300 ${className || ''}`} {...props}>
+                                              {children}
+                                            </code>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <code className="bg-white/10 text-caribbean-green px-1.5 py-0.5 rounded-md font-mono text-[0.9em]" {...props}>
+                                          {children}
+                                        </code>
+                                      );
+                                    },
+                                    pre: ({ node, ...props }) => <>{props.children}</>,
+                                    p: ({ node, ...props }) => <p className="mb-4 break-words text-gray-200" {...props} />,
                                     table: ({ node, ...props }) => (
-                                      <div className="overflow-x-auto w-full mb-4">
-                                        <table className="w-full text-left border-collapse whitespace-nowrap" {...props} />
+                                      <div className="not-prose overflow-x-auto w-full mb-4 rounded-lg border border-white/10">
+                                        <table className="w-full text-left border-collapse whitespace-nowrap bg-black/20" {...props} />
                                       </div>
                                     ),
-                                    th: ({ node, ...props }) => <th className="px-4 py-2 border-b border-white/20 font-semibold text-stone" {...props} />,
-                                    td: ({ node, ...props }) => <td className="px-4 py-2 border-b border-white/10" {...props} />
+                                    th: ({ node, ...props }) => <th className="px-4 py-3 border-b border-r last:border-r-0 border-white/20 font-semibold text-white bg-white/5" {...props} />,
+                                    td: ({ node, ...props }) => <td className="px-4 py-3 border-b border-r last:border-r-0 border-white/10 text-gray-300" {...props} />
                                   }}
                                 >
                                   {msg.data.content}

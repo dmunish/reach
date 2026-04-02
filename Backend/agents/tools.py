@@ -185,10 +185,10 @@ async def map(places: List[str], config: RunnableConfig) -> dict:
         result = await client.rpc("get_places", {"place_names": places}).execute()
         
         if not result.data:
-            return "Error: No data found."
+            return "Error: No data found.", None
         
         row = result.data[0]
-        content = f"Found data for {(", ").join(places)}."
+        content = f"Found data for {', '.join(places)}."
         artifact = {
             "action": "map_update",
             "data":{

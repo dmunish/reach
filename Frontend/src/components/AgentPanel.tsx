@@ -451,7 +451,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
       abortControllerRef.current = new AbortController();
 
       const response = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL || "http://localhost:8000"}/query`,
+        `${import.meta.env.VITE_AGENT_BACKEND_URL || "http://localhost:8000"}/query`,
         {
           method: "POST",
           headers: {

@@ -570,7 +570,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
               <div
                 key={c.id}
                 onClick={() => loadMessages(c.id)}
-                className={`group w-full flex items-center justify-between p-2 rounded text-sm mb-1 cursor-pointer transition-colors ${conversationId === c.id ? "bg-bangladesh-green text-white" : "text-stone hover:bg-white/5"}`}
+                className={`group w-full flex items-center justify-between p-3 text-sm mb-2 cursor-pointer transition-colors ${conversationId === c.id ? "bg-bangladesh-green text-white" : "text-stone hover:bg-white/5"}`}
               >
                 <div className="flex-1 truncate pr-2">
                   {c.title || "New Chat"}
@@ -602,13 +602,13 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                 </svg>
               </button>
             )}
-            <h3 className="text-base font-medium text-white">Analytics Agent</h3>
+            <h3 className="text-base font-medium text-white">REACH Agent</h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-bangladesh-green rounded-full transition-colors"
+            className="p-1 hover:bg-white/20 hover:text-white rounded transition-colors"
           >
-            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-gray-400 hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -643,7 +643,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                   if (msg.type === "human") {
                     return (
                       <div key={msg.id || idx} className="human-message flex justify-end">
-                        <div className="max-w-[70%] px-4 py-3 bg-bangladesh-green text-white rounded-2xl rounded-tr-sm shadow-sm break-words min-w-0">
+                        <div className="max-w-[70%] px-4 py-3 bg-bangladesh-green text-white shadow-sm break-words min-w-0">
                           <p className="text-sm whitespace-pre-wrap">{msg.data.content}</p>
                         </div>
                       </div>
@@ -775,10 +775,10 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                 <button
                   onClick={sendMessage}
                   disabled={isSending || !inputValue.trim()}
-                  className="bg-bangladesh-green hover:bg-mountain-meadow disabled:opacity-50 text-white p-3 rounded-lg transition-colors"
+                  className="bg-bangladesh-green hover:brightness-125 disabled:cursor-not-allowed text-white p-3 rounded-lg transition-all"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
                   </svg>
                 </button>
               </div>

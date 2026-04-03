@@ -26,14 +26,16 @@ async def query(query: str, read: bool = False, config: RunnableConfig = None):
 
     Args:
         query: The SQL string to execute against the database.
-        read: Boolean for if you want to see the database results. Set to false so large amounts of data is only available to the chart tool for visualization.
+        read: Boolean for if you want to see the database results. Set to false so large amounts of data is only available to the chart tool for visualization. Prefer to set to false if you suspect amount of data will be large.
 
     # Instructions:
     - Only write SELECT statements.
     - Provide a single continuous string, no need for newlines.
     - Structure data in a way that makes it easy to visualize and digest. E.g using aggregation, counts, and others a lot.
-    - Use TO_CHAR() to present dates in a more human-readable format when constructing charts. For example: TO_CHAR(effective_from, 'FMMonth, YYYY').
-    - Prefer the denormalized alert_search_index table for fast queries.
+    - If doing a trend analysis, always sort data chronologically.
+    - Use TO_CHAR() to present dates in a more human-readable format when constructing charts. For example: `TO_CHAR(effective_from, 'FMMonth, YYYY')`. Use `FMMonth` instead of `Month` to prevent space around months with shorter names.
+    - Prefer the denormalized alert_search_index table for fast queries as it is a dnormalized view.
+    - Unless date ranges are specified, assume user's are asking about 'active' alerts and use `WHERE NOW() >= effective_from AND NOW() < effective_until`.
     - You have the following schema available, only use the following columns:
     | Table                | Column                     | Description                                    |
     | -------------------- | -------------------------- | ---------------------------------------------- |
@@ -72,7 +74,7 @@ async def query(query: str, read: bool = False, config: RunnableConfig = None):
     |                      | polygon                    | PostGIS geometry of the place boundary         |
     | -------------------- | -------------------------- | ---------------------------------------------- |
     | alert_search_index   | alert_id                   | UUID primary key, FK → alerts.id               |
-    | (Denormalized View)  | centroid                   | Geometry, center point of all affected areas   |
+    |                      | centroid                   | Geometry, center point of all affected areas   |
     |                      | bbox                       | Geometry, bounding box of all affected areas   |
     |                      | unioned_polygon            | Geometry,combined polygon of all affected areas|
     |                      | search_text                | Text for full-text search (event + desc + etc.)|
@@ -125,17 +127,21 @@ async def query(query: str, read: bool = False, config: RunnableConfig = None):
 def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableConfig = None) -> Any:
     """
     Publish a chart by providing a JavaScript ECharts option object. 
-    Never hardcode data, let it be injected through DATA_SOURCE as described below.
+    Never hardcode data, let it be injected through the `datasource` variable as described below.
     Always include a toolbox in the option object. saveAsImage is compulsary. dataView, dataZoom, restore, magicType, and brush if appropriate/requested. Change the order of the tools as you please.
-    To style the chart in a beautiful and modern manner:
-    - Use a sophisticated, beautiful and meaningful, dark-mode optimized color pallete.
-    - Refined typography & spacing, padding and custom fonts.
-    - Custom tooltip UX and visual cues.
-    - Polished interactions with animationDuration and animationEasing.
+
+
+    CRITICAL DO-NOT-VIOLATE STYLING RULES:
+    1. BACKGROUND: ALWAYS explicitly set `backgroundColor: 'transparent'`. DO NOT use solid colors (no '#000', no hex codes) regardless of what examples show.
+    2. OVERLAPPING & ROTATION: You MUST prevent tilted text. Inside `xAxis.axisLabel` (and any other timeline or axis), ALWAYS set: `{ interval: 'auto', hideOverlap: true, rotate: 0 }`.
+    3. THEME/COLORS: The UI is already dark mode. Do not make the chart background dark. Use bright, highly legible colors for title, legend, and axis text. Use a meaningful and modern/minimalist color palette all around.
+    4. PADDING: ALWAYS use `grid: { containLabel: true, bottom: 60, top: 40, left: 20, right: 20 }` so dataZoom components and horizontal labels do not collide or get cut off.
+    5. RESPONSIVENESS: Achieve polished interactions with animationDuration and animationEasing.
+    6. TYPOGRAPHY: Use custom, carefully picked fonts for modern feel.
     
     Args:
         option: A string containing a valid JavaScript object literal.
-                Use the placeholder 'DATA_SOURCE' for the dataset.source or series.data value.
+                Use the variable `datasource` directly to assign dataset.source or series.data.
                 
         data_transform: Optional. A dictionary to restructure tabular SQL data for complex charts.
                         - For 'tree', 'treemap', 'sunburst': 
@@ -146,13 +152,14 @@ def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableCo
                           {"type": "matrix", "x_key": "col_x", "y_key": "col_y", "v_key": "col_val"}
     
     Example:
-        option={ series: [{ type: 'graph', data: DATA_SOURCE.nodes, links: DATA_SOURCE.links }] },
-        data_transform={
-            "type": "graph",
-            "source_key": "sender",
-            "target_key": "receiver"
-        }
-)
+    {
+      "option": "{ series: [{ type: 'graph', data: datasource.nodes, links: datasource.links }] }",
+      "data_transform": {
+          "type": "graph",
+          "source_key": "sender",
+          "target_key": "receiver"
+      }
+    }
     """
     try:
         # Retrieve Data
@@ -173,7 +180,6 @@ def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableCo
         # Inject Data
         data_json = json.dumps(data, default=str)
         clean_config = option[option.find("{") : option.rfind("}") + 1].strip()
-        clean_config = clean_config.replace("DATA_SOURCE", data_json)
 
         # Return Result
         content = "Chart generated with injected data."
@@ -181,6 +187,7 @@ def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableCo
             "action": "render_chart",
             "data": {
                 "config": clean_config,
+                "datasource": data_json
             }
         }
 

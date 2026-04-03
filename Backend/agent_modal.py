@@ -37,7 +37,7 @@ app = modal.App(name="agent", image=image)
     timeout=600
 )
 @modal.asgi_app()
-def agent():
+def fastapi_app():
     """
     Mount the entire FastAPI app from agent.py.
     This preserves the CORS middleware, streaming responses, and all routes.

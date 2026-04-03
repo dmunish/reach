@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
-from agents.prompts import SYSTEM_PROMPT
+from agents.prompts import SYSTEM_PROMPT, current_time
 from agents.tools import examples, query, chart, map
 from utils import load_env
 
@@ -21,15 +21,11 @@ class State(TypedDict):
     iteration_count: int
     is_complete: bool
 
-def create_llm():
-    # return ChatOpenAI(
-    #     model="minimax/minimax-m2.5-highspeed",
-    #     base_url="https://api.novita.ai/openai",
-    #     api_key=os.environ.get("NOVITA_KEY"),
-    #     max_tokens=65536,
-    #     temperature=0.7,
-    #     top_p=0.8,
-    # )
+def create_llm(session_id: str = None):
+    headers = {}
+    if session_id:
+        headers["x-session-affinity"] = session_id
+        
     return ChatOpenAI(
         model="@cf/zai-org/glm-4.7-flash",
         base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
@@ -37,31 +33,38 @@ def create_llm():
         max_tokens=128000,
         temperature=0.7,
         top_p=0.95,
+        default_headers=headers,
         extra_body={
             "thinking": {
-                "type": "disabled",
+                "type": "disabled"
             }
         }
     )
 
 def graph():
-    # ===== LLM Client =====
-    """Build the LangGraph workflow"""
-    llm_client = create_llm()
-    llm = llm_client.bind_tools(TOOLS)
 
     # ===== Nodes =====
-    async def agent(state: State) -> State:
+    async def agent(state: State, config: RunnableConfig) -> State:
         """
         Main agent reasoning node.
         LLM decides what tools to call or provides final answer.
         """
+
+        # ===== LLM Client =====
+        """Build the LangGraph workflow"""
+        session_id = config.get("configurable", {}).get("session_id")
+        llm_client = create_llm(session_id)
+        llm = llm_client.bind_tools(TOOLS)
+
         messages = list(state["messages"])
 
         # Add system prompt
         has_system = any(isinstance(m, SystemMessage) for m in messages)
         if not has_system:
             messages.insert(0, SystemMessage(content=SYSTEM_PROMPT))
+        
+        # Add time
+        messages.insert(-1, SystemMessage(content=f"Current date and time: {current_time().strftime('%A, %Y-%m-%d %H:%M:%S PKT')}"))
         
         response = await llm.ainvoke(messages)
 

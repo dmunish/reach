@@ -7,9 +7,12 @@ from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
+from langchain_core.messages import SystemMessage
+
 from fastapi.middleware.cors import CORSMiddleware
 
 from agents.graph import graph
+from agents.prompts import current_time
 from agents.persistence import ConversationManager
 
 # Configure logging
@@ -114,7 +117,10 @@ async def run_agent(query: QueryRequest, authorization: str = Header(...)):
             async def event_generator():
                 final_messages = []
                 try:
-                    async for event in agent.astream_events({"messages": initial_state}, config={"configurable": {"jwt": jwt}}, version='v2'):
+                    async for event in agent.astream_events(
+                        {"messages": initial_state}, 
+                        config={"configurable": {"jwt": jwt, "session_id": query.conversation_id}},
+                        version='v2'):
                         formatted = format_stream(event)
                         if formatted:
                             yield f"data: {json.dumps(formatted)}\n\n"
@@ -140,7 +146,7 @@ async def run_agent(query: QueryRequest, authorization: str = Header(...)):
         else:
             result = await agent.ainvoke(
                 {"messages": initial_state},
-                config={"configurable": {"jwt": jwt}}
+                config={"configurable": {"jwt": jwt, "session_id": query.conversation_id}}
             )
 
             new_messages = result["messages"][len(history):]

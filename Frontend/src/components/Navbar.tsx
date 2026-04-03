@@ -81,7 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           }`}
           title="Analytics & QA Agent"
         >
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M 8 4 a 1 1 0 0 1 2 0 c 0 2.5 1.5 4 4 4 a 1 1 0 0 1 0 2 c -2.5 0 -4 1.5 -4 4 a 1 1 0 0 1 -2 0 c 0 -2.5 -1.5 -4 -4 -4 a 1 1 0 0 1 0 -2 c 2.5 0 4 -1.5 4 -4 Z" />
             <path d="M 16.5 14 a 0.5 0.5 0 0 1 1 0 c 0 1.5 1 2.5 2.5 2.5 a 0.5 0.5 0 0 1 0 1 c -1.5 0 -2.5 1 -2.5 2.5 a 0.5 0.5 0 0 1 -1 0 c 0 -1.5 -1 -2.5 -2.5 -2.5 a 0.5 0.5 0 0 1 0 -1 c 1.5 0 2.5 -1 2.5 -2.5 Z" />
           </svg>

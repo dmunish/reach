@@ -133,8 +133,8 @@ def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableCo
     CRITICAL DO-NOT-VIOLATE STYLING RULES:
     1. BACKGROUND: ALWAYS explicitly set `backgroundColor: 'transparent'`. DO NOT use solid colors (no '#000', no hex codes) regardless of what examples show.
     2. OVERLAPPING & ROTATION: You MUST prevent tilted text. Inside `xAxis.axisLabel` (and any other timeline or axis), ALWAYS set: `{ interval: 'auto', hideOverlap: true, rotate: 0 }`.
-    3. THEME/COLORS: The UI is already dark mode. Do not make the chart background dark. Use bright/white, highly legible colors for title, legend, and all other text text. Use a meaningful and modern/minimalist color palette all around.
-    4. PADDING/POSITIONING: ALWAYS include padding around elements like title, legend, dataZoom, toolbox, and others so they don't overlap with each other and the chart. Position them appropriately to prevent overlapping.
+    3. THEME/COLORS: The UI is already dark mode. Do not make the chart background dark. Don't set text color, as dark mode handles that. Use a meaningful and modern/minimalist color palette all around.
+    4. PADDING/POSITIONING: ALWAYS include padding around elements like title, legend, dataZoom, toolbox, and others so they don't overlap with each other and the chart. Position them appropriately to prevent overlapping (for example, positioning legend on the bottom).
     5. RESPONSIVENESS: Achieve polished interactions with animationDuration and animationEasing.
     6. TYPOGRAPHY: Use custom, carefully picked fonts for modern feel.
     
@@ -277,8 +277,7 @@ async def examples(type: str, config: RunnableConfig) -> dict:
                 )
         all_examples_str = ("\n\n").join(all_examples)
         content = f"# Official examples for {result.data[0].get('type').title()} chart:\n\n" + all_examples_str  
-        + """\n\n # REMINDER:\n ALWAYS FOLLOW THE STYLING GUIDELINES IN THE `chart` TOOL DESCRIPTION REGARDLESS OF WHAT THE EXAMPLES USE. 
-        USE BRIGHT COLORS FOR ALL TEXT, AND KEEP BACKGROUND TRANSPARENT."""
+        + "\n\n # REMINDER:\n ALWAYS FOLLOW THE STYLING GUIDELINES IN THE `chart` TOOL DESCRIPTION REGARDLESS OF WHAT THE EXAMPLES USE. ALWAYS USE A TRANSPARENT BACKGROUND."
         return content
     except Exception as e:
         return f"Error: {str(e)}"

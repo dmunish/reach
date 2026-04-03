@@ -33,6 +33,7 @@ async def query(query: str, read: bool = False, config: RunnableConfig = None):
     - Provide a single continuous string, no need for newlines.
     - Structure data in a way that makes it easy to visualize and digest. E.g using aggregation, counts, and others a lot.
     - Use TO_CHAR() to present dates in a more human-readable format when constructing charts. For example: TO_CHAR(effective_from, 'FMMonth, YYYY').
+    - Prefer the denormalized alert_search_index table for fast queries.
     - You have the following schema available, only use the following columns:
     | Table                | Column                     | Description                                    |
     | -------------------- | -------------------------- | ---------------------------------------------- |
@@ -69,6 +70,26 @@ async def query(query: str, read: bool = False, config: RunnableConfig = None):
     |                      | hierarchy_level            | Depth in the geographic hierarchy              |
     |                      |                            | (0: country, 3: tehsil)                        |
     |                      | polygon                    | PostGIS geometry of the place boundary         |
+    | -------------------- | -------------------------- | ---------------------------------------------- |
+    | alert_search_index   | alert_id                   | UUID primary key, FK → alerts.id               |
+    | (Denormalized View)  | centroid                   | Geometry, center point of all affected areas   |
+    |                      | bbox                       | Geometry, bounding box of all affected areas   |
+    |                      | unioned_polygon            | Geometry,combined polygon of all affected areas|
+    |                      | search_text                | Text for full-text search (event + desc + etc.)|
+    |                      | category                   | CAP-based category (Geo, Met, Safety, etc.)    |
+    |                      | severity                   | Extreme / Severe / Moderate / Minor / Unknown  |
+    |                      | urgency                    | Immediate / Expected / Future / Past / Unknown |
+    |                      | event                      | Short event label, e.g. Flash Flood            |
+    |                      | description                | Full narrative description of the alert        |
+    |                      | instruction                | Recommended action for affected people         |
+    |                      | source                     | Name of the originating data source            |
+    |                      | url                        | URL of the source document                     |
+    |                      | posted_date                | Date the document was published                |
+    |                      | effective_from             | Start of the alert validity window             |
+    |                      | effective_until            | End of the alert validity window               |
+    |                      | affected_places            | Array of all affected place names              |
+    |                      | place_ids                  | Array of all affected place UUIDs              |
+    |                      | last_updated_at            | Time the index was last updated                |
 
     - Severity values: 'Extreme', 'Severe', 'Moderate', 'Minor', 'Unknown'.
     - Urgency values: 'Immediate', 'Expected', 'Future', 'Past', 'Unknown'.

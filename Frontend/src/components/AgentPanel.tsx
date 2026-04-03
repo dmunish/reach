@@ -94,6 +94,15 @@ const ResizableChart: React.FC<{ config: string; description?: string }> = ({ co
     };
   }, [isDragging]);
 
+  let option = {};
+  let errorMsg = null;
+  try {
+    option = new Function("echarts", "return " + config)(echarts);
+  } catch (e: any) {
+    console.error("Failed to parse chart config:", e);
+    errorMsg = e.message || "Invalid chart configuration";
+  }
+
   return (
     <div 
       ref={containerRef}
@@ -102,11 +111,17 @@ const ResizableChart: React.FC<{ config: string; description?: string }> = ({ co
     >
       <div className="flex-1 w-full h-full p-4 overflow-hidden flex flex-col min-h-0 min-w-0">
         <div className="flex-1 min-h-0 min-w-0">
-          <EChartsReact
-            option={new Function("echarts", "return " + config)(echarts)}
-            style={{ height: "100%", width: "100%" }}
-            theme="dark"
-          />
+          {errorMsg ? (
+            <div className="text-red-400 text-sm flex items-center justify-center h-full bg-red-400/10 rounded">
+              Failed to render chart: {errorMsg}
+            </div>
+          ) : (
+            <EChartsReact
+              option={option}
+              style={{ height: "100%", width: "100%" }}
+              theme="dark"
+            />
+          )}
         </div>
         {description && (
           <p className="text-xs text-stone mt-3 italic shrink-0 truncate">{description}</p>

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { Session } from "@supabase/supabase-js";
 import { LoginPage } from "./LoginPage";
@@ -68,13 +68,18 @@ const ResizableChart: React.FC<{ config: string; description?: string }> = ({ co
     const onMouseMove = (e: MouseEvent) => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
+      const scrollParent = containerRef.current.closest('.overflow-y-auto');
       
       if (isDragging === 'right' || isDragging === 'corner') {
-        const newWidth = Math.max(300, e.clientX - rect.left);
+        const maxRight = scrollParent ? scrollParent.getBoundingClientRect().right - 32 : window.innerWidth;
+        const maxWidth = Math.max(300, maxRight - rect.left);
+        const newWidth = Math.min(maxWidth, Math.max(300, e.clientX - rect.left));
         containerRef.current.style.width = `${newWidth}px`;
       }
       if (isDragging === 'bottom' || isDragging === 'corner') {
-        const newHeight = Math.max(200, e.clientY - rect.top);
+        const maxBottom = scrollParent ? scrollParent.getBoundingClientRect().bottom - 16 : window.innerHeight;
+        const maxHeight = Math.max(200, maxBottom - rect.top);
+        const newHeight = Math.min(maxHeight, Math.max(200, e.clientY - rect.top));
         containerRef.current.style.height = `${newHeight}px`;
       }
     };
@@ -94,14 +99,15 @@ const ResizableChart: React.FC<{ config: string; description?: string }> = ({ co
     };
   }, [isDragging]);
 
-  let option = {};
-  let errorMsg = null;
-  try {
-    option = new Function("echarts", "return " + config)(echarts);
-  } catch (e: any) {
-    console.error("Failed to parse chart config:", e);
-    errorMsg = e.message || "Invalid chart configuration";
-  }
+  const { option, errorMsg } = useMemo(() => {
+    try {
+      const opt = new Function("echarts", "return " + config)(echarts);
+      return { option: opt, errorMsg: null };
+    } catch (e: any) {
+      console.error("Failed to parse chart config:", e);
+      return { option: {}, errorMsg: e.message || "Invalid chart configuration" };
+    }
+  }, [config]);
 
   return (
     <div 

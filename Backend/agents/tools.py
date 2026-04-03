@@ -130,12 +130,11 @@ def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableCo
     Never hardcode data, let it be injected through the `datasource` variable as described below.
     Always include a toolbox in the option object. saveAsImage is compulsary. dataView, dataZoom, restore, magicType, and brush if appropriate/requested. Change the order of the tools as you please.
 
-
     CRITICAL DO-NOT-VIOLATE STYLING RULES:
     1. BACKGROUND: ALWAYS explicitly set `backgroundColor: 'transparent'`. DO NOT use solid colors (no '#000', no hex codes) regardless of what examples show.
     2. OVERLAPPING & ROTATION: You MUST prevent tilted text. Inside `xAxis.axisLabel` (and any other timeline or axis), ALWAYS set: `{ interval: 'auto', hideOverlap: true, rotate: 0 }`.
-    3. THEME/COLORS: The UI is already dark mode. Do not make the chart background dark. Use bright, highly legible colors for title, legend, and axis text. Use a meaningful and modern/minimalist color palette all around.
-    4. PADDING: ALWAYS use `grid: { containLabel: true, bottom: 60, top: 40, left: 20, right: 20 }` so dataZoom components and horizontal labels do not collide or get cut off.
+    3. THEME/COLORS: The UI is already dark mode. Do not make the chart background dark. Use bright/white, highly legible colors for title, legend, and all other text text. Use a meaningful and modern/minimalist color palette all around.
+    4. PADDING/POSITIONING: ALWAYS include padding around elements like title, legend, dataZoom, toolbox, and others so they don't overlap with each other and the chart. Position them appropriately to prevent overlapping.
     5. RESPONSIVENESS: Achieve polished interactions with animationDuration and animationEasing.
     6. TYPOGRAPHY: Use custom, carefully picked fonts for modern feel.
     
@@ -277,7 +276,9 @@ async def examples(type: str, config: RunnableConfig) -> dict:
                 f"### Option: \n```javascript\n{example.get('option')}```\n"
                 )
         all_examples_str = ("\n\n").join(all_examples)
-        content = f"# Official examples for {result.data[0].get('type').title()} chart:\n\n" + all_examples_str + "\n\n # REMINDER:\n ALWAYS FOLLOW THE STYLING GUIDELINES IN THE `CHART` TOOL DESCRIPTION REGARDLESS OF WHAT THE EXAMPLES USE."
+        content = f"# Official examples for {result.data[0].get('type').title()} chart:\n\n" + all_examples_str  
+        + """\n\n # REMINDER:\n ALWAYS FOLLOW THE STYLING GUIDELINES IN THE `chart` TOOL DESCRIPTION REGARDLESS OF WHAT THE EXAMPLES USE. 
+        USE BRIGHT COLORS FOR ALL TEXT, AND KEEP BACKGROUND TRANSPARENT."""
         return content
     except Exception as e:
         return f"Error: {str(e)}"

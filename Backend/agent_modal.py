@@ -25,7 +25,7 @@ image = (
     .add_local_file("agent.py", remote_path="/root/agent.py")
 )
 
-app = modal.App(name="reach-agent", image=image)
+app = modal.App(name="agent", image=image)
 
 #################################################
 # WEB ENDPOINT (FastAPI Integration)
@@ -33,11 +33,11 @@ app = modal.App(name="reach-agent", image=image)
 
 @app.function(
     secrets=[modal.Secret.from_name("reach-secrets")],
-    keep_warm=1,  # Keep at least one instance warm for low latency
-    timeout=600   # 10 minutes timeout for long LLM generation
+    min_containers=1,  # Keep at least one instance warm for low latency
+    timeout=600
 )
 @modal.asgi_app()
-def fastapi_app():
+def agent():
     """
     Mount the entire FastAPI app from agent.py.
     This preserves the CORS middleware, streaming responses, and all routes.

@@ -58,7 +58,7 @@ const LoadingDots = () => (
   </span>
 );
 
-const ResizableChart: React.FC<{ config: string; description?: string }> = ({ config, description }) => {
+const ResizableChart: React.FC<{ config: string; datasource?: string; description?: string }> = ({ config, datasource, description }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState<'right' | 'bottom' | 'corner' | null>(null);
 
@@ -101,13 +101,19 @@ const ResizableChart: React.FC<{ config: string; description?: string }> = ({ co
 
   const { option, errorMsg } = useMemo(() => {
     try {
-      const opt = new Function("echarts", "return " + config)(echarts);
+      let opt;
+      if (datasource) {
+        const dataObj = JSON.parse(datasource);
+        opt = new Function("echarts", "datasource", "return " + config)(echarts, dataObj);
+      } else {
+        opt = new Function("echarts", "return " + config)(echarts);
+      }
       return { option: opt, errorMsg: null };
     } catch (e: any) {
       console.error("Failed to parse chart config:", e);
       return { option: {}, errorMsg: e.message || "Invalid chart configuration" };
     }
-  }, [config]);
+  }, [config, datasource]);
 
   return (
     <div 
@@ -164,9 +170,22 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" ? window.innerWidth < 640 : false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== "undefined" ? window.innerWidth >= 640 : true);
   const [panelSize, setPanelSize] = useState<{ width: number; height: number } | null>(null);
   const [isDraggingPanel, setIsDraggingPanel] = useState<'right' | 'top' | 'corner' | null>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 640;
+      if (mobile !== isMobile) {
+        setIsMobile(mobile);
+        setIsSidebarOpen(!mobile);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isMobile]);
 
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -647,52 +666,63 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
             : "translate-y-full opacity-0 pointer-events-none"
         }
       `}
-      style={panelSize ? { 
+      style={panelSize && !isMobile ? { 
         width: `${panelSize.width}px`, 
         height: `${panelSize.height}px`,
         top: 'auto',
         right: 'auto'
       } : { 
-        top: '1rem',
-        right: '1rem'
+        top: isMobile ? '5rem' : '1rem',
+        right: isMobile ? '1rem' : '1rem'
       }}
     >
       {/* Resizers for Panel */}
       <div 
-        className="absolute top-0 right-0 w-2.5 h-full cursor-e-resize opacity-0 hover:bg-white/10 transition-all z-50 rounded-r-lg group-hover:opacity-100"
+        className="hidden sm:block absolute top-0 right-0 w-2.5 h-full cursor-e-resize opacity-0 hover:bg-white/10 transition-all z-50 rounded-r-lg group-hover:opacity-100"
         onMouseDown={(e) => { e.preventDefault(); setIsDraggingPanel('right'); }}
       />
       <div 
-        className="absolute top-0 left-0 w-full h-2.5 cursor-n-resize opacity-0 hover:bg-white/10 transition-all z-50 rounded-t-lg group-hover:opacity-100"
+        className="hidden sm:block absolute top-0 left-0 w-full h-2.5 cursor-n-resize opacity-0 hover:bg-white/10 transition-all z-50 rounded-t-lg group-hover:opacity-100"
         onMouseDown={(e) => { e.preventDefault(); setIsDraggingPanel('top'); }}
       />
       <div 
-        className="absolute top-0 right-0 w-4 h-4 cursor-ne-resize opacity-0 hover:bg-white/40 transition-all z-50 rounded-tr-lg group-hover:opacity-100"
+        className="hidden sm:block absolute top-0 right-0 w-4 h-4 cursor-ne-resize opacity-0 hover:bg-white/40 transition-all z-50 rounded-tr-lg group-hover:opacity-100"
         onMouseDown={(e) => { e.preventDefault(); setIsDraggingPanel('corner'); }}
       />
 
       {/* Sidebar for history */}
       <div
-        className={`shrink-0 border-stone/20 bg-black/20 transition-all duration-300 ease-in-out overflow-hidden flex flex-col ${
+        className={`shrink-0 border-stone/20 bg-rich-black/95 backdrop-blur-sm sm:bg-black/20 transition-all duration-300 ease-in-out overflow-hidden flex flex-col ${
+          isMobile ? "absolute inset-y-0 left-0 z-50" : "relative"
+        } ${
           isSidebarOpen && session 
-            ? "w-64 border-r opacity-100" 
+            ? (isMobile ? "w-full border-r opacity-100" : "w-64 border-r opacity-100") 
             : "w-0 border-r-0 opacity-0"
         }`}
       >
-        <div className="w-64 flex flex-col h-full">
+        <div className={`${isMobile ? 'w-full' : 'w-64'} flex flex-col h-full`}>
           <div className="p-4 border-b border-stone/20 flex items-center justify-between shrink-0">
             <h3 className="text-white font-medium text-sm">Chats</h3>
-            <button onClick={createNewConversation} className="p-1 hover:bg-white/10 rounded whitespace-nowrap">
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => { createNewConversation(); if(isMobile) setIsSidebarOpen(false); }} className="p-1 hover:bg-white/10 rounded whitespace-nowrap">
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+              {isMobile && (
+                <button onClick={() => setIsSidebarOpen(false)} className="p-1 hover:bg-white/10 rounded whitespace-nowrap">
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto dark-scrollbar p-2 min-h-0">
             {conversations.map((c) => (
               <div
                 key={c.id}
-                onClick={() => loadMessages(c.id)}
+                onClick={() => { loadMessages(c.id); if(isMobile) setIsSidebarOpen(false); }}
                 className={`group w-full flex items-center justify-between p-3 text-sm mb-2 cursor-pointer transition-colors ${conversationId === c.id ? "bg-bangladesh-green text-white" : "text-stone hover:bg-white/5"}`}
               >
                 <div className="flex-1 truncate pr-2">
@@ -842,7 +872,8 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                                   <div className="flex justify-start">
                                     <div className="w-full py-2 text-gray-100 pr-4">
                                       <ResizableChart 
-                                        config={toolArtifact.data.config} 
+                                        config={toolArtifact.data.config}
+                                        datasource={toolArtifact.data.datasource}
                                         description={toolArtifact.description} 
                                       />
                                     </div>
@@ -908,6 +939,7 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                                     },
                                     pre: ({ node, ...props }) => <>{props.children}</>,
                                     p: ({ node, ...props }) => <p className="mb-4 break-words text-gray-200" {...props} />,
+                                    hr: ({ node, ...props }) => <hr className="my-6 border-t border-white/20" {...props} />,
                                     table: ({ node, ...props }) => (
                                       <div className="not-prose overflow-x-auto w-full mb-4 rounded-lg border border-white/10">
                                         <table className="w-full text-left border-collapse whitespace-nowrap bg-black/20" {...props} />
@@ -925,7 +957,8 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                             {hasChartArtifact && (
                               <div className="pr-4">
                                 <ResizableChart 
-                                  config={artifact.data.config} 
+                                  config={artifact.data.config}
+                                  datasource={artifact.data.datasource}
                                   description={artifact.description} 
                                 />
                               </div>

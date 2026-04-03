@@ -108,7 +108,9 @@ async def run_agent(query: QueryRequest, authorization: str = Header(...)):
         # Load conversation history and append the new query
         history = await manager.load_conversation(query.conversation_id) if query.conversation_id else []
         user_message = HumanMessage(content=query.question)
-        initial_state = history + [user_message]
+        time_message = SystemMessage(content=f"Current date and time: {current_time().strftime('%A, %Y-%m-%d %H:%M:%S PKT')}")
+
+        initial_state = history + [time_message] + [user_message]
         
         agent = graph()
 
@@ -129,7 +131,7 @@ async def run_agent(query: QueryRequest, authorization: str = Header(...)):
                             final_messages = event["data"]["output"]["messages"]
 
                     # Save on completion
-                    new_messages = final_messages[len(history):]
+                    new_messages = final_messages[len(history) + 1:]
                     final_convo_id, response_messages = await manager.save_conversation(query.conversation_id, new_messages)
                     
                     # Yield final messages (conversation_id is inside the messages)
@@ -149,7 +151,7 @@ async def run_agent(query: QueryRequest, authorization: str = Header(...)):
                 config={"configurable": {"jwt": jwt, "session_id": query.conversation_id}}
             )
 
-            new_messages = result["messages"][len(history):]
+            new_messages = result["messages"][len(history) + 1:]
             final_convo_id, response_messages = await manager.save_conversation(query.conversation_id, new_messages)
             logger.info(f"Response saved successfully for conversation {final_convo_id}")
             return response_messages

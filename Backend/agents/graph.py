@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
-from agents.prompts import SYSTEM_PROMPT, current_time
+from agents.prompts import SYSTEM_PROMPT
 from agents.tools import examples, query, chart, map
 from utils import load_env
 
@@ -62,10 +62,7 @@ def graph():
         has_system = any(isinstance(m, SystemMessage) for m in messages)
         if not has_system:
             messages.insert(0, SystemMessage(content=SYSTEM_PROMPT))
-        
-        # Add time
-        messages.insert(-1, SystemMessage(content=f"Current date and time: {current_time().strftime('%A, %Y-%m-%d %H:%M:%S PKT')}"))
-        
+                
         response = await llm.ainvoke(messages)
 
         # Check if this is a final answer (no tool calls means completion)

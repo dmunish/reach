@@ -22,24 +22,16 @@ class State(TypedDict):
     is_complete: bool
 
 def create_llm(session_id: str = None):
-    headers = {}
-    if session_id:
-        headers["x-session-affinity"] = session_id
-        
     return ChatOpenAI(
-        model="@cf/zai-org/glm-4.7-flash",
-        base_url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CLOUDFLARE_ACCOUNT_ID')}/ai/v1",
-        api_key=os.environ.get("CLOUDFLARE_API_KEY"),
-        max_tokens=128000,
+        model="devstral-latest",
+        base_url="https://api.mistral.ai/v1",
+        api_key=os.environ.get("MISTRAL_KEY"),
         temperature=0.7,
         top_p=0.95,
-        default_headers=headers,
-        extra_body={
-            "thinking": {
-                "type": "disabled"
-            }
-        }
+        default_headers={"x-affinity": session_id} if session_id else {}
     )
+
+
 
 def graph():
 

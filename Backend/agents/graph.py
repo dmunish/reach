@@ -23,11 +23,10 @@ class State(TypedDict):
 
 def create_llm(session_id: str = None):
     return ChatOpenAI(
-        model="devstral-latest",
-        base_url="https://api.mistral.ai/v1",
-        api_key=os.environ.get("MISTRAL_KEY"),
-        temperature=0.7,
-        top_p=0.95,
+        model=os.environ.get("AGENT_MODEL"),
+        base_url=os.environ.get("AGENT_BASE_URL"),
+        api_key=os.environ.get("AGENT_API_KEY"),
+        temperature=os.environ.get("AGENT_TEMPERATURE"),
         default_headers={"x-affinity": session_id} if session_id else {}
     )
 

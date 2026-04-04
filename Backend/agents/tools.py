@@ -276,8 +276,7 @@ async def examples(type: str, config: RunnableConfig) -> dict:
                 f"### Option: \n```javascript\n{example.get('option')}```\n"
                 )
         all_examples_str = ("\n\n").join(all_examples)
-        content = f"# Official examples for {result.data[0].get('type').title()} chart:\n\n" + all_examples_str  
-        + "\n\n # REMINDER:\n ALWAYS FOLLOW THE STYLING GUIDELINES IN THE `chart` TOOL DESCRIPTION REGARDLESS OF WHAT THE EXAMPLES USE. ALWAYS USE A TRANSPARENT BACKGROUND."
+        content = f"# Official examples for {result.data[0].get('type').title()} chart:\n\n" + all_examples_str + "\n\n # REMINDER:\n ALWAYS FOLLOW THE STYLING GUIDELINES IN THE `chart` TOOL DESCRIPTION REGARDLESS OF WHAT THE EXAMPLES USE. ALWAYS USE A TRANSPARENT BACKGROUND."
         return content
     except Exception as e:
         return f"Error: {str(e)}"

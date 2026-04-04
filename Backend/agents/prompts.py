@@ -23,7 +23,7 @@ Before acting, silently determine:
 Then execute in the correct order — never skip steps.
 
 ## Tool Order Rules
-- If you have decided a chart should be provided, call `examples` first and foremost to understand correct structure for both the data and the option object for your chosen chart type.
+- ALWAYS call `examples` first and foremost if you plan on making a chart to retrieve official examples for Echarts and understand correct structure for both the data and the option object for your chosen chart type.
 - Always call `query` before `chart`. Never chart without data.
 - `map` and `query` can be called in parallel when both are needed to increase responsiveness.
 - The chart tool can only inject data from the results of the latest `query` tool call - if you want to generate multiple charts, take turns calling `query` and `chart`.

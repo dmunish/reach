@@ -920,24 +920,29 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                                     li: ({ node, ...props }) => <li className="pl-1 text-gray-300" {...props} />,
                                     a: ({ node, ...props }) => <a className="text-caribbean-green hover:text-mountain-meadow underline underline-offset-2" target="_blank" rel="noopener noreferrer" {...props} />,
                                     blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-bangladesh-green pl-4 my-4 italic text-stone bg-white/5 py-2 rounded-r" {...props} />,
-                                    code: ({ inline, className, children, ...props }: any) => {
-                                      const match = /language-(\w+)/.exec(className || '');
-                                      return !inline ? (
+                                    pre: ({ node, children, ...props }: any) => {
+                                      const childrenArray = React.Children.toArray(children);
+                                      const codeElement = childrenArray[0] as any;
+                                      const codeProps: any = React.isValidElement(codeElement) ? codeElement.props : {};
+                                      const className = codeProps?.className || '';
+                                      const match = /language-(\w+)/.exec(className);
+                                      
+                                      return (
                                         <div className="not-prose rounded-lg bg-black/50 border border-white/10 my-4 overflow-hidden">
                                           {match && <div className="bg-white/5 px-4 py-1.5 text-xs text-stone font-mono border-b border-white/10 capitalize">{match[1]}</div>}
                                           <div className="p-4 overflow-x-auto dark-scrollbar">
-                                            <code className={`font-mono text-sm text-gray-300 ${className || ''}`} {...props}>
-                                              {children}
+                                            <code className={`font-mono text-sm text-gray-300 ${className}`}>
+                                              {codeProps?.children || children}
                                             </code>
                                           </div>
                                         </div>
-                                      ) : (
-                                        <code className="bg-white/10 text-caribbean-green px-1.5 py-0.5 rounded-md font-mono text-[0.9em]" {...props}>
-                                          {children}
-                                        </code>
                                       );
                                     },
-                                    pre: ({ node, ...props }) => <>{props.children}</>,
+                                    code: ({ node, className, children, ...props }: any) => (
+                                      <code className="bg-white/10 text-white px-1.5 py-0.5 border border-white/10 rounded font-mono text-[0.9em]" {...props}>
+                                        {children}
+                                      </code>
+                                    ),
                                     p: ({ node, ...props }) => <p className="mb-4 break-words text-gray-200" {...props} />,
                                     hr: ({ node, ...props }) => <hr className="my-6 border-t border-white/20" {...props} />,
                                     table: ({ node, ...props }) => (

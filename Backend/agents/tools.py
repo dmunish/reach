@@ -128,12 +128,14 @@ Args:
 def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableConfig = None) -> Any:
     """
 Publish a chart by providing a JavaScript ECharts option object.
-CRITICAL REQUIREMENTS:
-1. You MUST NOT call this tool unless you have ALREADY called the `examples` tool in a previous step to learn the correct data structure and styling for your chosen chart type.
-2. ALWAYS reference the `datasource` variable in your `option` object to inject data.
-3. ALWAYS include a toolbox in the option object. saveAsImage is compulsary. dataView, dataZoom, restore, magicType, and brush if appropriate/requested. Change the order of the tools as you please. NO other tool besides the ones mentioned.
 
-CRITICAL STYLING RULES:
+# CRITICAL REQUIREMENTS:
+1. You MUST NOT call this tool unless you have ALREADY called the `examples` tool in a previous step to learn the correct data structure and styling for your chosen chart type.
+2. ALWAYS reference the `datasource` variable in your option object at the appropriate location like dataset.source or series.data (or others) to inject data.
+3. ALWAYS map data to the specific keys the chart type expects for chart types like Pie, Graph (and others) using `data: datasource.map(item => ({name:, value:}))` or `encode: { itemName:, value:}`.
+4. ALWAYS include a toolbox in the option object. saveAsImage is compulsary. dataView, dataZoom, restore, magicType, and brush if appropriate/requested. Change the order of the tools as you please. NO other tool besides the ones mentioned.
+
+# CRITICAL STYLING RULES:
 1. BACKGROUND: ALWAYS explicitly set `backgroundColor: 'transparent'`. DO NOT use solid colors (no '#000', no hex codes) regardless of what examples show.
 2. OVERLAPPING & ROTATION: You MUST prevent tilted text. Inside `xAxis.axisLabel` (and any other timeline or axis), ALWAYS set: `{ interval: 'auto', hideOverlap: true, rotate: 0 }`.
 3. THEME/COLORS: The UI is already dark mode. Do not make the chart background dark. Don't set text color, as dark mode handles that. Use a meaningful and modern/minimalist color palette all around.
@@ -141,7 +143,7 @@ CRITICAL STYLING RULES:
 5. RESPONSIVENESS: Achieve polished interactions with animationDuration and animationEasing.
 6. TYPOGRAPHY: Use custom, carefully picked fonts for modern feel.
 
-Args:
+# Args:
     option: A string containing a valid JavaScript object literal.
             Use the variable `datasource` directly to assign dataset.source or series.data, and map the datasource's columns where appropriate like dataset.map(item => ({})).
             
@@ -153,7 +155,7 @@ Args:
                     - For 'heatmap':
                         {"type": "matrix", "x_key": "col_x", "y_key": "col_y", "v_key": "col_val"}
 
-Example:
+# Example:
 {
     "option": "{ series: [{ type: 'graph', data: datasource.nodes, links: datasource.links }] }",
     "data_transform": {

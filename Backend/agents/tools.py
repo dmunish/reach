@@ -109,13 +109,13 @@ Args:
         num_rows = len(artifact)
         column_names = list(artifact[0].keys())
         content = f"""
-                ## Query Execution Summary
-                * **Total Rows:** {num_rows}
-                * **Columns:** {', '.join(f'`{col}`' for col in column_names)}
+## Query Execution Summary
+* **Total Rows:** {num_rows}
+* **Columns:** {', '.join(f'`{col}`' for col in column_names)}
 
-                ### Data Preview (First 2 rows):
-                {artifact[:2]}
-                """
+### Data Preview (First 2 rows):
+{artifact[:2]}
+"""
         if read:
             content = artifact
         
@@ -130,7 +130,7 @@ def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableCo
 Publish a chart by providing a JavaScript ECharts option object.
 CRITICAL REQUIREMENTS:
 1. You MUST NOT call this tool unless you have ALREADY called the `examples` tool in a previous step to learn the correct data structure and styling for your chosen chart type.
-2. Never hardcode data, let it be injected through the `datasource` variable as described below.
+2. ALWAYS reference the `datasource` variable in your `option` object to inject data.
 3. ALWAYS include a toolbox in the option object. saveAsImage is compulsary. dataView, dataZoom, restore, magicType, and brush if appropriate/requested. Change the order of the tools as you please. NO other tool besides the ones mentioned.
 
 CRITICAL STYLING RULES:

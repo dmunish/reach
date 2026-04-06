@@ -164,13 +164,20 @@ Publish a chart by providing a JavaScript ECharts option object.
                     - For 'heatmap':
                         {"type": "matrix", "x_key": "col_x", "y_key": "col_y", "v_key": "col_val"}
 
-# Example:
+# Examples:
+1. Standard Chart (Bar/Line/Pie) using tabular SQL data directly:
 {
-    "option": "{ series: [{ type: 'graph', data: datasource.nodes, links: datasource.links }] }",
+    "option": "{\n  backgroundColor: 'transparent',\n  title: { text: 'Alerts by Category', left: 'center', padding: 15 },\n  toolbox: { feature: { saveAsImage: {}, dataView: {}, restore: {} } },\n  tooltip: { trigger: 'axis' },\n  dataset: { source: datasource },\n  xAxis: { type: 'category', axisLabel: { interval: 'auto', hideOverlap: true, rotate: 0 } },\n  yAxis: { type: 'value' },\n  series: [{ type: 'bar', encode: { x: 'category', y: 'count' } }]\n}",
+    "data_transform": null
+}
+
+2. Complex Chart (Graph/Tree) requiring data transformation:
+{
+    "option": "{\n  backgroundColor: 'transparent',\n  toolbox: { feature: { saveAsImage: {} } },\n  series: [{ type: 'graph', data: datasource.nodes, links: datasource.links, layout: 'force' }]\n}",
     "data_transform": {
         "type": "graph",
-        "source_key": "sender",
-        "target_key": "receiver"
+        "source_key": "parent_place",
+        "target_key": "child_place"
     }
 }
     """

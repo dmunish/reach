@@ -10,30 +10,30 @@ def transform_to_tree(data: List[Dict], config: Dict) -> List[Dict]:
     name_key = config.get("name_key", "name")
     value_key = config.get("value_key", "value")
 
-    # Build a lookup map
     lookup = {row[id_key]: {**row, "name": row.get(name_key), "children": []} for row in data}
-    
     root_nodes = []
 
     for row in data:
         node = lookup[row[id_key]]
         parent_id = row.get(parent_key)
         
-        # If there is a parent and it exists in our data, add as child
         if parent_id and parent_id in lookup:
-            # Avoid adding self as child if data is messy
             if parent_id != row[id_key]:
                 lookup[parent_id]["children"].append(node)
         else:
-            # No parent -> Root node
             root_nodes.append(node)
             
-    # Clean up empty children lists and map value if provided
+    # CRITICAL: Recursive clean up
     def clean_node(node):
-        if not node["children"]:
-            del node["children"]
+        if not node.get("children"):
+            node.pop("children", None)
+        else:
+            # Recursively clean children
+            node["children"] = [clean_node(child) for child in node["children"]]
+            
         if value_key and value_key in node:
             node["value"] = node[value_key]
+            
         return node
 
     return [clean_node(n) for n in root_nodes]

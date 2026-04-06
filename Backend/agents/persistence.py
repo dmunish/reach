@@ -1,6 +1,7 @@
 import os
 from typing import List, Optional
 import logging
+from datetime import datetime, timezone, timedelta
 
 import jwt
 from supabase import acreate_client, ClientOptions
@@ -26,7 +27,7 @@ class ConversationManager:
             return cls(client=client, user_id=payload["sub"])
         
         except Exception as e:
-            logger.exception("Initialization error: Failed to decode JWT or connect to Supabase")
+            logger.exception(f"Initialization error: {str(e)}")
             return None
     
 
@@ -44,6 +45,7 @@ class ConversationManager:
             return None
 
     async def save_conversation(self, conversation_id: Optional[str], messages: List[BaseMessage]):
+
         if not conversation_id:
             # Find the first HumanMessage
             query = next((m for m in messages if isinstance(m, HumanMessage)), None)
@@ -61,12 +63,15 @@ class ConversationManager:
             for key in keys_to_remove:
                 message.get("data", {}).pop(key, None)
         
+        base_time = datetime.now(timezone.utc)
+        
         rows = [
             {
                 "conversation_id": conversation_id,
                 "type": message.get("type"),
-                "data": message.get("data")
-            } for message in serialized_messages
+                "data": message.get("data"),
+                "created_at": (base_time + timedelta(milliseconds=i)).isoformat()
+            } for i, message in enumerate(serialized_messages)
         ]
         try:
             response = await self.client.table("messages").insert(rows).execute()

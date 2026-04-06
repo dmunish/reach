@@ -249,26 +249,26 @@ Returns:
     - The option object settings all the styles and mapping the data.
 
 The following chart types are available, along with a description/sugestion for each:
-    - bar: Categorical bars for comparison. Use for alert counts by category, severity, or province.
-    - bar3D: 3D bars on a grid. Use for severity density across geographic areas.
-    - boxplot: Statistical distribution summary. Use for analyzing spread of alert durations.
-    - candlestick: High/low/open/close values. Use for visualizing daily alert activity windows.
-    - chord: Relationship flows between entities. Use for correlations between events and places.
-    - flowGL: WebGL flow fields. Use for meteorological wind or current visualizations.
-    - graph: Network of nodes and links. Use for place hierarchies or disaster clusters.
-    - graphGL: High-performance network graph. Use for massive alert relationship datasets.
-    - heatmap: Color-coded matrix values. Use for temporal alert patterns or disaster hotspots.
-    - line: Trend lines over time. Use for time-series analysis of alert frequency.
-    - line3D: Lines in 3D space. Use for tracking disaster trajectories like cyclone paths.
-    - map: Geographic visualization. Use for rendering alert polygons and affected areas.
-    - matrix: Multi-variable comparison grid. Use for correlating categories across provinces.
-    - pie: Circular proportional slices. Use for percentage breakdown of alert categories.
-    - radar: Multi-variable web chart. Use for comparing regional disaster risk profiles.
-    - scatter: Dots for two variables. Use for plotting geographic spread of alert centroids.
-    - scatter3D: Dots in 3D space. Use for plotting location against severity or urgency.
-    - sunburst: Hierarchical rings. Use for drilling down alert counts from Country to District.
-    - tree: Hierarchical node structure. Use for visualizing place parent-child relationships.
-    - treemap: Nested proportional rectangles. Use for alert volume by region hierarchy.
+    - bar: Categorical bars. Best for comparing alert volume across different categories (Geo, Met), severity levels, or provinces.
+    - bar3D: 3D bar visualization. Great for spatio-temporal density, like showing alert counts by province (X) over different months (Y).
+    - boxplot: Statistical distribution. Excellent for visualizing the spread, median, and outliers of alert turnaround times or durations.
+    - candlestick: Temporal ranges. Useful for visualizing the start, peak, and end dates of prolonged disaster events over a timeline.
+    - chord: Relationship flows. Perfect for showing complex correlations, like which disaster categories frequently coincide in specific regions.
+    - flowGL: WebGL vector fields. Typically used for meteorological wind patterns or ocean currents if raw spatial vector data is available.
+    - graph: Network node-link structures. Ideal for visualizing chains of cascading disaster events, or relationships between affected regions.
+    - graphGL: High-performance network graph. Use when mapping thousands of complex connections between events and micro-regions.
+    - heatmap: Matrix density visualization. Highly effective for temporal heatmaps (e.g., Day vs. Month) showing when disasters are most frequent.
+    - line: Continuous time-series trends. The go-to for showing the historical trend of alert frequencies over days, months, or years.
+    - line3D: 3D trajectories. Can be used for plotting paths over time, such as tracking a cyclone's coordinate bounds dynamically.
+    - map: Choropleth/Geographical map. Essential for visualizing the geographic spread of alerts and highlighting specific affected regions.
+    - matrix: Gridded comparison. Similar to heatmap; useful for multi-dimensional correlation (e.g., comparing alert severity versus urgency).
+    - pie: Proportional composition. Best for showing the percentage breakdown of active alerts by category (e.g., 60% Met, 30% Geo).
+    - radar: Multi-axis profiles. Useful for visualizing the "disaster risk profile" of a specific region based on historical frequencies.
+    - scatter: 2D dot plots. Great for correlating two variables, like plotting alert duration against severity, or mapping geographic centroids.
+    - scatter3D: 3D bubble plots. Useful for plotting three variables simultaneously, like longitude, latitude, and duration or severity.
+    - sunburst: Radial hierarchical data. Excellent for drilling down into nested data: e.g., Total Alerts -> Category -> Severity -> Region.
+    - tree: Branching hierarchy. Ideal for clearly displaying the geographic administrative parent-child hierarchy (Country -> Province -> District).
+    - treemap: Nested rectangles. Highly effective for showing the total volume of alerts distributed across geographic regions or category hierarchies.
     """
     try:
         client = await get_supabase(config)
@@ -282,7 +282,7 @@ The following chart types are available, along with a description/sugestion for 
                 f"### Option: \n```javascript\n{example.get('option')}```\n"
                 )
         all_examples_str = ("\n\n").join(all_examples)
-        content = f"# Official examples for {result.data[0].get('type').title()} chart:\n\n" + all_examples_str + "\n\n # REMINDER:\n ALWAYS FOLLOW THE STYLING GUIDELINES IN THE `chart` TOOL DESCRIPTION REGARDLESS OF WHAT THE EXAMPLES USE. ALWAYS USE A TRANSPARENT BACKGROUND."
+        content = f"# Official examples for {result.data[0].get('type').title()} chart:\n\n" + all_examples_str + "\n\n # REMINDER:\n ALWAYS FOLLOW THE STYLING GUIDELINES IN THE `chart` TOOL DESCRIPTION REGARDLESS OF WHAT THE EXAMPLES USE."
         return content
     except Exception as e:
         return f"Error: {str(e)}"

@@ -42,7 +42,7 @@ Args:
   )
   SELECT * FROM alert_search_index 
   WHERE place_ids && (SELECT array_agg(id) FROM place_tree);
-  
+
 - Unless date ranges are specified, assume user's are asking about 'active' alerts and use `WHERE NOW() >= effective_from AND NOW() < effective_until`.
 
 # Schema
@@ -145,9 +145,9 @@ Publish a chart by providing a JavaScript ECharts option object.
 4. ALWAYS include a toolbox in the option object. saveAsImage is compulsary. dataView, dataZoom, restore, magicType, and brush if appropriate/requested. Change the order of the tools as you please. NO other tool besides the ones mentioned.
 
 # CRITICAL STYLING RULES:
-1. BACKGROUND: ALWAYS explicitly set `backgroundColor: 'transparent'`. DO NOT use solid colors (no '#000', no hex codes) regardless of what examples show.
+1. BACKGROUND: ALWAYS explicitly set `backgroundColor: 'transparent'`. DO NOT use solid colors (no '#000', no hex codes) regardless of what examples show. Unless the user asks for a specific color, you must use transparent.
 2. OVERLAPPING & ROTATION: You MUST prevent tilted text. Inside `xAxis.axisLabel` (and any other timeline or axis), ALWAYS set: `{ interval: 'auto', hideOverlap: true, rotate: 0 }`.
-3. THEME/COLORS: The UI is already dark mode. Do not make the chart background dark. Don't set text color, as dark mode handles that. Use a meaningful and modern/minimalist color palette all around.
+3. THEME/COLORS: The UI is already dark mode. Do not make the chart background dark. Don't set text color, as dark mode handles that. Use a meaningful and modern/minimalist/harmonic color palette instead of the default blue coloring for chart elements.
 4. PADDING/POSITIONING: ALWAYS include padding around elements like title, legend, dataZoom, toolbox, and others so they don't overlap with each other and the chart. Position them appropriately to prevent overlapping (for example, positioning legend on the bottom).
 5. RESPONSIVENESS: Achieve polished interactions with animationDuration and animationEasing.
 6. TYPOGRAPHY: Use custom, carefully picked fonts for modern feel.

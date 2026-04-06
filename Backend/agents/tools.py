@@ -34,6 +34,16 @@ Args:
 - If doing a trend analysis, always sort data chronologically.
 - Use TO_CHAR() to present dates in a more human-readable format when constructing charts. For example: `TO_CHAR(effective_from, 'FMMonth, YYYY')`. Use `FMMonth` instead of `Month` to prevent space around months with shorter names.
 - Prefer the denormalized alert_search_index table for fast queries as it is a dnormalized view.
+- When filtering by location in `alert_search_index`, use the `place_ids` array column with the `@>` (contains) operator. ALWAYS query the `places` table first to get the target place and all its descendant IDs to ensure you capture alerts aimed at both the parent region and any of its specific child cities/districts. Here is the recursive CTE pattern you must use:
+  ```sql
+  WITH RECURSIVE place_tree AS (
+      SELECT id FROM places WHERE name ILIKE '%Khyber Pakhtunkhwa%'
+      UNION ALL
+      SELECT p.id FROM places p JOIN place_tree pt ON p.parent_id = pt.id
+  )
+  SELECT * FROM alert_search_index 
+  WHERE place_ids && (SELECT array_agg(id) FROM place_tree);
+  ```
 - Unless date ranges are specified, assume user's are asking about 'active' alerts and use `WHERE NOW() >= effective_from AND NOW() < effective_until`.
 
 # Schema

@@ -99,14 +99,14 @@ WHERE place_ids && (SELECT array_agg(id) FROM place_tree);
 ```
 
 ## CHART STYLING GUIDELINES
-The `examples` tool returns official ECharts examples, but they often use plain/boring colors. You MUST enhance them.
+The `examples` tool returns official ECharts examples, but they often use a boring blue/green color theme. You MUST use better colors.
 
 ### COLOR PALETTE REQUIREMENTS:
 **Severity-based palettes:**
-- Extreme: Deep reds (#DC2626, #B91C1C, #991B1B)
-- Severe: Oranges (#EA580C, #C2410C, #9A3412)
-- Moderate: Yellows/Ambers (#D97706, #B45309, #92400E)
-- Minor: Blues (#2563EB, #1D4ED8, #1E40AF)
+- Extreme: Deep purple
+- Severe: Deep reds
+- Moderate: Oranges
+- Minor: Yellows, amber
 - Mixed data: Use vibrant, accessible color schemes (#3B82F6, #10B981, #F59E0B, #EF4444, #8B5CF6, #EC4899)
 
 **Category-based palettes:**
@@ -117,7 +117,7 @@ The `examples` tool returns official ECharts examples, but they often use plain/
 - Fire: Orange-red (#EA580C, #DC2626)
 
 ### VISUAL DESIGN RULES:
-1. **Use gradients** where appropriate (e.g., `itemStyle: { color: new echarts.graphic.LinearGradient(...) }`)
+1. **Use gradients** where appropriate
 2. **Add shadows** for depth: `shadowColor: 'rgba(0,0,0,0.3)', shadowBlur: 10`
 3. **Ensure text is readable:** Minimum 12px font size, high contrast with background
 4. **Make interactive:** Enable `tooltip` with meaningful formatting, enable `legend` when showing multiple series

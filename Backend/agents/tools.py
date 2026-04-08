@@ -272,7 +272,7 @@ The following chart types are available, along with a description/sugestion for 
     - chord: Relationship flows. Perfect for showing complex correlations, like which disaster categories frequently coincide in specific regions.
     - flowGL: WebGL vector fields. Typically used for meteorological wind patterns or ocean currents if raw spatial vector data is available.
     - graph: Network node-link structures. Ideal for visualizing chains of cascading disaster events, or relationships between affected regions.
-    - graphGL: High-performance network graph. Use when mapping thousands of complex connections between events and micro-regions.
+    - graphGL: High-performance network graph. Use instead of `graph` when you expect data volume (like number of nodes or edges) to be large.
     - heatmap: Matrix density visualization. Highly effective for temporal heatmaps (e.g., Day vs. Month) showing when disasters are most frequent.
     - line: Continuous time-series trends. The go-to for showing the historical trend of alert frequencies over days, months, or years.
     - line3D: 3D trajectories. Can be used for plotting paths over time, such as tracking a cyclone's coordinate bounds dynamically.

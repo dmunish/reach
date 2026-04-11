@@ -31,5 +31,10 @@
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.14",
     "use-debounce": "^10.1.0"
+  },
+  "overrides": {
+    "echarts-gl": {
+      "echarts": "$echarts"
+    }
   }
 }

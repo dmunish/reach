@@ -122,6 +122,7 @@ The `examples` tool returns official ECharts examples, but they often use a bori
 3. **Ensure text is readable:** Minimum 12px font size, high contrast with background
 4. **Make interactive:** Enable `tooltip` with meaningful formatting, enable `legend` when showing multiple series
 5. **Optimize data-ink ratio:** Remove chartJunk, keep focus on the data
+6. **Custom font**: ALWAYS use the modern Josefin Sans font with `textStyle: {fontFamily: '"Josefin Sans", sans-serif'}`, unless the user asks for a different font.
 
 ### BLANK CHART PREVENTION CHECKLIST:
 Before calling `chart`, verify:

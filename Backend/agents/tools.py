@@ -150,7 +150,7 @@ Publish a chart by providing a JavaScript ECharts option object.
 3. THEME/COLORS: The UI is already dark mode. Do not make the chart background dark. Don't set text color, as dark mode handles that. ALWAYS use a meaningful and modern/minimalist/harmonic color palette instead of the default blue coloring for charts.
 4. PADDING/POSITIONING: ALWAYS include padding around elements like title, legend, dataZoom, toolbox, and others so they don't overlap with each other and the chart. Position them appropriately to prevent overlapping (for example, positioning legend on the bottom).
 5. RESPONSIVENESS: Achieve polished interactions with animationDuration and animationEasing.
-6. TYPOGRAPHY: Use custom, carefully picked fonts for modern feel.
+6. TYPOGRAPHY: ALWAYS use the Josefin Sans font the rest of the app uses with `textStyle: {fontFamily: '"Josefin Sans", sans-serif'}`, unless the user asks for a different font.
 
 # Args:
     option: A string containing a valid JavaScript object literal.

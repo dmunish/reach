@@ -20,92 +20,96 @@ async def get_supabase(config: RunnableConfig):
 @tool(response_format="content_and_artifact")
 async def query(query: str, read: bool = False, config: RunnableConfig = None):
     """
-Execute a read-only SQL query against the REACH PostgreSQL database.
+Fetch data by executing a SQL query against the PostgreSQL database.
 Returns the raw data from the Supabase client.
 
-Args:
-    query: The SQL string to execute against the database.
-    read: Boolean for if you want to see the database results. Set to false so large amounts of data is only available to the chart tool for visualization. Prefer to set to false if you suspect amount of data will be large.
+## Args:
+- query: The SQL string to execute against the database.
+- read: Boolean for if you want to see the database results. Set to false if you don't need to see the results OR you suspect the amount of data returned is large
 
-# Instructions:
-- Only write SELECT statements.
-- Provide a single continuous string, no need for newlines.
-- Structure data in a way that makes it easy to visualize and digest. E.g using aggregation, counts, and others a lot.
-- If doing a trend analysis, always sort data chronologically.
-- Use TO_CHAR() to present dates in a more human-readable format when constructing charts. For example: `TO_CHAR(effective_from, 'FMMonth, YYYY')`. Use `FMMonth` instead of `Month` to prevent space around months with shorter names.
-- Prefer the denormalized alert_search_index table for fast queries as it is a dnormalized view.
-- When filtering by location in `alert_search_index`, use the `place_ids` array column with the `@>` (contains) operator. ALWAYS query the `places` table first to get the target place and all its descendant IDs to ensure you capture alerts aimed at both the parent region and any of its specific child cities/districts. Here is the recursive CTE pattern you must use:
-  WITH RECURSIVE place_tree AS (
-      SELECT id FROM places WHERE name ILIKE '%Khyber Pakhtunkhwa%'
-      UNION ALL
-      SELECT p.id FROM places p JOIN place_tree pt ON p.parent_id = pt.id
-  )
-  SELECT * FROM alert_search_index 
-  WHERE place_ids && (SELECT array_agg(id) FROM place_tree);
+## Instructions:
+- Only write SELECT statements
+- Structure data in a way that makes it easy to visualize and digest. E.g using aggregation, counts, etc. extensively
+- Prefer alert_search_index table for fast queries as it is a denormalized view
 
-- Unless date ranges are specified, assume user's are asking about 'active' alerts and use `WHERE NOW() >= effective_from AND NOW() < effective_until`.
+## Schema
+You have the following schema available, only use the following columns:
 
-# Schema
-- You have the following schema available, only use the following columns:
-| Table                | Column                     | Description                                    |
-| -------------------- | -------------------------- | ---------------------------------------------- |
-| documents            | id                         | UUID primary key                               |
-|                      | source                     | Name of the originating data source            |
-|                      | posted_date                | Date the document was published                |
-|                      | title                      | Document title                                 |
-|                      | url                        | URL of the source document                     |
-| -------------------- | -------------------------- | ---------------------------------------------- |
-| alerts               | id                         | UUID primary key                               |
-|                      | document_id                | FK → documents.id                              |
-|                      | category                   | CAP-based category (Geo, Met, Safety, etc.)    |
-|                      | event                      | Short event label, e.g. Flash Flood            |
-|                      | urgency                    | Immediate / Expected / Future / Past / Unknown |
-|                      | severity                   | Extreme / Severe / Moderate / Minor / Unknown  |
-|                      | description                | Full narrative description of the alert        |
-|                      | instruction                | Recommended action for affected people         |
-|                      | effective_from             | Start of the alert validity window             |
-|                      | effective_until            | End of the alert validity window               |
-| -------------------- | -------------------------- | ---------------------------------------------- |
-| alert_areas          | id                         | UUID primary key                               |
-|                      | alert_id                   | FK → alerts.id                                 |
-|                      | place_id                   | FK → places.id                                 |
-|                      | specific_effective_from    | Area-level override for effective start        |
-|                      | specific_effective_until   | Area-level override for effective end          |
-|                      | specific_urgency           | Area-level urgency override                    |
-|                      | specific_severity          | Area-level severity override                   |
-|                      | specific_instruction       | Area-level protective instruction override     |
-| -------------------- | -------------------------- | ---------------------------------------------- |
-| places               | id                         | UUID primary key                               |
-|                      | name                       | Place name                                     |
-|                      | parent_id                  | Self-referencing FK to parent place            |
-|                      | parent_name                | Denormalised parent place name                 |
-|                      | hierarchy_level            | Depth in the geographic hierarchy              |
-|                      |                            | (0: country, 3: tehsil)                        |
-|                      | polygon                    | PostGIS geometry of the place boundary         |
-| -------------------- | -------------------------- | ---------------------------------------------- |
-| alert_search_index   | alert_id                   | UUID primary key, FK → alerts.id               |
-|                      | centroid                   | Geometry, center point of all affected areas   |
-|                      | bbox                       | Geometry, bounding box of all affected areas   |
-|                      | unioned_polygon            | Geometry,combined polygon of all affected areas|
-|                      | search_text                | Text for full-text search (event + desc + etc.)|
-|                      | category                   | CAP-based category (Geo, Met, Safety, etc.)    |
-|                      | severity                   | Extreme / Severe / Moderate / Minor / Unknown  |
-|                      | urgency                    | Immediate / Expected / Future / Past / Unknown |
-|                      | event                      | Short event label, e.g. Flash Flood            |
-|                      | description                | Full narrative description of the alert        |
-|                      | instruction                | Recommended action for affected people         |
-|                      | source                     | Name of the originating data source            |
-|                      | url                        | URL of the source document                     |
-|                      | posted_date                | Date the document was published                |
-|                      | effective_from             | Start of the alert validity window             |
-|                      | effective_until            | End of the alert validity window               |
-|                      | affected_places            | Array of all affected place names              |
-|                      | place_ids                  | Array of all affected place UUIDs              |
-|                      | last_updated_at            | Time the index was last updated                |
+| Table              | Column                   | Description                                                                                                          |
+| ------------------ | ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| documents          | id                       | UUID primary key                                                                                                     |
+|                    | source                   | Name of the originating data source                                                                                  |
+|                    | posted_date              | Date the document was published                                                                                      |
+|                    | title                    | Document title                                                                                                       |
+|                    | url                      | URL of the source document                                                                                           |
+| alerts             | id                       | UUID primary key                                                                                                     |
+|                    | document_id              | FK → documents.id                                                                                                    |
+|                    | category                 | CAP-based type ('Geo','Met','Safety','Security','Rescue','Fire', 'Health','Env','Transport','Infra','CBRNE','Other') |
+|                    | event                    | Short title for the alert                                                                                            |
+|                    | urgency                  | Immediate / Expected / Future / Past / Unknown                                                                       |
+|                    | severity                 | Extreme / Severe / Moderate / Minor / Unknown                                                                        |
+|                    | description              | Full narrative description of the alert                                                                              |
+|                    | instruction              | Recommended action for affected people                                                                               |
+|                    | effective_from           | Start of the alert validity window (timestamptz)                                                                     |
+|                    | effective_until          | End of the alert validity window (timestamptz)                                                                       |
+| alert_areas        | id                       | UUID primary key                                                                                                     |
+|                    | alert_id                 | FK → alerts.id                                                                                                       |
+|                    | place_id                 | FK → places.id                                                                                                       |
+|                    | specific_effective_from  | Area-level override for effective start (timestamptz)                                                                |
+|                    | specific_effective_until | Area-level override for effective end (timestamptz)                                                                  |
+|                    | specific_urgency         | Area-level urgency override                                                                                          |
+|                    | specific_severity        | Area-level severity override                                                                                         |
+|                    | specific_instruction     | Area-level protective instruction override                                                                           |
+| places             | id                       | UUID primary key                                                                                                     |
+|                    | name                     | Place name                                                                                                           |
+|                    | parent_id                | Self-referencing FK to parent place                                                                                  |
+|                    | parent_name              | Denormalised parent place name                                                                                       |
+|                    | hierarchy_level          | Level in the geographic hierarchy (0: country, 1: province, 2: district, 3: tehsil)                                  |
+|                    | polygon                  | PostGIS geometry of the place boundary                                                                               |
+| alert_search_index | alert_id                 | UUID primary key, FK → alerts.id                                                                                     |
+|                    | centroid                 | Geometry, center point of all affected areas                                                                         |
+|                    | bbox                     | Geometry, bounding box of all affected areas                                                                         |
+|                    | unioned_polygon          | Geometry, combined polygon of all affected areas                                                                     |
+|                    | search_text              | Text for full-text search (event + desc + etc.)                                                                      |
+|                    | category                 | CAP-based type(Geo, Met, Safety, etc.)                                                                               |
+|                    | severity                 | Extreme / Severe / Moderate / Minor / Unknown                                                                        |
+|                    | urgency                  | Immediate / Expected / Future / Past / Unknown                                                                       |
+|                    | event                    | Short alert title, e.g. Flash Flood                                                                                  |
+|                    | description              | Full narrative description of the alert                                                                              |
+|                    | instruction              | Recommended action for affected people                                                                               |
+|                    | source                   | Name of the originating data source                                                                                  |
+|                    | url                      | URL of the source document                                                                                           |
+|                    | posted_date              | Date the document was published                                                                                      |
+|                    | effective_from           | Start of the alert validity window (timestamptz)                                                                     |
+|                    | effective_until          | End of the alert validity window (timestamptz)                                                                       |
+|                    | affected_places          | Array of all affected place names                                                                                    |
+|                    | place_ids                | Array of all affected place UUIDs                                                                                    |
+|                    | last_updated_at          | Time the index was last updated                                                                                      |
 
-- Severity values: 'Extreme', 'Severe', 'Moderate', 'Minor', 'Unknown'.
-- Urgency values: 'Immediate', 'Expected', 'Future', 'Past', 'Unknown'.
-- Category values: 'Geo','Met','Safety','Security','Rescue','Fire', 'Health','Env','Transport','Infra','CBRNE','Other'.
+## Must-use SQL patterns
+```sql
+-- For "active/current alerts", use NOW() in both conditions
+WHERE NOW() >= effective_from AND NOW() < effective_until
+
+-- For historical analysis of a specific year (e.g., 2024):
+WHERE EXTRACT(YEAR FROM effective_from) = 2024
+
+-- ALWAYS use TO_CHAR() with FMMonth (no spaces) for clean labels from the timestamptz columns:
+TO_CHAR(effective_from, 'FMMonth, YYYY') as period
+
+-- For chronological sorting in trends:
+ORDER BY effective_from ASC
+
+-- ALWAYS use the recursive CTE pattern
+-- This captures alerts for both parent regions and their child areas
+WITH RECURSIVE place_tree AS (
+    SELECT id FROM places WHERE name ILIKE '%Region Name%'
+    UNION ALL
+    SELECT p.id FROM places p JOIN place_tree pt ON p.parent_id = pt.id
+)
+SELECT * FROM alert_search_index 
+WHERE place_ids && (SELECT array_agg(id) FROM place_tree);
+```
     """
     try:
         client = await get_supabase(config)
@@ -138,48 +142,42 @@ def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableCo
     """
 Publish a chart by providing a JavaScript ECharts option object.
 
-# CRITICAL REQUIREMENTS:
-1. You MUST NOT call this tool unless you have ALREADY called the `examples` tool in a previous step to learn the correct data structure and styling for your chosen chart type.
-2. ALWAYS reference the `datasource` variable in your option object at the appropriate location like dataset.source or series.data (or others) to inject data.
-3. ALWAYS map data to the specific keys the chart type expects for chart types like Pie, Graph (and others) using `data: datasource.map(item => ({name:, value:}))` or `encode: { itemName:, value:}`.
-4. ALWAYS include a toolbox in the option object. saveAsImage is compulsary. dataView, dataZoom, restore, magicType, and brush if appropriate/requested. Change the order of the tools as you please. NO other tool besides the ones mentioned.
+## Args:
+1.  option: A string containing a valid JavaScript object literal
+2. data_transform: Optional. A dictionary to restructure tabular SQL data for complex charts.
+	- For 'tree', 'treemap', 'sunburst': 
+		{"type": "hierarchy", "id_key": "id_col", "parent_key": "parent_col", "name_key": "name_col"}
+	-  For 'graph', 'sankey':
+		{"type": "graph", "source_key": "from_col", "target_key": "to_col"}
+	- For 'heatmap':
+		{"type": "matrix", "x_key": "col_x", "y_key": "col_y", "v_key": "col_val"}
 
-# CRITICAL STYLING RULES:
-1. BACKGROUND: ALWAYS explicitly set `backgroundColor: 'transparent'`. DO NOT use solid colors (no '#000', no hex codes) regardless of what examples show. Unless the user asks for a specific color, you MUST use transparent.
-2. OVERLAPPING & ROTATION: You MUST prevent tilted text. Inside `xAxis.axisLabel` (and any other timeline or axis), ALWAYS set: `{ interval: 'auto', hideOverlap: true, rotate: 0 }`.
-3. THEME/COLORS: The UI is already dark mode. Do not make the chart background dark. Don't set text color, as dark mode handles that. ALWAYS use a meaningful and modern/minimalist/harmonic color palette instead of the default blue coloring for charts.
-4. PADDING/POSITIONING: ALWAYS include padding around elements like title, legend, dataZoom, toolbox, and others so they don't overlap with each other and the chart. Position them appropriately to prevent overlapping (for example, positioning legend on the bottom).
-5. RESPONSIVENESS: Achieve polished interactions with animationDuration and animationEasing.
-6. TYPOGRAPHY: ALWAYS use the Josefin Sans font the rest of the app uses with `textStyle: {fontFamily: '"Josefin Sans", sans-serif'}`, unless the user asks for a different font.
+## Tool Requirements - CRITICAL:
+1. You must not call this tool unless you have already called the `examples` tool in a previous step to learn the correct structure for your chosen chart type
+2. ALways reference the `datasource` variable in your option object at the appropriate location like dataset.source or series.data (or others) to inject data
+3. Always map data to the specific keys the chart type expects for chart types like Pie, Graph (and others) using `data: datasource.map(item => ({name:, value:}))` or `encode: { itemName:, value:}`
+4. Always include a toolbox in the option object. saveAsImage is compulsary. dataView (read-only), dataZoom, restore, magicType, and brush if appropriate/requested. Change the order of the tools as you please. NO other tools in toolbox besides the ones mentioned
 
-# Args:
-    option: A string containing a valid JavaScript object literal.
-            Use the variable `datasource` directly to assign dataset.source or series.data, and map the datasource's columns where appropriate like dataset.map(item => ({})).
-            
-    data_transform: Optional. A dictionary to restructure tabular SQL data for complex charts.
-                    - For 'tree', 'treemap', 'sunburst': 
-                        {"type": "hierarchy", "id_key": "id_col", "parent_key": "parent_col", "name_key": "name_col"}
-                    - For 'graph', 'sankey':
-                        {"type": "graph", "source_key": "from_col", "target_key": "to_col"}
-                    - For 'heatmap':
-                        {"type": "matrix", "x_key": "col_x", "y_key": "col_y", "v_key": "col_val"}
+### Chart error prevention checklist:
+- [ ] Data structure matches what the `examples` showed
+- [ ] All required keys exist in your data (e.g., if example uses `name` and `value`, your data must have those)
+- [ ] Data array is not empty
+- [ ] Data field names are correctly mapped to variable names expected by chart
 
-# Examples:
-1. Standard Chart (Bar/Line/Pie) using tabular SQL data directly:
-{
-    "option": "{\n  backgroundColor: 'transparent',\n  title: { text: 'Alerts by Category', left: 'center', padding: 15 },\n  toolbox: { feature: { saveAsImage: {}, dataView: {}, restore: {} } },\n  tooltip: { trigger: 'axis' },\n  dataset: { source: datasource },\n  xAxis: { type: 'category', axisLabel: { interval: 'auto', hideOverlap: true, rotate: 0 } },\n  yAxis: { type: 'value' },\n  series: [{ type: 'bar', encode: { x: 'category', y: 'count' } }]\n}",
-    "data_transform": null
-}
+## Styling Rules:
+The `examples` tool returns official ECharts examples, but they often use a boring blue/green color theme. You MUST use better colors.
+1. Background: Always explicitly set `backgroundColor: 'transparent'`. Do not use solid colors (no '#000', no hex codes) regardless of what examples show. Unless the user asks for a specific color, you MUST use transparent
+2. Overlapping/Rotation: You must prevent tilted text. Inside `xAxis.axisLabel` (and any other timeline or axis), ALWAYS set: `{ interval: 'auto', hideOverlap: true, rotate: 0 }`
+3. Theme/Colors: The UI is already dark mode. Do not make the chart background dark. Don't set text color, as dark mode handles that. ALWAYS use a meaningful and modern/minimalist/harmonic color palette instead of the default blue coloring for charts For example, for alert severities, use yellow (minor), orange (moderate), red (severe), purple (extreme) to show the severity level through visual design
+4. PADDING/POSITIONING: ALWAYS include padding around elements like title, legend, dataZoom, toolbox, and others so they don't overlap with each other and the chart. Position them appropriately to prevent overlapping (for example, positioning legend on the bottom)
+5. RESPONSIVENESS: Achieve polished interactions with animationDuration and animationEasing
 
-2. Complex Chart (Graph/Tree) requiring data transformation:
-{
-    "option": "{\n  backgroundColor: 'transparent',\n  toolbox: { feature: { saveAsImage: {} } },\n  series: [{ type: 'graph', data: datasource.nodes, links: datasource.links, layout: 'force' }]\n}",
-    "data_transform": {
-        "type": "graph",
-        "source_key": "parent_place",
-        "target_key": "child_place"
-    }
-}
+## Visual Design Rules:
+- Use gradients where appropriate
+- Add shadows for depth: `shadowColor: 'rgba(0,0,0,0.3)'`,  `shadowBlur: 10`
+- Ensure text is readable: Minimum 12px font size, high contrast with background
+- Make interactive: Enable tooltip with meaningful formatting, enable legend when showing multiple series
+- Custom font: ALWAYS use the modern Josefin Sans font by setting `textStyle: {fontFamily: '"Josefin Sans", sans-serif'}` in the global scope (and any other place like legend, tooltip, etc.), unless the user asks for a different font
     """
     try:
         # Retrieve Data
@@ -224,7 +222,7 @@ async def map(places: List[str], config: RunnableConfig) -> dict:
 Control the Mapbox camera and highlight a geometry.
 
 Args:
-place_names: List of string containing names of places to focus on and highlight.
+- place_names: List of string containing names of places to focus on and highlight.
 
 Call in PARALLEL with 'query' tool to save latency — emit both in one tool_calls array.
     """    
@@ -253,16 +251,11 @@ Call in PARALLEL with 'query' tool to save latency — emit both in one tool_cal
 @tool
 async def examples(type: str, config: RunnableConfig) -> dict:
     """
-Get official ECharts examples for a specific chart type to understand how to format the 'option' object.
+Get official ECharts examples for a specific chart type to understand how to structure the 'option' object.
 Mandatory prerequisite tool for charting. You MUST call this before calling the `chart` tool.
 
 Args: 
-    type: The chart type to pull examples of. Must be one of the official types from below.
-
-Returns: 
-    A set of official examples, each with:
-    - A dataset/data generation function(s) to show you how the data was structured.
-    - The option object settings all the styles and mapping the data.
+- type: The chart type to pull examples of. Must be one of the official types from below.
 
 The following chart types are available, along with a description/sugestion for each:
     - bar: Categorical bars. Best for comparing alert volume across different categories (Geo, Met), severity levels, or provinces.

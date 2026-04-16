@@ -17,6 +17,11 @@ async def get_supabase(config: RunnableConfig):
     await client.auth.set_session(access_token=jwt, refresh_token="")
     return client
 
+@tool
+async def title(title: str, config: RunnableConfig):
+    """Set a title for the chat session according to the user's prompt"""
+    return "Title set."
+
 @tool(response_format="content_and_artifact")
 async def query(query: str, read: bool = False, config: RunnableConfig = None):
     """

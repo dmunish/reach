@@ -47,9 +47,22 @@ class ConversationManager:
     async def save_conversation(self, conversation_id: Optional[str], messages: List[BaseMessage]):
 
         if not conversation_id:
-            # Find the first HumanMessage
-            query = next((m for m in messages if isinstance(m, HumanMessage)), None)
-            new_title = query.content[:60]
+            # 1. Look for an LLM-generated title from the 'title' tool
+            new_title = None
+            for msg in messages:
+                if hasattr(msg, "tool_calls"):
+                    for tc in msg.tool_calls:
+                        if tc["name"] == "title":
+                            new_title = tc["args"].get("title")
+                            break
+                if new_title: break
+            
+            # 2. Fallback to first HumanMessage if no tool call found
+            if not new_title:
+                query = next((m for m in messages if isinstance(m, HumanMessage)), None)
+                new_title = query.content[:60] if query else "New Conversation"
+
+            # Create new conversation
             conversation_id = await self._create_conversation(new_title)
 
             if not conversation_id:

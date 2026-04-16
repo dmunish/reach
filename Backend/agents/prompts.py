@@ -1,6 +1,8 @@
 from datetime import datetime
 import pytz
 
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+
 def current_time():
     pakistan_tz = pytz.timezone('Asia/Karachi')
     return datetime.now(pakistan_tz)
@@ -19,6 +21,7 @@ Your name is REACH, and you are an AI assistant for a prototype Pakistani disast
 
 ## Tool Usage - CRITICAL INSTRUCTIONS
 ### Available tools
+1. `title`: For setting an appropriate title for the chat session
 1. `query`: For fetching data from the system PostgreSQL database
 2. `chart`: For producing data visualizations with fetched data using Apache ECharts
 3. `examples`: For fetching data and chart structure guidelines for specific chart types
@@ -163,3 +166,94 @@ Respond in simple, clear language
 Never leak technical implementation details about yourself
 ```
 """
+
+FEW_SHOT_EXAMPLES = [
+    SystemMessage(content="Current date and time: Thursday, 2026-04-9 10:15:30 PKT"),
+    HumanMessage(content="How many alerts did KPK get each month last year?"),
+    AIMessage(
+        content="I'll check the data for Khyber Pakhtunkhwa (KPK) in 2025 and plot the trend of alerts each month.",
+        tool_calls=[
+            {
+                "id": "call_title_1",
+                "name": "title",
+                "args": {"title": "2025 Alerts in KPK"}
+            },
+            {
+                "id": "call_examples_1",
+                "name": "examples",
+                "args": {"type": "line"}
+            },
+            {
+                "id": "call_map_1",
+                "name": "map",
+                "args": {"places": ["Khyber Pakhtunkhwa"]}
+            }
+        ]
+    ),
+    ToolMessage(
+        tool_call_id="call_title_1",
+        content="Title set."
+    ),
+    ToolMessage(
+        tool_call_id="call_examples_1",
+        content="# Official examples for Line chart:\n\n..."
+    ),
+    ToolMessage(
+        tool_call_id="call_map_1",
+        content="Found data for Khyber Pakhtunkhwa."
+    ),
+    AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "id": "call_query_1",
+                "name": "query",
+                "args": {
+                    "query": "WITH RECURSIVE place_tree AS (SELECT id FROM places WHERE name ILIKE '%Khyber Pakhtunkhwa%' UNION ALL SELECT p.id FROM places p JOIN place_tree pt ON p.parent_id = pt.id) SELECT TO_CHAR(effective_from, 'FMMonth') as month_name, COUNT(*) as count FROM alert_search_index WHERE EXTRACT(YEAR FROM effective_from) = 2025 AND place_ids && (SELECT array_agg(id) FROM place_tree) GROUP BY month_name, EXTRACT(MONTH FROM effective_from) ORDER BY EXTRACT(MONTH FROM effective_from) ASC"
+                }
+            }
+        ]
+    ),
+    ToolMessage(
+        tool_call_id="call_query_1",
+        content="## Query Execution Summary\n* **Total Rows:** 12\n* **Columns:** `month_name`, `count`\n\n### Data Preview (First 2 rows):\n[{'month_name': 'January', 'count': 9}, {'month_name': 'February', 'count': 10}]"
+    ),
+    AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "id": "call_chart_1",
+                "name": "chart",
+                "args": {
+                    "option": """{
+                        backgroundColor: 'transparent',
+                        textStyle: { fontFamily: '"Josefin Sans", sans-serif' },
+                        title: { text: 'Alerts in KPK in 2025', left: 'center', padding: [10, 10, 10, 10] },
+                        tooltip: { trigger: 'axis' },
+                        toolbox: { feature: { dataZoom: { yAxisIndex: 'none' }, saveAsImage: {} } },
+                        dataset: { source: datasource },
+                        xAxis: { 
+                            type: 'category', 
+                            boundaryGap: false,
+                            axisLabel: { interval: 'auto', hideOverlap: true, rotate: 0 }
+                        },
+                        yAxis: { type: 'value' },
+                        series: [{
+                            type: 'line',
+                            encode: { x: 'month_name', y: 'count' },
+                            itemStyle: { color: '#ff4683' },
+                            areaStyle: { opacity: 0.3 }
+                        }]
+                    }"""
+                }
+            }
+        ]
+    ),
+    ToolMessage(
+        tool_call_id="call_chart_1",
+        content="Chart generated with injected data."
+    ),
+    AIMessage(
+        content="The above chart shows the number of alerts each month in KPK in 2025.\n\n**Key insights:**\n- The highest alert activity occurred in December (18 alerts) followed by peak summer in May (16 alerts).\n- The autumn months of September through November were the quietest, seeing only 5-6 alerts each month.\n\nWould you like to drill down into the specific categories of alerts for those peak months?"
+    )
+]

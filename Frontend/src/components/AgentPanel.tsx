@@ -119,7 +119,7 @@ const ResizableChart: React.FC<{ config: string; datasource?: string; descriptio
     <div 
       ref={containerRef}
       className="relative mt-4 bg-white/5 rounded-lg border border-white/10 flex flex-col group shrink-0"
-      style={{ width: '100%', height: '350px' }}
+      style={{ width: '100%', height: '450px' }}
     >
       <div className="flex-1 w-full h-full p-4 overflow-hidden flex flex-col min-h-0 min-w-0">
         <div className="flex-1 min-h-0 min-w-0">

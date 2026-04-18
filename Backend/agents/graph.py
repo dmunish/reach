@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
-from agents.prompts import SYSTEM_PROMPT
+from agents.prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
 from agents.tools import examples, query, chart, map
 from utils import load_env
 
@@ -49,11 +49,8 @@ def graph():
 
         messages = list(state["messages"])
 
-        # Add system prompt
-        has_system = any(isinstance(m, SystemMessage) for m in messages)
-        if not has_system:
-            messages.insert(0, SystemMessage(content=SYSTEM_PROMPT))
-                
+        # Add system prompt and few shot examples
+        messages = [SystemMessage(content=SYSTEM_PROMPT)] + FEW_SHOT_EXAMPLES + messages
         response = await llm.ainvoke(messages)
 
         # Check if this is a final answer (no tool calls means completion)
@@ -88,7 +85,7 @@ def graph():
         """
         Routing function (not node): Should we continue or end?
         """
-        if state.get("iteration_count") >= 10:
+        if state.get("iteration_count") >= int(os.environ.get("AGENT_MAX_TURNS")):
             return "end"
         
         messages = state["messages"]
@@ -99,7 +96,7 @@ def graph():
             return "continue"
         
         return "end"
-    
+        
     # ===== Graph =====
     workflow = StateGraph(State)
     workflow.add_node("agent", agent)

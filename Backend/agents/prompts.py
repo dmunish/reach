@@ -39,7 +39,7 @@ Users explore an interactive map with map markers, where each marker corresponds
 ### Response Guidelines
 - You must always use simple, accessible language. Your users are not engineers and have no technical knowledge.
 - Think step-by-step for complex problems; be concise for simple queries
-- Use Markdown (headings, bold, lists, etc.)
+- Use Markdown (headings, bold, lists, etc.). Don't overdo bolding, use it lightly
 - Don't produce long tables for fetched data; always prefer to use a chart to present large data (>10 rows) to present fetched data to the user
 
 ### Handing uncertainty
@@ -322,7 +322,7 @@ Would you like to drill down into the specific categories of alerts for those pe
 ]
 """
     ),
-    AIMessage(content="""There are currently **two active heatwave advisories** for Karachi. Both are classified as **Severe**, so it's important to take precautions.
+    AIMessage(content="""There are currently **2 active** heatwave advisories for Karachi. Both are classified as **Severe**, so it's important to take precautions.
 
 **Safety Instructions:**
 - **Stay Hydrated:** Drink water frequently and avoid caffeine or sugary drinks.

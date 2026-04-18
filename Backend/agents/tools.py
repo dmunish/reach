@@ -17,11 +17,6 @@ async def get_supabase(config: RunnableConfig):
     await client.auth.set_session(access_token=jwt, refresh_token="")
     return client
 
-@tool
-async def title(title: str, config: RunnableConfig):
-    """Set a title for the chat session according to the user's prompt"""
-    return "Title set."
-
 @tool(response_format="content_and_artifact")
 async def query(query: str, read: bool = False, config: RunnableConfig = None):
     """
@@ -30,12 +25,13 @@ Returns the raw data from the Supabase client.
 
 ## Args:
 - query: The SQL string to execute against the database.
-- read: Boolean for if you want to see the database results. Set to false if you don't need to see the results OR you suspect the amount of data returned is large
+- read: Boolean for if you want to see the database results. Default is False, set to True if you want to see results of the query
 
 ## Instructions:
+- Provide it all in a single line, no newlines
 - Only write SELECT statements
 - Structure data in a way that makes it easy to visualize and digest. E.g using aggregation, counts, etc. extensively
-- Prefer alert_search_index table for fast queries as it is a denormalized view
+- ALWAYS prefer to use alert_search_index table as it is a denormalized view and is very fast
 
 ## Schema
 You have the following schema available, only use the following columns:
@@ -90,31 +86,6 @@ You have the following schema available, only use the following columns:
 |                    | affected_places          | Array of all affected place names                                                                                    |
 |                    | place_ids                | Array of all affected place UUIDs                                                                                    |
 |                    | last_updated_at          | Time the index was last updated                                                                                      |
-
-## Must-use SQL patterns
-```sql
--- For "active/current alerts", use NOW() in both conditions
-WHERE NOW() >= effective_from AND NOW() < effective_until
-
--- For historical analysis of a specific year (e.g., 2024):
-WHERE EXTRACT(YEAR FROM effective_from) = 2024
-
--- ALWAYS use TO_CHAR() with FMMonth (no spaces) for clean labels from the timestamptz columns:
-TO_CHAR(effective_from, 'FMMonth, YYYY') as period
-
--- For chronological sorting in trends:
-ORDER BY effective_from ASC
-
--- ALWAYS use the recursive CTE pattern
--- This captures alerts for both parent regions and their child areas
-WITH RECURSIVE place_tree AS (
-    SELECT id FROM places WHERE name ILIKE '%Region Name%'
-    UNION ALL
-    SELECT p.id FROM places p JOIN place_tree pt ON p.parent_id = pt.id
-)
-SELECT * FROM alert_search_index 
-WHERE place_ids && (SELECT array_agg(id) FROM place_tree);
-```
     """
     try:
         client = await get_supabase(config)
@@ -143,12 +114,12 @@ WHERE place_ids && (SELECT array_agg(id) FROM place_tree);
         return f"Error: {str(e)}", None
 
 @tool(response_format="content_and_artifact")
-def chart(option: str, data_transform: Optional[Dict] = None, config: RunnableConfig = None) -> Any:
+def chart(option: str, data_transform: Optional[Dict] = None, new_data: bool = True, config: RunnableConfig = None) -> Any:
     """
 Publish a chart by providing a JavaScript ECharts option object.
 
 ## Args:
-1.  option: A string containing a valid JavaScript object literal
+1. option: A string containing a valid JavaScript object literal
 2. data_transform: Optional. A dictionary to restructure tabular SQL data for complex charts.
 	- For 'tree', 'treemap', 'sunburst': 
 		{"type": "hierarchy", "id_key": "id_col", "parent_key": "parent_col", "name_key": "name_col"}
@@ -156,33 +127,21 @@ Publish a chart by providing a JavaScript ECharts option object.
 		{"type": "graph", "source_key": "from_col", "target_key": "to_col"}
 	- For 'heatmap':
 		{"type": "matrix", "x_key": "col_x", "y_key": "col_y", "v_key": "col_val"}
+3. new_data: Boolean for whether you want to attach data from the last query. Set to false if only restyling chart and not making new data to cut down on playload size.
 
-## Tool Requirements - CRITICAL:
+## Tool Requirements:
 1. You must not call this tool unless you have already called the `examples` tool in a previous step to learn the correct structure for your chosen chart type
-2. ALways reference the `datasource` variable in your option object at the appropriate location like dataset.source or series.data (or others) to inject data
+2. ALways reference the `datasource` variable in your option object at the appropriate location like dataset.source or series.data (or others) to inject data. Do not hard code data values
 3. Always map data to the specific keys the chart type expects for chart types like Pie, Graph (and others) using `data: datasource.map(item => ({name:, value:}))` or `encode: { itemName:, value:}`
-4. Always include a toolbox in the option object. saveAsImage is compulsary. dataView (read-only), dataZoom, restore, magicType, and brush if appropriate/requested. Change the order of the tools as you please. NO other tools in toolbox besides the ones mentioned
-
-### Chart error prevention checklist:
-- [ ] Data structure matches what the `examples` showed
-- [ ] All required keys exist in your data (e.g., if example uses `name` and `value`, your data must have those)
-- [ ] Data array is not empty
-- [ ] Data field names are correctly mapped to variable names expected by chart
-
-## Styling Rules:
-The `examples` tool returns official ECharts examples, but they often use a boring blue/green color theme. You MUST use better colors.
-1. Background: Always explicitly set `backgroundColor: 'transparent'`. Do not use solid colors (no '#000', no hex codes) regardless of what examples show. Unless the user asks for a specific color, you MUST use transparent
-2. Overlapping/Rotation: You must prevent tilted text. Inside `xAxis.axisLabel` (and any other timeline or axis), ALWAYS set: `{ interval: 'auto', hideOverlap: true, rotate: 0 }`
-3. Theme/Colors: The UI is already dark mode. Do not make the chart background dark. Don't set text color, as dark mode handles that. ALWAYS use a meaningful and modern/minimalist/harmonic color palette instead of the default blue coloring for charts For example, for alert severities, use yellow (minor), orange (moderate), red (severe), purple (extreme) to show the severity level through visual design
-4. PADDING/POSITIONING: ALWAYS include padding around elements like title, legend, dataZoom, toolbox, and others so they don't overlap with each other and the chart. Position them appropriately to prevent overlapping (for example, positioning legend on the bottom)
-5. RESPONSIVENESS: Achieve polished interactions with animationDuration and animationEasing
+4. Always include a toolbox in the option object. saveAsImage is compulsary. dataView (read-only), dataZoom, restore, magicType if appropriate/requested. Change the order of the tools as you please. NO other tools in toolbox besides the ones mentioned
 
 ## Visual Design Rules:
-- Use gradients where appropriate
-- Add shadows for depth: `shadowColor: 'rgba(0,0,0,0.3)'`,  `shadowBlur: 10`
-- Ensure text is readable: Minimum 12px font size, high contrast with background
-- Make interactive: Enable tooltip with meaningful formatting, enable legend when showing multiple series
-- Custom font: ALWAYS use the modern Josefin Sans font by setting `textStyle: {fontFamily: '"Josefin Sans", sans-serif'}` in the global scope (and any other place like legend, tooltip, etc.), unless the user asks for a different font
+- Use a modern/dark-theme optimized visual style
+- Use pleasing, neon-style gradients where appropriate
+- Add shadows for depth
+- Ensure text is readable
+- Always background color as `'transparent'`
+- Use the custom font 'Josefin Sans' anywhere there is text
     """
     try:
         # Retrieve Data

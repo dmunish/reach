@@ -381,7 +381,6 @@ Stay safe and keep a close eye on local news for updates."""
                 "args": {
                     "option": """
 {
-    backgroundColor: 'transparent',
     textStyle: { fontFamily: '"Josefin Sans", sans-serif' },
     title: { 
         text: 'Alert Connectivity Between Punjab Districts',
@@ -411,6 +410,7 @@ Stay safe and keep a close eye on local news for updates."""
         type: 'graph',
         layout: 'force',
         zoom: 0.7,
+        progressiveThreshold: 700,
         data: datasource.nodes.map((node, idx) => {
             const hue = (idx * (360 / datasource.nodes.length)) % 270;
             return {
@@ -435,12 +435,13 @@ Stay safe and keep a close eye on local news for updates."""
         }),
         links: datasource.links,
         roam: true,
-        draggable: true,
+        draggable: false,
         force: {
             repulsion: 1500,
             edgeLength: [150, 400],
             gravity: 0.3,
-            friction: 0.1
+            friction: 0.1,
+            layoutAnimation: false
         },
         lineStyle: {
             color: '#888888',
@@ -472,7 +473,7 @@ Stay safe and keep a close eye on local news for updates."""
         content="Chart generated with injected data."
     ),
     AIMessage(
-        content="The interactive force-directed network graph above shows the connectivity between districts in Punjab, with force of attraction based on the number of shared alerts this year. You can drag the nodes around!"
+        content="The interactive force-directed network graph above shows the connectivity between districts in Punjab, with force of attraction based on the number of shared alerts this year. You can press the `Restore` button in the top-right to try different arrangements. Would you like to make the nodes draggable?"
     ),
 
     ####################################################################################################################

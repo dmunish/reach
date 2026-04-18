@@ -2,6 +2,7 @@ import json
 import os
 from typing import Optional
 import logging
+from time import time
 
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import StreamingResponse
@@ -88,7 +89,7 @@ async def run_agent(query: QueryRequest, authorization: str = Header(...)):
     Returns:
         Complete transcript of agent's tool calls and responses
     """
-
+    start_time = time()
     # Extract jwt
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization header")
@@ -132,11 +133,12 @@ async def run_agent(query: QueryRequest, authorization: str = Header(...)):
 
                     # Save on completion
                     new_messages = final_messages[len(history) + 1:]
-                    final_convo_id, response_messages = await manager.save_conversation(query.conversation_id, new_messages)
+                    convo_id, response_messages, title = await manager.save_conversation(query.conversation_id, new_messages)
                     
-                    # Yield final messages (conversation_id is inside the messages)
-                    yield f"data: {json.dumps({'type': 'done', 'messages': response_messages})}\n\n"
-                    logger.info(f"Response streamed and saved successfully for conversation {final_convo_id}")
+                    # Yield final messages (conversation_id and title at root level)
+                    time_taken = time() - start_time
+                    yield f"data: {json.dumps({'type': 'done', 'conversation_id': convo_id, 'title': title, 'messages': response_messages})}\n\n"
+                    logger.info(f"Response streamed and saved successfully for conversation {convo_id} in {time_taken:.2f}s")
                     
                 except Exception as e:
                     logger.exception("Streaming error")
@@ -152,9 +154,14 @@ async def run_agent(query: QueryRequest, authorization: str = Header(...)):
             )
 
             new_messages = result["messages"][len(history) + 1:]
-            final_convo_id, response_messages = await manager.save_conversation(query.conversation_id, new_messages)
-            logger.info(f"Response saved successfully for conversation {final_convo_id}")
-            return response_messages
+            convo_id, response_messages, title = await manager.save_conversation(query.conversation_id, new_messages)
+            time_taken = time() - start_time
+            logger.info(f"Responded successfully for conversation {convo_id} in {time_taken:.2f}s")
+            return {
+                "conversation_id": convo_id,
+                "title": title,
+                "messages": response_messages
+            }
     
     except HTTPException:
         raise

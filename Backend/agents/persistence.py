@@ -45,32 +45,38 @@ class ConversationManager:
             return None
 
     async def save_conversation(self, conversation_id: Optional[str], messages: List[BaseMessage]):
+        new_title = None
 
         if not conversation_id:
-            # 1. Look for an LLM-generated title from the 'title' tool
-            new_title = None
-            for msg in messages:
-                if hasattr(msg, "tool_calls"):
-                    for tc in msg.tool_calls:
-                        if tc["name"] == "title":
-                            new_title = tc["args"].get("title")
-                            break
-                if new_title: break
+            # 1. Get the first human message
+            query = next((m for m in messages if isinstance(m, HumanMessage)), None)
+            user_text = query.content if query else ""
             
-            # 2. Fallback to first HumanMessage if no tool call found
-            if not new_title:
-                query = next((m for m in messages if isinstance(m, HumanMessage)), None)
-                new_title = query.content[:60] if query else "New Conversation"
+            # 2. Fire a quick, separate LLM call to create the title
+            try:
+                from agents.graph import create_llm
+                from langchain_core.messages import SystemMessage
+                
+                llm = create_llm()
+                prompt = f"Write a short, 3-5 word title for a chat session starting with this message: '{user_text}'. Output ONLY the title."
+                
+                response = await llm.ainvoke([SystemMessage(content=prompt)])
+                new_title = response.content.strip(' "\'')
+            except Exception as e:
+                logger.warning(f"Failed to generate title: {e}")
+                new_title = user_text[:60] if user_text else "New Conversation"
 
             # Create new conversation
             conversation_id = await self._create_conversation(new_title)
 
             if not conversation_id:
                 logger.error("Failed to generate a valid conversation_id.")
-                return []
+                return None, [], None
         
-        # Pop unnecessary keys
+
         serialized_messages = messages_to_dict(messages)
+
+        # Pop unnecessary keys
         keys_to_remove = ["response_metadata", "usage_metadata", "additional_kwargs", "id", "invalid_tool_calls", "status"]
         for message in serialized_messages:
             for key in keys_to_remove:
@@ -89,29 +95,43 @@ class ConversationManager:
         try:
             response = await self.client.table("messages").insert(rows).execute()
 
-            # Clean up the response for the frontend
+            # Clean up messages for frontend
+            frontend_messages = []
             for msg in response.data:
-                data_dict = msg.get("data", {})
+                clean_msg = {
+                    "id": msg.get("id"),
+                    "type": msg.get("type"),
+                    "data": {}
+                }
                 
-                # Remove args from AI tool calls
-                if msg.get("type") == "ai":
+                data_dict = msg.get("data", {})
+                msg_type = msg.get("type")
+
+                if data_dict.get("content"):
+                    clean_msg["data"]["content"] = data_dict.get("content")
+
+                if msg_type == "ai":
                     tool_calls = data_dict.get("tool_calls", [])
-                    for tool_call in tool_calls:
-                        tool_call.pop("args", None)
+                    for tc in tool_calls: 
+                        tc.pop("args", None)
 
-                # Remove content from tool results
-                elif msg.get("type") == "tool":
-                    data_dict.pop("content", None)
+                    if tool_calls:
+                        clean_msg["data"]["tool_calls"] = tool_calls
 
-                    # Remove artifact too if the tool is 'query'
-                    if data_dict.get("name") == "query":
-                        data_dict.pop("artifact", None)
-                        
-            return conversation_id, response.data
+                elif msg_type == "tool":
+                    clean_msg["data"]["name"] = data_dict.get("name")
+                    clean_msg["data"].pop("content", None)
+
+                    if data_dict.get("name") in ["chart", "map"]:
+                        clean_msg["data"]["artifact"] = data_dict.get("artifact")
+
+                frontend_messages.append(clean_msg)   
+                                     
+            return conversation_id, frontend_messages, new_title
 
         except Exception as e:
             logger.exception("Exception inserting messages")
-            return []
+            return None, [], None
 
 
     async def load_conversation(self, conversation_id: str):

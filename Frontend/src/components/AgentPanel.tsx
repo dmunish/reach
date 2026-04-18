@@ -583,9 +583,8 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                     }
                   } else if (data.type === 'done') {
                     finalMessages = data.messages;
-                    const firstMsg = finalMessages[0];
-                    if (!conversationId && firstMsg && firstMsg.conversation_id) {
-                      setConversationId(firstMsg.conversation_id);
+                    if (!conversationId && data.conversation_id) {
+                      setConversationId(data.conversation_id);
                       loadConversations();
                     }
                   } else if (data.type === 'error') {
@@ -612,17 +611,19 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
         }
       } else {
         // Non-streaming fallback
-        const json = await response.json();
-        if (Array.isArray(json)) {
+        const responseData = await response.json();
+        
+        if (responseData.messages && Array.isArray(responseData.messages)) {
           setMessages((prev) => {
             const filtered = prev.filter(p => !p.id?.startsWith("user-"));
-            const newMessages = json.map((msg: any) => ({
+            const newMessages = responseData.messages.map((msg: any) => ({
               id: msg.id, type: msg.type, data: msg.data || {}
             }));
             return [...filtered, ...newMessages];
           });
-          if (!conversationId && json.length > 0 && json[0].conversation_id) {
-            setConversationId(json[0].conversation_id);
+          
+          if (!conversationId && responseData.conversation_id) {
+            setConversationId(responseData.conversation_id);
             loadConversations();
           }
         }

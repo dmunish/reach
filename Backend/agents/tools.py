@@ -140,11 +140,11 @@ Publish a chart by providing a JavaScript ECharts option object.
 - Use pleasing, neon-style gradients where appropriate
 - Add shadows for depth
 - Ensure text is readable
-- Always background color as `'transparent'`
+- Always set background color as `'transparent'`
 - Use the custom font 'Josefin Sans' anywhere there is text
 - Prevent rotation of text on axes with `rotate: 0`
 - Keep colors and styling fresh - use new colors with new charts
-- Use padding to ensure there isn't too much or too little space between elements and the chart border
+- Use padding to ensure there isn't too little space between chart elements or too much space with the chart border
     """
     try:
         # Retrieve Data
@@ -232,7 +232,6 @@ The following chart types are available, along with a description/sugestion for 
     - chord: Relationship flows. Perfect for showing complex correlations, like which disaster categories frequently coincide in specific regions.
     - flowGL: WebGL vector fields. Typically used for meteorological wind patterns or ocean currents if raw spatial vector data is available.
     - graph: Network node-link structures. Ideal for visualizing chains of cascading disaster events, or relationships between affected regions.
-    - graphGL: High-performance network graph. Use instead of `graph` when you expect data volume (like number of nodes or edges) to be large.
     - heatmap: Matrix density visualization. Highly effective for temporal heatmaps (e.g., Day vs. Month) showing when disasters are most frequent.
     - line: Continuous time-series trends. The go-to for showing the historical trend of alert frequencies over days, months, or years.
     - line3D: 3D trajectories. Can be used for plotting paths over time, such as tracking a cyclone's coordinate bounds dynamically.
@@ -240,8 +239,7 @@ The following chart types are available, along with a description/sugestion for 
     - matrix: Gridded comparison. Similar to heatmap; useful for multi-dimensional correlation (e.g., comparing alert severity versus urgency).
     - pie: Proportional composition. Best for showing the percentage breakdown of active alerts by category (e.g., 60% Met, 30% Geo).
     - radar: Multi-axis profiles. Useful for visualizing the "disaster risk profile" of a specific region based on historical frequencies.
-    - scatter: 2D dot plots. Great for correlating two variables, like plotting alert duration against severity, or mapping geographic centroids.
-    - scatter3D: 3D bubble plots. Useful for plotting three variables simultaneously, like longitude, latitude, and duration or severity.
+    - scatter: Dot plots. Great for correlating two variables, like plotting alert duration against severity, or mapping geographic centroids.
     - sunburst: Radial hierarchical data. Excellent for drilling down into nested data: e.g., Total Alerts -> Category -> Severity -> Region.
     - tree: Branching hierarchy. Ideal for clearly displaying the geographic administrative parent-child hierarchy (Country -> Province -> District).
     - treemap: Nested rectangles. Highly effective for showing the total volume of alerts distributed across geographic regions or category hierarchies.

@@ -142,6 +142,9 @@ Publish a chart by providing a JavaScript ECharts option object.
 - Ensure text is readable
 - Always background color as `'transparent'`
 - Use the custom font 'Josefin Sans' anywhere there is text
+- Prevent rotation of text on axes with `rotate: 0`
+- Keep colors and styling fresh - use new colors with new charts
+- Use padding to ensure there isn't too much or too little space between elements and the chart border
     """
     try:
         # Retrieve Data

@@ -58,7 +58,13 @@ const LoadingDots = () => (
   </span>
 );
 
-const ResizableChart: React.FC<{ config: string; datasource?: string; description?: string }> = ({ config, datasource, description }) => {
+const ResizableChart: React.FC<{ 
+  config: string; 
+  datasource?: string; 
+  description?: string;
+  messages: Message[];
+  currentIndex: number;
+}> = ({ config, datasource, description, messages, currentIndex }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState<'right' | 'bottom' | 'corner' | null>(null);
 
@@ -102,8 +108,22 @@ const ResizableChart: React.FC<{ config: string; datasource?: string; descriptio
   const { option, errorMsg } = useMemo(() => {
     try {
       let opt;
-      if (datasource) {
-        const dataObj = JSON.parse(datasource);
+      let effectiveDatasource = datasource;
+
+      // If datasource is missing, backtrack to find the most recent one
+      if (!effectiveDatasource) {
+        for (let i = currentIndex - 1; i >= 0; i--) {
+          const msg = messages[i];
+          const ds = msg.data?.artifact?.data?.datasource;
+          if (ds) {
+            effectiveDatasource = ds;
+            break;
+          }
+        }
+      }
+
+      if (effectiveDatasource) {
+        const dataObj = JSON.parse(effectiveDatasource);
         opt = new Function("echarts", "datasource", "return " + config)(echarts, dataObj);
       } else {
         opt = new Function("echarts", "return " + config)(echarts);
@@ -113,7 +133,7 @@ const ResizableChart: React.FC<{ config: string; datasource?: string; descriptio
       console.error("Failed to parse chart config:", e);
       return { option: {}, errorMsg: e.message || "Invalid chart configuration" };
     }
-  }, [config, datasource]);
+  }, [config, datasource, messages, currentIndex]);
 
   return (
     <div 
@@ -875,7 +895,9 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                                       <ResizableChart 
                                         config={toolArtifact.data.config}
                                         datasource={toolArtifact.data.datasource}
-                                        description={toolArtifact.description} 
+                                        description={toolArtifact.description}
+                                        messages={messages}
+                                        currentIndex={idx}
                                       />
                                     </div>
                                   </div>
@@ -965,7 +987,9 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
                                 <ResizableChart 
                                   config={artifact.data.config}
                                   datasource={artifact.data.datasource}
-                                  description={artifact.description} 
+                                  description={artifact.description}
+                                  messages={messages}
+                                  currentIndex={idx}
                                 />
                               </div>
                             )}

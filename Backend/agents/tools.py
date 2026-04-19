@@ -127,7 +127,7 @@ Publish a chart by providing a JavaScript ECharts option object.
 		{"type": "graph", "source_key": "from_col", "target_key": "to_col"}
 	- For 'heatmap':
 		{"type": "matrix", "x_key": "col_x", "y_key": "col_y", "v_key": "col_val"}
-3. new_data: Boolean for whether you want to attach data from the last query. Set to false if only restyling chart and not making new data to cut down on playload size.
+3. new_data: Boolean for whether you want to attach data from the last query. Set to false if only restyling chart and reusing older data.
 
 ## Tool Requirements:
 1. You must not call this tool unless you have already called the `examples` tool in a previous step to learn the correct structure for your chosen chart type
@@ -172,7 +172,7 @@ Publish a chart by providing a JavaScript ECharts option object.
             "action": "render_chart",
             "data": {
                 "config": clean_config,
-                "datasource": data_json
+                "datasource": data_json if new_data else None
             }
         }
 

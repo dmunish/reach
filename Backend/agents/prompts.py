@@ -409,19 +409,21 @@ Stay safe and keep a close eye on local news for updates."""
     },
     toolbox: { 
         feature: { 
-            saveAsImage: {
-                pixelRatio: 3
-                }, 
-            restore: {}
+          saveAsImage: {
+            pixelRatio: 3
+          }, 
+          restore: {}
         } 
     },
     series: [{
         type: 'graph',
         layout: 'force',
-        zoom: 0.7,
+        // Zoom out to fit nodes in view
+        zoom: 0.5,
         progressiveThreshold: 700,
         data: datasource.nodes.map((node, idx) => {
-            const hue = (idx * (360 / datasource.nodes.length)) % 270;
+            // Green-red gradient
+            const hue = (idx * (360 / datasource.nodes.length)) % 180;
             return {
                 ...node,
                 symbolSize: node.value ? Math.sqrt(node.value) * 5 : 30,
@@ -433,29 +435,31 @@ Stay safe and keep a close eye on local news for updates."""
                     shadowColor: `hsla(${hue}, 90%, 70%, 0.4)`
                 },
             label: {
-                show: true,
-                position: 'right',
-                formatter: '{b}',
-                color: '#e0e0e0',
-                fontSize: 12,
-                fontWeight: '600'
+              show: true,
+              position: 'right',
+              formatter: '{b}',
+              color: '#e0e0e0',
+              fontSize: 12,
+              fontWeight: '600'
             },            
-            };
+          };
         }),
         links: datasource.links,
         roam: true,
         draggable: false,
         force: {
             repulsion: 1000,
-            edgeLength: [150, 400],
+            edgeLength: [200, 500],
             gravity: 0.3,
             friction: 0.1,
+            // Setting to false instantly places them, improving performance
             layoutAnimation: true
         },
         lineStyle: {
             color: '#888888',
             opacity: 0.3,
             width: 1,
+            // Curving reduces performance
             curveness: 0
         },
         emphasis: {
@@ -483,7 +487,7 @@ Stay safe and keep a close eye on local news for updates."""
         content="Chart generated with injected data."
     ),
     AIMessage(
-        content="The interactive force-directed network graph above shows the connectivity between districts in Punjab, with force of attraction based on the number of shared alerts this year. You can press the `Restore` button in the top-right to try different arrangements. Would you like to make the nodes draggable?"
+        content="The interactive force-directed network graph above connects districts of Punjab that shared alerts this year, with force of attraction based on the number of alerts shared. You can press the `Restore` button in the top-right to try different arrangements. Would you like to make the nodes draggable?"
     ),
 
     ####################################################################################################################

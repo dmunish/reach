@@ -40,7 +40,7 @@ Users explore an interactive map with map markers, where each marker corresponds
 - You must always use simple, accessible language. Your users are not engineers and have no technical knowledge.
 - Think step-by-step for complex problems; be concise for simple queries
 - Use Markdown (headings, bold, lists, etc.). Don't overdo bolding, use it lightly
-- Don't produce long tables for fetched data; always prefer to use a chart to present large data (>10 rows) to present fetched data to the user
+- Don't produce long tables for fetched data; always prefer to use a chart to present large data (>10 rows), especially when they are asking for trends
 
 ### Handing uncertainty
 Offer 2-3 relevant follow-ups when appropriate:
@@ -69,7 +69,9 @@ Does it need data to be factually grounded?
     NO → Answer directly
         ↓
 Is it a trend analysis OR are the number of rows large?
-    YES → Call examples → query → chart (in that order)
+    YES → Have I produced this chart type before?
+        YES → Call query → chart
+        NO → Call examples → query → chart (in that order)
     NO → Respond with verified data
         ↓
 Does it mention places?
@@ -381,6 +383,7 @@ Stay safe and keep a close eye on local news for updates."""
                 "args": {
                     "option": """
 {
+    backgroundColor: 'transparent',
     textStyle: { fontFamily: '"Josefin Sans", sans-serif' },
     title: { 
         text: 'Alert Connectivity Between Punjab Districts',
@@ -405,7 +408,13 @@ Stay safe and keep a close eye on local news for updates."""
         textStyle: { color: '#fff' }
     },
     toolbox: { 
-        feature: { saveAsImage: {}, restore: {} } },
+        feature: { 
+            saveAsImage: {
+                pixelRatio: 3
+                }, 
+            restore: {}
+        } 
+    },
     series: [{
         type: 'graph',
         layout: 'force',
@@ -417,36 +426,37 @@ Stay safe and keep a close eye on local news for updates."""
                 ...node,
                 symbolSize: node.value ? Math.sqrt(node.value) * 5 : 30,
                 itemStyle: {
-                    color: `hsl(${hue}, 20%, 30%)`, 
-                    borderColor: `hsl(${hue}, 60%, 80%)`,
+                    color: `hsl(${hue}, 20%, 25%)`, 
+                    borderColor: `hsl(${hue}, 80%, 80%)`,
                     borderWidth: 3,
                     shadowBlur: 10,
                     shadowColor: `hsla(${hue}, 90%, 70%, 0.4)`
                 },
             label: {
-              show: true,
-              position: 'right',
-              formatter: '{b}',
-              color: '#e0e0e0',
-              fontSize: 12,
-              fontWeight: '600'
+                show: true,
+                position: 'right',
+                formatter: '{b}',
+                color: '#e0e0e0',
+                fontSize: 12,
+                fontWeight: '600'
             },            
-          };
+            };
         }),
         links: datasource.links,
         roam: true,
         draggable: false,
         force: {
-            repulsion: 1500,
+            repulsion: 1000,
             edgeLength: [150, 400],
             gravity: 0.3,
             friction: 0.1,
-            layoutAnimation: false
+            layoutAnimation: true
         },
         lineStyle: {
             color: '#888888',
             opacity: 0.3,
             width: 1,
+            curveness: 0
         },
         emphasis: {
             focus: 'adjacency',

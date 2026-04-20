@@ -192,6 +192,7 @@ What would you like help with?
                 "id": "call_chart_1",
                 "name": "chart",
                 "args": {
+                    "new_data": True,
                     "option": """
 {
     backgroundColor: 'transparent',
@@ -381,6 +382,7 @@ Stay safe and keep a close eye on local news for updates."""
                 "id": "call_chart_2",
                 "name": "chart",
                 "args": {
+                    "new_data": True,
                     "option": """
 {
     backgroundColor: 'transparent',
@@ -590,122 +592,126 @@ Stay safe and keep a close eye on local news for updates."""
                 "id": "call_chart_3",
                 "name": "chart",
                 "args": {
+                    "new_data": True,
                     "option": """
 {
-    textStyle: { fontFamily: '"Josefin Sans", sans-serif' },
-    title: { 
-        text: 'Historic Trend of Alerts', 
-        left: 'center', 
-        top: 20, 
-        textStyle: { color: '#ffffff', fontSize: 20, fontWeight: '500', letterSpacing: 1 } 
-    },
-    tooltip: { 
-        trigger: 'axis', 
-        axisPointer: { type: 'line', lineStyle: { color: 'rgba(255, 255, 255, 0.2)', width: 1 } },
-        backgroundColor: 'rgba(25, 25, 35, 0.95)', 
-        borderColor: '#444', 
-        borderWidth: 1,
-        padding: [12, 15],
-        textStyle: { color: '#eee', fontSize: 12 },
-        // Tooltip logic to only show values above 0
-        formatter: function (params) {
-            let html = `<div style="margin-bottom: 5px; font-weight: bold; border-bottom: 1px solid #555; padding-bottom: 3px;">${params[0].axisValue}</div>`;
-            let hasData = false;
-            params.forEach(item => {
-                if (item.value > 0) {
-                    hasData = true;
-                    html += `
-                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; line-height: 20px;">
-                            <span>${item.marker} ${item.seriesName}</span>
-                            <span style="font-weight: bold;">${item.value}</span>
-                        </div>`;
-                }
-            });
-            return hasData ? html : `<div style="color: #888;">No alerts recorded</div>`;
-        }
-    },
-    legend: { 
-        bottom: 10, 
-        textStyle: { color: '#ffffff', fontSize: 12 },
-        itemGap: 20,
-        type: 'scroll',
-        icon: 'circle'
-    },
-    grid: { 
-        left: '5%', 
-        right: '5%', 
-        top: 100, 
-        bottom: 110, 
-        containLabel: true 
-    },
-    dataZoom: [
-        {
-            type: 'slider',
-            show: true,
-            bottom: 60,
-            height: 30,
-            borderColor: 'transparent',
-            backgroundColor: 'rgba(255,255,255,0.05)',
-            fillerColor: 'rgba(64, 169, 255, 0.2)',
-            textStyle: { color: '#666' }
-        },
-        { type: 'inside' }
-    ],
-    toolbox: { 
-        show: true,
-        right: 25,
-        top: 20,
-        itemSize: 15,
-        feature: { 
-            magicType: { type: ['line', 'bar', 'stack'] }, 
-            saveAsImage: { name: 'Historic Trend of Alerts', backgroundColor: '#1e1e2d', pixelRatio: 3 } 
-        },
-        iconStyle: { borderColor: '#888' }
-    },
-    xAxis: { 
-        type: 'category',
-        data: [...new Set(datasource.map(d => d.month))],
-        axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.2)' } }, 
-        axisLabel: { color: '#888', margin: 15 },
-        axisTick: { show: false }
-    },
-    yAxis: { 
-        type: 'value', 
-        name: 'Alert Count',
-        nameTextStyle: { color: '#777', padding: [0, 0, 10, 0] },
-        splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)', type: 'solid' } },
-        axisLabel: { color: '#888' }
-    },
-    series: [...new Set(datasource.map(d => d.category))].map((cat, idx) => {
-        // Yellow-green theme
-        const palette = ["#007f5f","#2b9348","#55a630","#80b918","#aacc00","#dddf00","#eeef20","#ffff3f"];
-        const color = palette[idx % palette.length];
-        return {
-            type: 'line', 
-            smooth: true,
-            name: cat,
-            data: datasource.filter(d => d.category === cat).map(d => d.count),
-            symbol: 'circle',
-            symbolSize: 4,
-            showSymbol: false,
-            itemStyle: { color: color },
-            lineStyle: { width: 3 },
-            areaStyle: { 
-                color: {
-                    type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                    colorStops: [
-                        { offset: 0, color: color },
-                        { offset: 1, color: 'transparent' }
-                    ]
-                },
-                opacity: 0.7
-            },
-            emphasis: { 
-                focus: 'series', 
-                itemStyle: { shadowBlur: 30, shadowColor: color } 
-            }
-        };
-    })
+  backgroundColor: 'transparent',
+  textStyle: { fontFamily: '"Josefin Sans", sans-serif' },
+  title: { 
+      text: 'Historic Trend of Alerts', 
+      left: 'center', 
+      top: 20, 
+      textStyle: { color: '#ffffff', fontSize: 20, fontWeight: '500', letterSpacing: 1 } 
+  },
+  tooltip: { 
+      trigger: 'axis', 
+      axisPointer: { type: 'line', lineStyle: { color: 'rgba(255, 255, 255, 0.2)', width: 1 } },
+      backgroundColor: 'rgba(25, 25, 35, 0.95)', 
+      borderColor: '#444', 
+      borderWidth: 1,
+      padding: [12, 15],
+      textStyle: { color: '#eee', fontSize: 12 },
+      // Tooltip logic to only show values above 0
+      formatter: function (params) {
+          let html = `<div style="margin-bottom: 5px; font-weight: bold; border-bottom: 1px solid #555; padding-bottom: 3px;">${params[0].axisValue}</div>`;
+          let hasData = false;
+          params.forEach(item => {
+              if (item.value > 0) {
+                  hasData = true;
+                  html += `
+                      <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; line-height: 20px;">
+                          <span>${item.marker} ${item.seriesName}</span>
+                          <span style="font-weight: bold;">${item.value}</span>
+                      </div>`;
+              }
+          });
+          return hasData ? html : `<div style="color: #888;">No alerts recorded</div>`;
+      }
+  },
+  legend: { 
+      bottom: 10, 
+      textStyle: { color: '#ffffff', fontSize: 12 },
+      itemGap: 20,
+      type: 'scroll',
+      icon: 'circle'
+  },
+  grid: { 
+      left: '5%', 
+      right: '5%', 
+      top: 100, 
+      bottom: 110, 
+      containLabel: true 
+  },
+  dataZoom: [
+      {   // Place a zoom slider below the chart, separate from the one in the toolbox
+          type: 'slider',
+          show: true,
+          bottom: 60,
+          height: 30,
+          borderColor: 'transparent',
+          backgroundColor: 'rgba(255,255,255,0.05)',
+          fillerColor: 'rgba(64, 169, 255, 0.2)',
+          textStyle: { color: '#666' }
+      },
+      { // Allow the chart to be zoomed through scrolling
+        type: 'inside' 
+      }
+  ],
+  toolbox: { 
+      show: true,
+      right: 25,
+      top: 20,
+      itemSize: 15,
+      feature: { 
+          magicType: { type: ['line', 'bar', 'stack'] }, 
+          saveAsImage: { name: 'Historic Trend of Alerts', backgroundColor: '#1e1e2d', pixelRatio: 3 } 
+      },
+      iconStyle: { borderColor: '#888' }
+  },
+  xAxis: { 
+      type: 'category',
+      data: [...new Set(datasource.map(d => d.month))],
+      axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.2)' } }, 
+      axisLabel: { color: '#888', margin: 15 },
+      axisTick: { show: false }
+  },
+  yAxis: { 
+      type: 'value', 
+      name: 'Alert Count',
+      nameTextStyle: { color: '#777', padding: [0, 0, 10, 0] },
+      splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)', type: 'solid' } },
+      axisLabel: { color: '#888' }
+  },
+  series: [...new Set(datasource.map(d => d.category))].map((cat, idx) => {
+      // Yellow-green theme
+      const palette = ["#007f5f","#2b9348","#55a630","#80b918","#aacc00","#dddf00","#eeef20","#ffff3f"];
+      const color = palette[idx % palette.length];
+      return {
+          type: 'line', 
+          smooth: false,
+          name: cat,
+          data: datasource.filter(d => d.category === cat).map(d => d.count),
+          symbol: 'circle',
+          symbolSize: 4,
+          showSymbol: false,
+          itemStyle: { color: color },
+          lineStyle: { width: 3 },
+          areaStyle: { 
+              color: {
+                  type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                  colorStops: [
+                      { offset: 0, color: color },
+                      { offset: 1, color: 'transparent' }
+                  ]
+              },
+              opacity: 1
+          },
+          emphasis: { 
+              focus: 'series', 
+              itemStyle: { shadowBlur: 30, shadowColor: color } 
+          }
+      };
+  })
 }
 """
                 }

@@ -114,20 +114,20 @@ You have the following schema available, only use the following columns:
         return f"Error: {str(e)}", None
 
 @tool(response_format="content_and_artifact")
-def chart(option: str, data_transform: Optional[Dict] = None, new_data: bool = True, config: RunnableConfig = None) -> Any:
+def chart(option: str, new_data: bool, data_transform: Optional[Dict] = None, config: RunnableConfig = None) -> Any:
     """
 Publish a chart by providing a JavaScript ECharts option object.
 
 ## Args:
 1. option: A string containing a valid JavaScript object literal
-2. data_transform: Optional. A dictionary to restructure tabular SQL data for complex charts.
+2. new_data: Boolean for whether you want to attach data from the last query - set to false if only restyling chart and reusing older data
+3. data_transform: Optional. A dictionary to restructure tabular SQL data for complex charts
 	- For 'tree', 'treemap', 'sunburst': 
 		{"type": "hierarchy", "id_key": "id_col", "parent_key": "parent_col", "name_key": "name_col"}
 	-  For 'graph', 'sankey':
 		{"type": "graph", "source_key": "from_col", "target_key": "to_col"}
 	- For 'heatmap':
 		{"type": "matrix", "x_key": "col_x", "y_key": "col_y", "v_key": "col_val"}
-3. new_data: Boolean for whether you want to attach data from the last query. Set to false if only restyling chart and reusing older data.
 
 ## Tool Requirements:
 1. You must not call this tool unless you have already called the `examples` tool in a previous step to learn the correct structure for your chosen chart type

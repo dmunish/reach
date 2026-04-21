@@ -93,7 +93,7 @@ You have the following schema available, only use the following columns:
         data = result.data or []
         if data:
             columns = list(data[0].keys())
-            artifact = [columns] + [list(row.values() for row in data)]
+            artifact = [columns] + [list(row.values()) for row in data]
         else:
             artifact = []
 

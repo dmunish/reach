@@ -72,7 +72,7 @@ You have the following schema available, only use the following columns:
 |                    | bbox                     | Geometry, bounding box of all affected areas                                                                         |
 |                    | unioned_polygon          | Geometry, combined polygon of all affected areas                                                                     |
 |                    | search_text              | Text for full-text search (event + desc + etc.)                                                                      |
-|                    | category                 | CAP-based type(Geo, Met, Safety, etc.)                                                                               |
+|                    | category                 | CAP-based type (Geo, Met, Safety, etc.)                                                                               |
 |                    | severity                 | Extreme / Severe / Moderate / Minor / Unknown                                                                        |
 |                    | urgency                  | Immediate / Expected / Future / Past / Unknown                                                                       |
 |                    | event                    | Short alert title, e.g. Flash Flood                                                                                  |
@@ -83,16 +83,19 @@ You have the following schema available, only use the following columns:
 |                    | posted_date              | Date the document was published                                                                                      |
 |                    | effective_from           | Start of the alert validity window (timestamptz)                                                                     |
 |                    | effective_until          | End of the alert validity window (timestamptz)                                                                       |
-|                    | affected_places          | Array of all affected place names                                                                                    |
-|                    | place_ids                | Array of all affected place UUIDs                                                                                    |
 |                    | last_updated_at          | Time the index was last updated                                                                                      |
     """
     try:
         client = await get_supabase(config)
         result = await client.rpc("execute_readonly_sql", {"query_text": query}).execute()
 
-        # Store raw data in artifact because its invisible to LLM and doesn't flood context
-        artifact = result.data or []
+        # Convert raw data to list-of-lists from list-of-dicts
+        data = result.data or []
+        if data:
+            columns = list(data[0].keys())
+            artifact = [columns] + [list(row.values() for row in data)]
+        else:
+            artifact = []
 
         # Get a summary for the LLM
         num_rows = len(artifact)

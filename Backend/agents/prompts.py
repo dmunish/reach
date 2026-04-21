@@ -120,7 +120,7 @@ What would you like help with?
                 "id": "call_query_1",
                 "name": "query",
                 "args": {
-                    "query": "WITH RECURSIVE place_tree AS (SELECT id FROM places WHERE name ILIKE '%Khyber Pakhtunkhwa%' UNION ALL SELECT p.id FROM places p JOIN place_tree pt ON p.parent_id = pt.id) SELECT TO_CHAR(effective_from, 'FMMonth') as month_name, COUNT(*) as count FROM alert_search_index WHERE EXTRACT(YEAR FROM effective_from) = 2025 AND place_ids && (SELECT array_agg(id) FROM place_tree) GROUP BY month_name, EXTRACT(MONTH FROM effective_from) ORDER BY EXTRACT(MONTH FROM effective_from) ASC",
+                    "query": "SELECT TO_CHAR(a.effective_from, 'FMMonth') as month_name, COUNT(*) as count FROM alert_search_index a JOIN places p ON p.name ILIKE '%Khyber Pakhtunkhwa%' WHERE EXTRACT(YEAR FROM a.effective_from) = 2025 AND ST_Intersects(a.unioned_polygon, p.polygon) GROUP BY month_name, EXTRACT(MONTH FROM a.effective_from) ORDER BY EXTRACT(MONTH FROM a.effective_from) ASC",
                     "read": True
                 }
             }
@@ -134,54 +134,19 @@ What would you like help with?
         tool_call_id="call_query_1",
         content="""
 [
-  {
-    "month_name": "January",
-    "count": 9
-  },
-  {
-    "month_name": "February",
-    "count": 10
-  },
-  {
-    "month_name": "March",
-    "count": 9
-  },
-  {
-    "month_name": "April",
-    "count": 12
-  },
-  {
-    "month_name": "May",
-    "count": 16
-  },
-  {
-    "month_name": "June",
-    "count": 13
-  },
-  {
-    "month_name": "July",
-    "count": 13
-  },
-  {
-    "month_name": "August",
-    "count": 14
-  },
-  {
-    "month_name": "September",
-    "count": 6
-  },
-  {
-    "month_name": "October",
-    "count": 5
-  },
-  {
-    "month_name": "November",
-    "count": 5
-  },
-  {
-    "month_name": "December",
-    "count": 18
-  }
+  ["month_name", "count"],
+  ["January", 9],
+  ["February", 10],
+  ["March", 11],
+  ["April", 14],
+  ["May", 18],
+  ["June", 14],
+  ["July", 13],
+  ["August", 16],
+  ["September", 8],
+  ["October", 9],
+  ["November", 10],
+  ["December", 33]
 ]
 """
     ),
@@ -242,7 +207,7 @@ What would you like help with?
     series: [{
         type: 'line',
         name: 'Alert Count',
-        encode: { x: 'month_name', y: 'count' },
+        encode: { x: 0, y: 1 },
         itemStyle: { 
             color: '#fca311',
             borderRadius: [6, 6, 0, 0]
@@ -299,7 +264,7 @@ Would you like to drill down into the specific categories of alerts for those pe
                 "id": "call_query_2",
                 "name": "query",
                 "args": {
-                    "query": "WITH RECURSIVE ancestry AS (SELECT p.id, p.parent_id FROM places p WHERE p.name ILIKE '%Karachi%' OR similarity(p.name, 'Karachi') > 0.5 UNION ALL SELECT p.id, p.parent_id FROM places p INNER JOIN ancestry a ON p.id = a.parent_id) SELECT event, severity, instruction FROM alert_search_index WHERE ((effective_from IS NULL OR effective_from <= NOW()) AND (effective_until IS NULL OR effective_until > NOW())) AND (place_ids && (SELECT array_agg(id) FROM ancestry) OR search_text ILIKE '%Karachi%')",
+                    "query": "SELECT a.event, a.severity, a.instruction FROM alert_search_index a JOIN places p ON p.name ILIKE '%Karachi%' WHERE ((a.effective_from IS NULL OR a.effective_from <= NOW()) AND (a.effective_until IS NULL OR a.effective_until > NOW())) AND ST_Intersects(a.unioned_polygon, p.polygon)",
                     "read": True
                 }
             }
@@ -313,16 +278,9 @@ Would you like to drill down into the specific categories of alerts for those pe
         tool_call_id="call_query_2",
         content="""
 [
-  {
-    "event": "Severe Heatwave Advisory",
-    "severity": "Severe",
-    "instruction": "1. Prioritize heat relief measures and cooling for vulnerable groups, including children, the elderly, and the sick.\n2. Stay hydrated by drinking water frequently and avoid strenuous outdoor activities during peak heat hours. [AI-generated]\n3. Wear loose, light-colored clothing and stay in shaded or air-conditioned environments whenever possible. [AI-generated]\n4. Farmers should ensure adequate water management and irrigation to mitigate crop failure risks. [AI-generated]\n5. Be prepared for potential power outages and water shortages by conserving resources. [AI-generated]"
-  },
-  {
-    "event": "Heatwave Advisory",
-    "severity": "Severe",
-    "instruction": "Give priority access to heat relief measures for vulnerable groups, including the sick, elderly, and children.\nAvoid direct sunlight and strenuous outdoor activities during peak temperature hours (11 AM to 4 PM). [AI-generated]\nIncrease fluid intake and stay hydrated to prevent heatstroke and dehydration. [AI-generated]\nEnsure livestock and pets have access to adequate shade and water. [AI-generated]\nImplement water conservation measures to mitigate the impact of expected shortages. [AI-generated]"
-  }
+  ["event", "severity", "instruction"],
+  ["Severe Heatwave Advisory", "Severe", "1. Prioritize heat relief measures and cooling for vulnerable groups, including children, the elderly, and the sick.\\n2. Stay hydrated by drinking water frequently and avoid strenuous outdoor activities during peak heat hours. [AI-generated]\\n3. Wear loose, light-colored clothing and stay in shaded or air-conditioned environments whenever possible. [AI-generated]\\n4. Farmers should ensure adequate water management and irrigation to mitigate crop failure risks. [AI-generated]\\n5. Be prepared for potential power outages and water shortages by conserving resources. [AI-generated]"],
+  ["Heatwave Advisory", "Severe", "Give priority access to heat relief measures for vulnerable groups, including the sick, elderly, and children.\\nAvoid direct sunlight and strenuous outdoor activities during peak temperature hours (11 AM to 4 PM). [AI-generated]\\nIncrease fluid intake and stay hydrated to prevent heatstroke and dehydration. [AI-generated]\\nEnsure livestock and pets have access to adequate shade and water. [AI-generated]\\nImplement water conservation measures to mitigate the impact of expected shortages. [AI-generated]"]
 ]
 """
     ),
@@ -354,7 +312,7 @@ Stay safe and keep a close eye on local news for updates."""
                 "id": "call_query_3",
                 "name": "query",
                 "args": {
-                    "query": "WITH RECURSIVE punjab AS (SELECT id FROM places WHERE name ILIKE '%Punjab%' UNION ALL SELECT p.id FROM places p JOIN punjab pt ON p.parent_id = pt.id), district_alerts AS (SELECT a.alert_id, p.name as district_name FROM alert_areas a JOIN places p ON a.place_id = p.id WHERE p.hierarchy_level = 2 AND p.id IN (SELECT id FROM punjab)) SELECT d1.district_name as source, d2.district_name as target, COUNT(DISTINCT d1.alert_id) as value FROM district_alerts d1 JOIN district_alerts d2 ON d1.alert_id = d2.alert_id AND d1.district_name < d2.district_name JOIN alerts al ON d1.alert_id = al.id WHERE EXTRACT(YEAR FROM al.effective_from) = EXTRACT(YEAR FROM NOW()) GROUP BY d1.district_name, d2.district_name ORDER BY value DESC",
+                    "query": "WITH district_alerts AS (SELECT a.alert_id, d.name AS district_name FROM alert_search_index a JOIN places p ON p.name ILIKE '%Punjab%' JOIN places d ON d.hierarchy_level = 2 AND ST_Intersects(a.unioned_polygon, d.polygon) WHERE ST_Intersects(a.unioned_polygon, p.polygon) AND EXTRACT(YEAR FROM a.effective_from) = EXTRACT(YEAR FROM NOW())) SELECT d1.district_name as source, d2.district_name as target, COUNT(DISTINCT d1.alert_id) as value FROM district_alerts d1 JOIN district_alerts d2 ON d1.alert_id = d2.alert_id AND d1.district_name < d2.district_name GROUP BY d1.district_name, d2.district_name ORDER BY value DESC",
                     "read": False
                 }
             }
@@ -372,7 +330,7 @@ Stay safe and keep a close eye on local news for updates."""
 * **Columns:** `source`, `target`, `value`
 
 ### Data Preview (First 2 rows):
-[{'source': 'Khushab', 'target': 'Sargosha', 'value': 109}, {'source': 'Lodhran', 'target': 'Vehari', 'value': 105}]
+[['source', 'target', 'value'], ['Khushab', 'Sargodha', 109], ['Lodhran', 'Vehari', 105]]
 """
     ),
     AIMessage(
@@ -522,42 +480,16 @@ Stay safe and keep a close eye on local news for updates."""
         tool_call_id="call_query_totals",
         content="""
 [
-  {
-    "category": "Met",
-    "count": 899
-  },
-  {
-    "category": "Env",
-    "count": 204
-  },
-  {
-    "category": "Geo",
-    "count": 111
-  },
-  {
-    "category": "Safety",
-    "count": 10
-  },
-  {
-    "category": "Other",
-    "count": 2
-  },
-  {
-    "category": "Health",
-    "count": 2
-  },
-  {
-    "category": "Fire",
-    "count": 1
-  },
-  {
-    "category": "Transport",
-    "count": 1
-  },
-  {
-    "category": "Rescue",
-    "count": 1
-  }
+  ["category", "count"],
+  ["Met", 913],
+  ["Env", 204],
+  ["Geo", 111],
+  ["Safety", 10],
+  ["Other", 2],
+  ["Health", 2],
+  ["Fire", 1],
+  ["Transport", 1],
+  ["Rescue", 1]
 ]
 """
     ),
@@ -582,7 +514,7 @@ Stay safe and keep a close eye on local news for updates."""
 * **Columns:** `month`, `category`, `count`
 
 ### Data Preview (First 2 rows):
-[{'month': '2020-08', 'category': 'Geo', 'count': 0}, {'month': '2020-08', 'category': 'Met', 'count': 2}]
+[['month', 'category', 'count'], ['2020-08', 'Geo', 0], ['2020-08', 'Met', 2]]
 """
     ),
     AIMessage(
@@ -670,7 +602,7 @@ Stay safe and keep a close eye on local news for updates."""
   },
   xAxis: { 
       type: 'category',
-      data: [...new Set(datasource.map(d => d.month))],
+      data: [...new Set(datasource.slice(1).map(d => d[0]))],
       axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.2)' } }, 
       axisLabel: { color: '#888', margin: 15 },
       axisTick: { show: false }
@@ -682,7 +614,7 @@ Stay safe and keep a close eye on local news for updates."""
       splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)', type: 'solid' } },
       axisLabel: { color: '#888' }
   },
-  series: [...new Set(datasource.map(d => d.category))].map((cat, idx) => {
+  series: [...new Set(datasource.slice(1).map(d => d[1]))].map((cat, idx) => {
       // Yellow-green theme
       const palette = ["#007f5f","#2b9348","#55a630","#80b918","#aacc00","#dddf00","#eeef20","#ffff3f"];
       const color = palette[idx % palette.length];
@@ -690,7 +622,7 @@ Stay safe and keep a close eye on local news for updates."""
           type: 'line', 
           smooth: false,
           name: cat,
-          data: datasource.filter(d => d.category === cat).map(d => d.count),
+          data: datasource.slice(1).filter(d => d[1] === cat).map(d => d[2]),
           symbol: 'circle',
           symbolSize: 4,
           showSymbol: false,

@@ -99,7 +99,7 @@ You have the following schema available, only use the following columns:
 
         # Get a summary for the LLM
         num_rows = len(artifact) - 1 if artifact else 0
-        column_names = list(artifact[0].keys())
+        column_names = artifact[0] if artifact else []
         content = f"""
 ## Query Execution Summary
 * **Total Rows:** {num_rows}

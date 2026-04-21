@@ -453,9 +453,9 @@ Stay safe and keep a close eye on local news for updates."""
     ####################################################################################################################
     
     SystemMessage(content="Current date and time: Tuesday, 2026-04-14 10:00:00 PKT"),
-    HumanMessage(content="How many alerts of each type have we gotten till now?"),
+    HumanMessage(content="How many alerts have all the provinces been getting over time?"),
     AIMessage(
-        content="I'll fetch the total counts for each category to give you an overview.",
+        content="I'll fetch the monthly alerts breakdown for each province and plot it on a chart.",
         tool_calls=[
             {
                 "id": "call_map_4",
@@ -463,11 +463,11 @@ Stay safe and keep a close eye on local news for updates."""
                 "args": {"places": ["Pakistan"]}
             },
             {
-                "id": "call_query_totals",
+                "id": "call_query_trend",
                 "name": "query",
                 "args": {
-                    "query": "SELECT category, COUNT(*) as count FROM alert_search_index WHERE category IS NOT NULL GROUP BY category ORDER BY count DESC",
-                    "read": True
+                    "query": "WITH months AS (SELECT TO_CHAR(m, 'YYYY-MM') AS month FROM generate_series((SELECT MIN(effective_from) FROM alert_search_index), NOW(), '1 month') m), provinces AS (SELECT name FROM places WHERE hierarchy_level = 1), alert_provs AS (SELECT TO_CHAR(a.effective_from, 'YYYY-MM') AS month, p.name AS province FROM alert_search_index a JOIN places p ON p.hierarchy_level = 1 AND ST_Intersects(a.unioned_polygon, p.polygon)), agg AS (SELECT month, province, COUNT(*) as count FROM alert_provs GROUP BY month, province) SELECT m.month, p.name AS province, COALESCE(a.count, 0) AS count FROM months m CROSS JOIN provinces p LEFT JOIN agg a ON m.month = a.month AND p.name = a.province ORDER BY m.month ASC",
+                    "read": False
                 }
             }
         ]
@@ -477,44 +477,14 @@ Stay safe and keep a close eye on local news for updates."""
         content="Found data for Pakistan."
     ),
     ToolMessage(
-        tool_call_id="call_query_totals",
-        content="""
-[
-  ["category", "count"],
-  ["Met", 913],
-  ["Env", 204],
-  ["Geo", 111],
-  ["Safety", 10],
-  ["Other", 2],
-  ["Health", 2],
-  ["Fire", 1],
-  ["Transport", 1],
-  ["Rescue", 1]
-]
-"""
-    ),
-    AIMessage(
-        content="I'll also fetch the by-month breakdown over time to build a chart.",
-        tool_calls=[
-            {
-                "id": "call_query_trend",
-                "name": "query",
-                "args": {
-                    "query": "WITH months AS (SELECT TO_CHAR(m, 'YYYY-MM') AS month FROM generate_series((SELECT MIN(effective_from) FROM alert_search_index), NOW(), '1 month') m), cats AS (SELECT DISTINCT category FROM alert_search_index WHERE category IS NOT NULL) SELECT m.month, c.category, COUNT(a.alert_id) AS count FROM months m CROSS JOIN cats c LEFT JOIN alert_search_index a ON TO_CHAR(a.effective_from, 'YYYY-MM') = m.month AND a.category = c.category GROUP BY m.month, c.category ORDER BY m.month ASC",
-                    "read": False
-                }
-            }
-        ]
-    ),
-    ToolMessage(
         tool_call_id="call_query_trend",
         content="""
 ## Query Execution Summary
-* **Total Rows:** 621
-* **Columns:** `month`, `category`, `count`
+* **Total Rows:** 552
+* **Columns:** `month`, `province`, `count`
 
 ### Data Preview (First 2 rows):
-[['month', 'category', 'count'], ['2020-08', 'Geo', 0], ['2020-08', 'Met', 2]]
+[['month', 'province', 'count'], ['2020-08', 'Balochistan', 0], ['2020-08', 'Punjab', 2]]
 """
     ),
     AIMessage(
@@ -530,120 +500,136 @@ Stay safe and keep a close eye on local news for updates."""
   backgroundColor: 'transparent',
   textStyle: { fontFamily: '"Josefin Sans", sans-serif' },
   title: { 
-      text: 'Historic Trend of Alerts', 
-      left: 'center', 
-      top: 20, 
-      textStyle: { color: '#ffffff', fontSize: 20, fontWeight: '500', letterSpacing: 1 } 
+      text: 'Monthly Alert Counts',
+      left: 'center',
+      top: 30,
+      textStyle: { color: '#ffffff', fontSize: 25, fontWeight: '500' },
+      padding: [0, 0, 10, 0]
   },
   tooltip: { 
-      trigger: 'axis', 
-      axisPointer: { type: 'line', lineStyle: { color: 'rgba(255, 255, 255, 0.2)', width: 1 } },
-      backgroundColor: 'rgba(25, 25, 35, 0.95)', 
-      borderColor: '#444', 
+      trigger: 'axis',
+      backgroundColor: 'rgba(30,30,50,0.95)',
+      borderColor: '#444',
       borderWidth: 1,
-      padding: [12, 15],
-      textStyle: { color: '#eee', fontSize: 12 },
-      // Tooltip logic to only show values above 0
-      formatter: function (params) {
-          let html = `<div style="margin-bottom: 5px; font-weight: bold; border-bottom: 1px solid #555; padding-bottom: 3px;">${params[0].axisValue}</div>`;
+      textStyle: { fontFamily: '"Josefin Sans", sans-serif', color: '#e0e0e0' },
+      formatter: function(params) {
+          let tooltip = `<strong>${params[0].axisValue}</strong><br/>`;
+          let sortedParams = params.sort((a, b) => b.value - a.value);
           let hasData = false;
-          params.forEach(item => {
+          sortedParams.forEach(item => {
               if (item.value > 0) {
                   hasData = true;
-                  html += `
-                      <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; line-height: 20px;">
-                          <span>${item.marker} ${item.seriesName}</span>
-                          <span style="font-weight: bold;">${item.value}</span>
-                      </div>`;
+                  tooltip += `${item.marker} ${item.seriesName}: <strong>${item.value}</strong><br/>`;
               }
           });
-          return hasData ? html : `<div style="color: #888;">No alerts recorded</div>`;
+          return hasData ? tooltip : `<div style="color: #888;">No alerts recorded</div>`;
       }
   },
-  legend: { 
-      bottom: 10, 
-      textStyle: { color: '#ffffff', fontSize: 12 },
-      itemGap: 20,
-      type: 'scroll',
-      icon: 'circle'
+  legend: {
+      textStyle: { fontFamily: '"Josefin Sans", sans-serif', color: '#ffffff' },
+      bottom: 20,
+      left: 'center',
+      itemGap: 20
   },
-  grid: { 
-      left: '5%', 
-      right: '5%', 
-      top: 100, 
-      bottom: 110, 
-      containLabel: true 
+  grid: {
+      left: 40,
+      right: 40,
+      top: 80,
+      bottom: 80,
+      containLabel: true
   },
-  dataZoom: [
-      {   // Place a zoom slider below the chart, separate from the one in the toolbox
-          type: 'slider',
-          show: true,
-          bottom: 60,
-          height: 30,
-          borderColor: 'transparent',
-          backgroundColor: 'rgba(255,255,255,0.05)',
-          fillerColor: 'rgba(64, 169, 255, 0.2)',
-          textStyle: { color: '#666' }
-      },
-      { // Allow the chart to be zoomed through scrolling
-        type: 'inside' 
-      }
-  ],
   toolbox: { 
-      show: true,
-      right: 25,
-      top: 20,
-      itemSize: 15,
-      feature: { 
-          magicType: { type: ['line', 'bar', 'stack'] }, 
-          saveAsImage: { name: 'Historic Trend of Alerts', backgroundColor: '#1e1e2d', pixelRatio: 3 } 
+    right: 15,
+    top: 20,
+    feature: {
+      restore: {},
+      magicType: { type: ['line', 'bar'] },
+      // Custom tool to export raw data 
+      myExportCsv: {
+          title: 'Save as CSV',
+          icon: 'path://M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z',
+          onclick: function() {
+              const csv = datasource.map(row => row.map(item => `"${item}"`).join(',')).join('\\r\\n');
+              const link = document.createElement('a');
+              link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+              link.download = 'Monthly Alert Counts (2020-2026).csv';
+              link.click();
+          }
+        },
+      saveAsImage: { 
+          pixelRatio: 4,
+          // Set a dark background for download
+          backgroundColor: '#080A21',
+          name: 'Monthly Alert Counts (2020-2026)'
       },
-      iconStyle: { borderColor: '#888' }
+    },
   },
   xAxis: { 
-      type: 'category',
+      type: 'category', 
       data: [...new Set(datasource.slice(1).map(d => d[0]))],
-      axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.2)' } }, 
-      axisLabel: { color: '#888', margin: 15 },
-      axisTick: { show: false }
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.4)' } },
+      axisTick: { show: false },
+      axisLabel: { interval: 'auto', hideOverlap: true, rotate: 0, fontFamily: '"Josefin Sans", sans-serif', color: 'rgba(255, 255, 255, 0.7)', margin: 8 }
   },
   yAxis: { 
-      type: 'value', 
-      name: 'Alert Count',
-      nameTextStyle: { color: '#777', padding: [0, 0, 10, 0] },
-      splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)', type: 'solid' } },
-      axisLabel: { color: '#888' }
+      type: 'value',
+      splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { fontFamily: '"Josefin Sans", sans-serif', color: '#888' }
   },
-  series: [...new Set(datasource.slice(1).map(d => d[1]))].map((cat, idx) => {
-      // Yellow-green theme
-      const palette = ["#007f5f","#2b9348","#55a630","#80b918","#aacc00","#dddf00","#eeef20","#ffff3f"];
-      const color = palette[idx % palette.length];
+  dataZoom: [
+      { // Allow the chart to zoom through scroll
+          type: 'inside'
+      }
+  ],
+  series: [...new Set(datasource.slice(1).map(d => d[1]))].map((prov, idx) => {
+      const palette = [
+          { hex: '#a7da99', rgb: '167, 218, 153' },
+          { hex: '#ff6b6b', rgb: '255, 107, 107' },
+          { hex: '#1e90ff', rgb: '30, 144, 255' },
+          { hex: '#ffe66d', rgb: '255, 230, 109' },
+          { hex: '#4ecdc4', rgb: '78, 205, 196' },
+          { hex: '#ffa500', rgb: '255, 165, 0' },
+          { hex: '#FF4A4A', rgb: '255, 74, 74' }
+      ];
+      const colorObj = palette[idx % palette.length];
       return {
-          type: 'line', 
-          smooth: false,
-          name: cat,
-          data: datasource.slice(1).filter(d => d[1] === cat).map(d => d[2]),
+          type: 'line',
+          name: prov,
+          data: datasource.slice(1).filter(d => d[1] === prov).map(d => d[2]),
           symbol: 'circle',
           symbolSize: 4,
-          showSymbol: false,
-          itemStyle: { color: color },
-          lineStyle: { width: 3 },
-          areaStyle: { 
-              color: {
-                  type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                  colorStops: [
-                      { offset: 0, color: color },
-                      { offset: 1, color: 'transparent' }
-                  ]
-              },
-              opacity: 1
+          showSymbol: true,
+          itemStyle: { 
+              color: colorObj.hex,
+              borderWidth: 0
           },
-          emphasis: { 
-              focus: 'series', 
-              itemStyle: { shadowBlur: 30, shadowColor: color } 
+          lineStyle: { 
+              width: 2,
+              color: colorObj.hex
+          },
+          areaStyle: {
+              color: {
+                  type: 'linear',
+                  x: 0, y: 0, x2: 0, y2: 1,
+                  colorStops: [
+                      { offset: 0, color: `rgba(${colorObj.rgb}, 0.2)` },
+                      { offset: 1, color: `rgba(${colorObj.rgb}, 0)` }
+                  ]
+              }
+          },
+          emphasis: {
+              itemStyle: {
+                  shadowBlur: 10,
+                  shadowColor: `rgba(${colorObj.rgb}, 0.7)`
+              }
           }
       };
-  })
+  }),
+  animationDuration: 750,
+  animationEasing: 'cubicOut'
 }
 """
                 }
@@ -655,7 +641,7 @@ Stay safe and keep a close eye on local news for updates."""
         content="Chart generated with injected data."
     ),
     AIMessage(
-        content="The interactive chart above displays the historical trend of alerts across Pakistan. You can zoom in and out using the slider at the bottom or the trackpad/mouse. Would you like to focus on a specific period or a certain category?"
+        content="The interactive chart displays the historical trend of alerts across the provinces of Pakistan. You can zoom in and out using the slider at the bottom or your trackpad/mouse. Would you like to focus on a specific time period or province?"
     ),
 
     ####################################################################################################################

@@ -500,43 +500,43 @@ Stay safe and keep a close eye on local news for updates."""
   backgroundColor: 'transparent',
   textStyle: { fontFamily: '"Josefin Sans", sans-serif' },
   title: { 
-      text: 'Monthly Alert Counts',
-      left: 'center',
-      top: 30,
-      textStyle: { color: '#ffffff', fontSize: 25, fontWeight: '500' },
-      padding: [0, 0, 10, 0]
+    text: 'Monthly Alert Counts',
+    left: 'center',
+    top: 30,
+    textStyle: { color: '#ffffff', fontSize: 25, fontWeight: '500' },
+    padding: [0, 0, 10, 0]
   },
   tooltip: { 
-      trigger: 'axis',
-      backgroundColor: 'rgba(30,30,50,0.95)',
-      borderColor: '#444',
-      borderWidth: 1,
-      textStyle: { fontFamily: '"Josefin Sans", sans-serif', color: '#e0e0e0' },
-      formatter: function(params) {
-          let tooltip = `<strong>${params[0].axisValue}</strong><br/>`;
-          let sortedParams = params.sort((a, b) => b.value - a.value);
-          let hasData = false;
-          sortedParams.forEach(item => {
-              if (item.value > 0) {
-                  hasData = true;
-                  tooltip += `${item.marker} ${item.seriesName}: <strong>${item.value}</strong><br/>`;
-              }
-          });
-          return hasData ? tooltip : `<div style="color: #888;">No alerts recorded</div>`;
-      }
+    trigger: 'axis',
+    backgroundColor: 'rgba(30,30,50,0.95)',
+    borderColor: '#444',
+    borderWidth: 1,
+    textStyle: { fontFamily: '"Josefin Sans", sans-serif', color: '#e0e0e0' },
+    formatter: function(params) {
+        let tooltip = `<strong>${params[0].axisValue}</strong><br/>`;
+        let sortedParams = params.sort((a, b) => b.value - a.value);
+        let hasData = false;
+        sortedParams.forEach(item => {
+            if (item.value > 0) {
+                hasData = true;
+                tooltip += `${item.marker} ${item.seriesName}: <strong>${item.value}</strong><br/>`;
+            }
+        });
+        return hasData ? tooltip : `<div style="color: #888;">No alerts recorded</div>`;
+    }
   },
   legend: {
-      textStyle: { fontFamily: '"Josefin Sans", sans-serif', color: '#ffffff' },
-      bottom: 20,
-      left: 'center',
-      itemGap: 20
+    textStyle: { fontFamily: '"Josefin Sans", sans-serif', color: '#ffffff' },
+    bottom: 20,
+    left: 'center',
+    itemGap: 20
   },
   grid: {
-      left: 40,
-      right: 40,
-      top: 80,
-      bottom: 80,
-      containLabel: true
+    left: 40,
+    right: 40,
+    top: 80,
+    bottom: 80,
+    containLabel: true
   },
   toolbox: { 
     right: 15,
@@ -546,14 +546,14 @@ Stay safe and keep a close eye on local news for updates."""
       magicType: { type: ['line', 'bar'] },
       // Custom tool to export raw data 
       myExportCsv: {
-          title: 'Save as CSV',
-          icon: 'path://M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z',
-          onclick: function() {
-              const csv = datasource.map(row => row.map(item => `"${item}"`).join(',')).join('\\r\\n');
-              const link = document.createElement('a');
-              link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-              link.download = 'Monthly Alert Counts (2020-2026).csv';
-              link.click();
+        title: 'Save as CSV',
+        icon: 'path://M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-277.5c0-17-6.7-33.3-18.7-45.3L258.7 18.7C246.7 6.7 230.5 0 213.5 0L64 0zM325.5 176L232 176c-13.3 0-24-10.7-24-24L208 58.5 325.5 176z',
+        onclick: function() {
+            const csv = datasource.map(row => row.map(item => `"${item}"`).join(',')).join('\\r\\n');
+            const link = document.createElement('a');
+            link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+            link.download = 'Monthly Alert Counts (2020-2026).csv';
+            link.click();
           }
         },
       saveAsImage: { 
@@ -565,68 +565,68 @@ Stay safe and keep a close eye on local news for updates."""
     },
   },
   xAxis: { 
-      type: 'category', 
-      data: [...new Set(datasource.slice(1).map(d => d[0]))],
-      boundaryGap: false,
-      axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.4)' } },
-      axisTick: { show: false },
-      axisLabel: { interval: 'auto', hideOverlap: true, rotate: 0, fontFamily: '"Josefin Sans", sans-serif', color: 'rgba(255, 255, 255, 0.7)', margin: 8 }
+    type: 'category', 
+    data: [...new Set(datasource.slice(1).map(d => d[0]))],
+    boundaryGap: false,
+    axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.4)' } },
+    axisTick: { show: false },
+    axisLabel: { interval: 'auto', hideOverlap: true, rotate: 0, fontFamily: '"Josefin Sans", sans-serif', color: 'rgba(255, 255, 255, 0.7)', margin: 8 }
   },
   yAxis: { 
-      type: 'value',
-      splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { fontFamily: '"Josefin Sans", sans-serif', color: '#888' }
+    type: 'value',
+    splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: { fontFamily: '"Josefin Sans", sans-serif', color: '#888' }
   },
   dataZoom: [
-      { // Allow the chart to zoom through scroll
-          type: 'inside'
-      }
+    { // Allow the chart to zoom through scroll
+        type: 'inside'
+    }
   ],
   series: [...new Set(datasource.slice(1).map(d => d[1]))].map((prov, idx) => {
-      const palette = [
-          { hex: '#a7da99', rgb: '167, 218, 153' },
-          { hex: '#ff6b6b', rgb: '255, 107, 107' },
-          { hex: '#1e90ff', rgb: '30, 144, 255' },
-          { hex: '#ffe66d', rgb: '255, 230, 109' },
-          { hex: '#4ecdc4', rgb: '78, 205, 196' },
-          { hex: '#ffa500', rgb: '255, 165, 0' },
-          { hex: '#FF4A4A', rgb: '255, 74, 74' }
-      ];
-      const colorObj = palette[idx % palette.length];
-      return {
-          type: 'line',
-          name: prov,
-          data: datasource.slice(1).filter(d => d[1] === prov).map(d => d[2]),
-          symbol: 'circle',
-          symbolSize: 4,
-          showSymbol: true,
-          itemStyle: { 
-              color: colorObj.hex,
-              borderWidth: 0
-          },
-          lineStyle: { 
-              width: 2,
-              color: colorObj.hex
-          },
-          areaStyle: {
-              color: {
-                  type: 'linear',
-                  x: 0, y: 0, x2: 0, y2: 1,
-                  colorStops: [
-                      { offset: 0, color: `rgba(${colorObj.rgb}, 0.2)` },
-                      { offset: 1, color: `rgba(${colorObj.rgb}, 0)` }
-                  ]
-              }
-          },
-          emphasis: {
-              itemStyle: {
-                  shadowBlur: 10,
-                  shadowColor: `rgba(${colorObj.rgb}, 0.7)`
-              }
-          }
-      };
+    const palette = [
+        { hex: '#a7da99', rgb: '167, 218, 153' },
+        { hex: '#ff6b6b', rgb: '255, 107, 107' },
+        { hex: '#ff8465', rgb: '255, 132, 101' },
+        { hex: '#ffe66d', rgb: '255, 230, 109' },
+        { hex: '#4ecdc4', rgb: '78, 205, 196' },
+        { hex: '#ffa500', rgb: '255, 165, 0' },
+        { hex: '#1e90ff', rgb: '30, 144, 255' }
+    ];
+    const colorObj = palette[idx % palette.length];
+    return {
+       type : 'line',
+        name: prov,
+        data: datasource.slice(1).filter(d => d[1] === prov).map(d => d[2]),
+        symbol: 'circle',
+        symbolSize: 4,
+        showSymbol: true,
+        itemStyle: { 
+            color: colorObj.hex,
+            borderWidth: 0
+        },
+        lineStyle: { 
+            width: 2,
+            color: colorObj.hex
+        },
+        areaStyle: {
+            color: {
+                type: 'linear',
+                x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                    { offset: 0, color: `rgba(${colorObj.rgb}, 0.3)` },
+                    { offset: 1, color: `rgba(${colorObj.rgb}, 0)` }
+                ]
+            }
+        },
+        emphasis: {
+            itemStyle: {
+                shadowBlur: 10,
+                shadowColor: `rgba(${colorObj.rgb}, 0.7)`
+            }
+        }
+    };
   }),
   animationDuration: 750,
   animationEasing: 'cubicOut'
@@ -641,7 +641,7 @@ Stay safe and keep a close eye on local news for updates."""
         content="Chart generated with injected data."
     ),
     AIMessage(
-        content="The interactive chart displays the historical trend of alerts across the provinces of Pakistan. You can zoom in and out using the slider at the bottom or your trackpad/mouse. Would you like to focus on a specific time period or province?"
+        content="The interactive chart above displays the trend in monthly alerts across history. As it covers a significant span of time, you can zoom by scrolling the trackpad/scroll wheel and even download the raw data. Would you like to focus on a specific time period or province?"
     ),
 
     ####################################################################################################################

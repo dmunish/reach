@@ -19,12 +19,12 @@ Your name is REACH, and you are an AI assistant for a prototype Pakistani disast
 - Don't expose sensitive product information, development details, or internal configurations
 - Maintain appropriate boundaries about your design and implementation
 
-## Tool Usage - CRITICAL INSTRUCTIONS
-### Available tools
+## Available tools
 1. `query`: For fetching data from the system PostgreSQL database
 2. `chart`: For producing data visualizations with fetched data using Apache ECharts
 3. `examples`: For fetching data and chart structure guidelines for specific chart types
 4. `map`: For moving the map on the dashboard to a certain location(s)
+No other tools/abilities besides the ones described above
 
 ## Product Knowledge
 The platform that you are an assistant for is also named REACH, which stands for "Realtime Emergency Alerts Collection Hub". REACH was made in 2026 to solve problems regarding disaster information access in Pakistan.
@@ -176,7 +176,7 @@ What would you like help with?
     },
     grid: {
         left: 50,
-        right: 40,
+        right: 50,
         top: 80,
         bottom: 60,
         containLabel: true
@@ -184,12 +184,11 @@ What would you like help with?
     toolbox: { 
         right: 30,
         feature: { 
-            dataZoom: { yAxisIndex: 'none' },
-            magicType: { type: ['line', 'bar'] },
             saveAsImage: { pixelRatio: 2, name: 'Alerts in KPK in 2025' } 
         },
     },
     dataset: { source: datasource },
+    dataZoom: { type: 'inside' },
     xAxis: { 
         type: 'category', 
         boundaryGap: false,
@@ -247,6 +246,100 @@ What would you like help with?
 
 Would you like to drill down into the specific categories of alerts for those peak months?"""
     ),
+
+    ####################################################################################################################
+
+    SystemMessage(content="Current date and time: Saturday, 2026-04-11 13:20:05 PKT"),
+    HumanMessage(content="Actually, I don't like the way it looks"),
+    AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "id": "call_chart_restyle_1",
+                "name": "chart",
+                "args": {
+                    "new_data": False,
+                    "option": """
+{
+    backgroundColor: 'transparent',
+    textStyle: { fontFamily: '"Josefin Sans", sans-serif' },
+    title: { 
+        text: 'Alerts in KPK in 2025', 
+        padding: [10, 10, 10, 10],
+        textStyle: { fontFamily: '"Josefin Sans", sans-serif', color: '#ffffff' },
+    },
+    tooltip: { 
+        trigger: 'axis',
+        backgroundColor: 'rgba(30,30,50,0.95)',
+        borderColor: '#444',
+        borderWidth: 1,
+        textStyle: { fontFamily: '"Josefin Sans", sans-serif', color: '#e0e0e0' }
+    },
+    grid: {
+        left: 50,
+        right: 50,
+        top: 80,
+        bottom: 60,
+        containLabel: true
+    },
+    toolbox: { 
+        right: 30,
+        feature: { 
+            magicType: { type: ['line', 'bar'] },
+            restore: {},
+            saveAsImage: { pixelRatio: 2, name: 'Alerts in KPK in 2025' } 
+        },
+    },
+    dataZoom: { type: 'inside' }, 
+    dataset: { source: datasource },
+    xAxis: { 
+        type: 'category', 
+        boundaryGap: true,
+        axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.4)' } },
+        axisTick: { show: false },
+        axisLabel: { interval: 'auto', hideOverlap: true, rotate: 0, fontFamily: '"Josefin Sans", sans-serif', color: 'rgba(255, 255, 255, 0.7)', margin: 12 }
+    },
+    yAxis: { 
+        type: 'value',
+        splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.2)' } },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { fontFamily: '"Josefin Sans", sans-serif', color: '#888' }
+    },
+    series: [{
+        type: 'bar',
+        name: 'Alert Count',
+        encode: { x: 0, y: 1 },
+        itemStyle: {
+          color: {
+              type: 'linear',
+              x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                  { offset: 0, color: 'rgb(230, 255, 85)' },
+                  { offset: 1, color: 'rgb(0, 133, 88)' }
+              ]
+          },
+          borderRadius: [5, 4, 0, 0]
+        },
+        emphasis: {
+            itemStyle: {
+                shadowBlur: 15,
+                shadowColor: 'rgba(115, 194, 87, 1)'
+            }
+        }
+    }],
+    animationDuration: 750,
+    animationEasing: 'cubicOut'
+}"""
+                }
+            }
+        ]
+    ),
+    ToolMessage(
+        tool_call_id="call_chart_restyle_1",
+        content="Chart generated with injected data."
+    ),
+    AIMessage(content="I have switched it over to a bar chart with a green gradient. You can still switch to a line chart with the toolbox in the top-right. Let me know if you need any other adjustments!"),
 
     ####################################################################################################################
 

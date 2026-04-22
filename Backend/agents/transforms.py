@@ -1,10 +1,19 @@
 from typing import Dict, List
 
+def _list_to_dicts(data: List[List]) -> List[Dict]:
+    """Helper to convert tabular [headers, *rows] back to list of dicts."""
+    if not data or len(data) < 2:
+        return []
+    headers = data[0]
+    return [dict(zip(headers, row)) for row in data[1:]]
+
 def transform_to_tree(data: List[Dict], config: Dict) -> List[Dict]:
     """
     Converts a flat list of rows into a hierarchical tree structure.
     Required for: tree, treemap, sunburst.
     """
+    data = _list_to_dicts(data)
+    
     id_key = config.get("id_key", "id")
     parent_key = config.get("parent_key", "parent")
     name_key = config.get("name_key", "name")
@@ -43,28 +52,32 @@ def transform_to_graph(data: List[Dict], config: Dict) -> Dict:
     Converts a flat list of relationships (edges) into Graph format {nodes, links}.
     Required for: graph, graphGL, sankey.
     """
-    source_key = config.get("source_key", "source")
-    target_key = config.get("target_key", "target")
+    if not data or len(data) < 2:
+        return {"nodes": [], "links": []}
+        
+    headers = data[0]
+    source_idx = headers.index(config.get("source_key", "source"))
+    target_idx = headers.index(config.get("target_key", "target"))
+    
     value_key = config.get("value_key", "value")
+    value_idx = headers.index(value_key) if value_key in headers else None
 
     nodes_set = set()
     links = []
 
-    for row in data:
-        source_name = str(row.get(source_key))
-        target_name = str(row.get(target_key))
+    for row in data[1:]:
+        source_name = str(row[source_idx])
+        target_name = str(row[target_idx])
         
         nodes_set.add(source_name)
         nodes_set.add(target_name)
         
         link = {"source": source_name, "target": target_name}
-        if value_key in row:
-            link["value"] = row[value_key]
+        if value_idx is not None:
+            link["value"] = row[value_idx]
         links.append(link)
 
-    # ECharts requires nodes as a list of objects with 'name' property
     nodes = [{"name": name} for name in nodes_set]
-
     return {"nodes": nodes, "links": links}
 
 def transform_to_matrix(data: List[Dict], config: Dict) -> List[List]:
@@ -73,12 +86,16 @@ def transform_to_matrix(data: List[Dict], config: Dict) -> List[List]:
     Expects: [x_axis, y_axis, value] per row.
     Returns: [[x, y, value], ...] which is standard heatmap source format.
     """
-    # In many cases, simple mapping is enough, but for completeness:
-    x_key = config.get("x_key")
-    y_key = config.get("y_key")
-    v_key = config.get("v_key")
-    
-    if not (x_key and y_key and v_key):
-        return data # Fallback
+    if not data or len(data) < 2:
+        return []
+        
+    headers = data[0]
+    try:
+        x_idx = headers.index(config.get("x_key"))
+        y_idx = headers.index(config.get("y_key"))
+        v_idx = headers.index(config.get("v_key"))
+    except ValueError:
+        return data # Fallback if keys don't match
 
-    return [[row[x_key], row[y_key], row[v_key]] for row in data]
+    # List comprehension using indices instead of dict keys
+    return [[row[x_idx], row[y_idx], row[v_idx]] for row in data[1:]]

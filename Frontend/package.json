@@ -20,11 +20,21 @@
     "@supabase/supabase-js": "^2.75.0",
     "@tailwindcss/vite": "^4.1.14",
     "date-fns": "^4.1.0",
+    "echarts": "^6.0.0",
+    "echarts-for-react": "^3.0.6",
+    "echarts-gl": "^2.0.9",
     "lucide-react": "^0.563.0",
     "mapbox-gl": "^3.15.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.14",
     "use-debounce": "^10.1.0"
+  },
+  "overrides": {
+    "echarts-gl": {
+      "echarts": "$echarts"
+    }
   }
 }

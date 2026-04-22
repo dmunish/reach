@@ -2,21 +2,21 @@ import React from "react";
 
 export interface NavbarProps {
   onToggleFilter: () => void;
-  onToggleDetails: () => void;
+  onToggleAgent: () => void;
   onToggleSettings: () => void;
   onTeamClick?: () => void; // Optional to avoid breaking build before parent update
   isFilterOpen: boolean;
-  isDetailsOpen: boolean;
+  isAgentOpen: boolean;
   isSettingsOpen: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onToggleFilter,
-  onToggleDetails,
+  onToggleAgent,
   onToggleSettings,
   onTeamClick,
   isFilterOpen,
-  isDetailsOpen,
+  isAgentOpen,
   isSettingsOpen,
 }) => {
   return (
@@ -71,18 +71,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           </svg>
         </button>
 
-        {/* Details Panel Toggle */}
+        {/* Agent Chat Toggle */}
         <button
-          onClick={onToggleDetails}
+          onClick={onToggleAgent}
           className={`nav-button w-12 h-12 flex items-center justify-center transition-all duration-200 ${
-            isDetailsOpen
+            isAgentOpen
               ? "nav-button-active text-white"
               : "text-white opacity-60 hover:opacity-100"
           }`}
-          title="Toggle Details Panel"
+          title="Analytics & QA Agent"
         >
-          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2M18 20H6V4H13V9H18V20M8 12V14H16V12H8M8 16V18H13V16H8Z" />
+          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M 8 4 a 1 1 0 0 1 2 0 c 0 2.5 1.5 4 4 4 a 1 1 0 0 1 0 2 c -2.5 0 -4 1.5 -4 4 a 1 1 0 0 1 -2 0 c 0 -2.5 -1.5 -4 -4 -4 a 1 1 0 0 1 0 -2 c 2.5 0 4 -1.5 4 -4 Z" />
+            <path d="M 16.5 14 a 0.5 0.5 0 0 1 1 0 c 0 1.5 1 2.5 2.5 2.5 a 0.5 0.5 0 0 1 0 1 c -1.5 0 -2.5 1 -2.5 2.5 a 0.5 0.5 0 0 1 -1 0 c 0 -1.5 -1 -2.5 -2.5 -2.5 a 0.5 0.5 0 0 1 0 -1 c 1.5 0 2.5 -1 2.5 -2.5 Z" />
           </svg>
         </button>
 

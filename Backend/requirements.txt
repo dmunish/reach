@@ -1,14 +1,33 @@
+# Core Framework & Server
 fastapi
 uvicorn
-httpx
-supabase
-python-dotenv
-beautifulsoup4
-pandas
+pydantic
+pydantic-settings
+
+# LLM & Agent Orchestration
+langchain_core
+langchain_openai
+langgraph
 openai
+
+# Database & Auth
+supabase
+PyJWT
+
+# External Services
+httpx
+redis[hiredis]
+modal
+
+# Data Processing
+pandas
+beautifulsoup4
 PyMuPDF
 pillow
 rapidfuzz
 geopy
-redis[hiredis]
-pydantic-settings
+
+# Utilities
+python-dotenv
+click
+pytz

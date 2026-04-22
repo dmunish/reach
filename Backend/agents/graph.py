@@ -1,0 +1,118 @@
+import os
+from operator import add
+from typing import TypedDict, Annotated, Sequence
+
+from langgraph.graph import StateGraph, END
+from langgraph.prebuilt import ToolNode
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
+
+from agents.prompts import SYSTEM_PROMPT, FEW_SHOT_EXAMPLES
+from agents.tools import examples, query, chart, map
+from utils import load_env
+
+
+TOOLS = [query, chart, map, examples]
+load_env()
+
+class State(TypedDict):
+    messages: Annotated[Sequence[BaseMessage], add]
+    iteration_count: int
+    is_complete: bool
+
+def create_llm(session_id: str = None):
+    return ChatOpenAI(
+        model=os.environ.get("AGENT_MODEL"),
+        base_url=os.environ.get("AGENT_BASE_URL"),
+        api_key=os.environ.get("AGENT_API_KEY"),
+        temperature=os.environ.get("AGENT_TEMPERATURE"),
+        default_headers={"x-affinity": session_id} if session_id else {}
+    )
+
+
+
+def graph():
+
+    # ===== Nodes =====
+    async def agent(state: State, config: RunnableConfig) -> State:
+        """
+        Main agent reasoning node.
+        LLM decides what tools to call or provides final answer.
+        """
+
+        # ===== LLM Client =====
+        """Build the LangGraph workflow"""
+        session_id = config.get("configurable", {}).get("session_id")
+        llm_client = create_llm(session_id)
+        llm = llm_client.bind_tools(TOOLS)
+
+        messages = list(state["messages"])
+
+        # Add system prompt and few shot examples
+        messages = [SystemMessage(content=SYSTEM_PROMPT)] + FEW_SHOT_EXAMPLES + messages
+        response = await llm.ainvoke(messages)
+
+        # Check if this is a final answer (no tool calls means completion)
+        is_complete = not response.tool_calls
+
+        return {
+            "messages": [response],
+            "iteration_count": state.get("iteration_count", 0) + 1,
+            "is_complete": is_complete
+        }
+    
+    async def tools(state: State, config: RunnableConfig) -> State:
+        """
+        Execute tools that the agent requested.
+        """
+        if "configurable" not in config:
+            config["configurable"] = {}
+
+        # Find the latest results of `query` execution and inject into config
+        dataset = None
+        for msg in reversed(state["messages"]):
+            if msg.type == "tool" and msg.name == "query":
+                dataset = getattr(msg, "artifact", None)
+                break
+        config["configurable"]["dataset"] = dataset
+
+        tool_node = ToolNode(TOOLS)
+        result = await tool_node.ainvoke(state, config = config)        
+        return result
+    
+    def should_continue(state: State) -> str:
+        """
+        Routing function (not node): Should we continue or end?
+        """
+        if state.get("iteration_count") >= int(os.environ.get("AGENT_MAX_TURNS")):
+            return "end"
+        
+        messages = state["messages"]
+        last = messages[-1]
+
+        # If LLM generated tool calls, we MUST go to tools node
+        if last.tool_calls:
+            return "continue"
+        
+        return "end"
+        
+    # ===== Graph =====
+    workflow = StateGraph(State)
+    workflow.add_node("agent", agent)
+    workflow.add_node("tools", tools)
+    workflow.set_entry_point("agent")
+
+    workflow.add_conditional_edges(
+        "agent",
+        should_continue,
+        {
+            "continue": "tools",
+            "end": END
+        }
+    )
+
+    # After tools, always go back to agent
+    workflow.add_edge("tools", "agent")
+    app = workflow.compile()
+    return app

@@ -47,7 +47,7 @@ Table documents {
   filetype text
   processed_at timestamptz
   structured_text jsonb
-  scraped_at timestamptz [default: `now()`]
+  scraped_at timestamptz [default: `CURRENT_TIMESTAMP`]
   raw_text text
   content_hash text [unique, not null]
 
@@ -104,12 +104,10 @@ Table places {
 }
 
 Table alert_search_index {
-  alert_id uuid [pk, ref: - alerts.id]
-  
+  alert_id uuid [pk, ref: > alerts.id]
   centroid geometry
   bbox geometry
   unioned_polygon geometry
-  
   search_text text
   category alert_category
   severity alert_severity
@@ -123,18 +121,61 @@ Table alert_search_index {
   effective_from timestamptz
   effective_until timestamptz
   affected_places text[]
-  last_updated_at timestamptz [default: `now()`]
   place_ids uuid[]
+  last_updated_at timestamptz [default: `now()`]
 
   indexes {
     unioned_polygon [type: gist, name: 'idx_asi_unioned_polygon']
-    search_text [type: gin, name: 'idx_asi_search_text_trgm']
+    search_text [type: gin, name: 'idx_alert_search_text']
     posted_date [name: 'idx_asi_posted_date']
     category [name: 'idx_asi_category']
     severity [name: 'idx_asi_severity']
+    urgency [name: 'idx_asi_urgency']
     (effective_from, effective_until) [name: 'idx_asi_effective_range']
     place_ids [type: gin, name: 'idx_asi_place_ids']
+    centroid [type: gist, name: 'idx_alert_search_centroid']
+    bbox [type: gist, name: 'idx_alert_search_bbox']
   }
+}
+
+Table conversations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null]
+  title text
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+
+  Note: 'Chat history sessions'
+}
+
+Table messages {
+  id uuid [pk, default: `gen_random_uuid()`]
+  conversation_id uuid [not null]
+  type text [not null]
+  data jsonb
+  created_at timestamptz [default: `now()`]
+
+  indexes {
+    (conversation_id, created_at) [name: 'idx_messages']
+  }
+
+  Note: 'Individual messages within a conversation'
+}
+
+Table echarts {
+  id uuid [pk, default: `gen_random_uuid()`]
+  type varchar(50) [not null]
+  title varchar(255) [not null]
+  description text
+  data text
+  option text [not null]
+  source_url text
+
+  indexes {
+    (lower(type)) [name: 'idx_echarts', type: btree]
+  }
+
+  Note: 'Examples for Echarts option objects'
 }
 
 // -----------------------------------------------------------------------

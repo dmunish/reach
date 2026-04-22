@@ -12,6 +12,7 @@ import { FilterAlertsPanel } from "./components/FilterAlertsPanel";
 import { DetailCard, type DetailData } from "./components/DetailCard";
 import { SettingsPanel, type UserSettings } from "./components/SettingsPanel";
 import { UserGuide } from "./components/UserGuide";
+import { AgentPanel } from "./components/AgentPanel";
 import { TeamPopup } from "./components/TeamPopup";
 import { useAlerts, useAlertGeometry } from "./hooks/useAlerts";
 import type {
@@ -83,6 +84,7 @@ export const App: React.FC = () => {
   const [isSettingsPanelVisible, setIsSettingsPanelVisible] = useState(false);
   const [isUserGuideVisible, setIsUserGuideVisible] = useState(false);
   const [isTeamPopupVisible, setIsTeamPopupVisible] = useState(false);
+  const [isAgentPanelVisible, setIsAgentPanelVisible] = useState(false);
 
   // Resizable panel states
   const [alertsPanelHeight, setAlertsPanelHeight] = useState(400);
@@ -361,6 +363,7 @@ export const App: React.FC = () => {
 
       setSelectedAlert(alert);
       setIsDetailCardVisible(true);
+      setIsAgentPanelVisible(false);
 
       if (alert.id) {
         activeAlertIdRef.current = alert.id;
@@ -445,6 +448,25 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleAgentMapUpdate = useCallback(
+    (centroid?: [number, number], bbox?: { xmin: number; ymin: number; xmax: number; ymax: number }, polygon?: any) => {
+      if (!mapRef.current) return;
+
+      if (polygon) {
+        mapRef.current.highlightGeoJSON(polygon);
+      } else {
+        mapRef.current.clearHighlight();
+      }
+
+      if (bbox) {
+        mapRef.current.fitToBbox(bbox, 60);
+      } else if (centroid) {
+        mapRef.current.flyTo(centroid, 12);
+      }
+    },
+    []
+  );
+
   const refreshAlerts = useCallback(() => {
     refetch();
   }, [refetch]);
@@ -496,6 +518,8 @@ export const App: React.FC = () => {
 
   // Prepare markers for map using pre-computed centroids
   const mapMarkers = useMemo(() => {
+    if (isAgentPanelVisible) return [];
+
     const markers: Required<MapProps>["markers"] = currentAlerts
       .filter((alert) => alert.additionalInfo?.coordinates)
       .filter((alert) => !selectedAlert || alert.id === selectedAlert.id)
@@ -541,14 +565,17 @@ export const App: React.FC = () => {
     }
 
     return markers;
-  }, [currentAlerts, selectedAlert, userLocation, handleAlertClick, handleAlertHover]);
+  }, [currentAlerts, selectedAlert, userLocation, handleAlertClick, handleAlertHover, isAgentPanelVisible]);
 
   // Panel toggle handlers
   const handleToggleFilter = () => {
     // Both toggle the same panel now as they are merged
-    setIsAlertsPanelVisible(!isAlertsPanelVisible);
-    if (!isAlertsPanelVisible) {
+    const newVisibility = !isAlertsPanelVisible;
+    setIsAlertsPanelVisible(newVisibility);
+    if (newVisibility) {
       setIsSettingsPanelVisible(false);
+      setIsAgentPanelVisible(false);
+      if (isDetailCardVisible) handleDetailCardClose();
     }
   };
 
@@ -557,9 +584,19 @@ export const App: React.FC = () => {
       handleDetailCardClose();
     } else {
       setIsDetailCardVisible(true);
-      if (isDetailCardVisible !== true) {
-        setIsSettingsPanelVisible(false);
-      }
+      setIsSettingsPanelVisible(false);
+      setIsAgentPanelVisible(false);
+      setIsAlertsPanelVisible(false);
+    }
+  };
+
+  const handleToggleAgent = () => {
+    const newVisibility = !isAgentPanelVisible;
+    setIsAgentPanelVisible(newVisibility);
+    if (newVisibility) {
+      setIsSettingsPanelVisible(false);
+      if (isDetailCardVisible) handleDetailCardClose();
+      setIsAlertsPanelVisible(false);
     }
   };
 
@@ -573,6 +610,7 @@ export const App: React.FC = () => {
       if (isDetailCardVisible) {
         handleDetailCardClose();
       }
+      setIsAgentPanelVisible(false);
     }
   };
 
@@ -594,11 +632,11 @@ export const App: React.FC = () => {
       {/* Navigation Bar */}
       <Navbar
         onToggleFilter={handleToggleFilter}
-        onToggleDetails={handleToggleDetails}
+        onToggleAgent={handleToggleAgent}
         onToggleSettings={handleToggleSettings}
         onTeamClick={() => setIsTeamPopupVisible(true)}
         isFilterOpen={isAlertsPanelVisible}
-        isDetailsOpen={isDetailCardVisible}
+        isAgentOpen={isAgentPanelVisible}
         isSettingsOpen={isSettingsPanelVisible}
       />
 
@@ -654,6 +692,14 @@ export const App: React.FC = () => {
         isVisible={isUserGuideVisible}
         onClose={handleCloseUserGuide}
       />
+
+      {/* Agent Panel (Bottom) */}
+      <AgentPanel
+        isVisible={isAgentPanelVisible}
+        onClose={() => setIsAgentPanelVisible(false)}
+        onMapUpdate={handleAgentMapUpdate}
+      />
+
       {/* <TeamPopup
         isVisible={isTeamPopupVisible}
         onClose={() => setIsTeamPopupVisible(false)}

@@ -66,17 +66,18 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 | **Frontend**             | <img src="https://skillicons.dev/icons?i=react,ts,tailwind" valign="middle" />                                         | React, TypeScript, and Mapbox for web app.                                          |
 | **Services**             | <img src="https://skillicons.dev/icons?i=python,fastapi" valign="middle" />                                            | Python microservices handling business logic and scraping.                          |
 | **Backend and Database** | <img src="https://skillicons.dev/icons?i=supabase,postgres" valign="middle" />                                         | **Supabase** for storing alerts, geometries, cron jobs and message queues.           |
-| **AI Engine**            | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/google-gemini.svg" width="40" valign="middle" /> | Gemini-3-Flash for high-speed inference for document parsing and entity extraction. |
+| **Document Processing**            | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/google-gemini.svg" width="40" valign="middle" /> | Gemini-3-Flash for high-speed inference for document parsing and entity extraction. |
+| **Agent**            | <img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/dark/langchain-color.png" width="40" valign="middle" /> &nbsp; <img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-png/light/mistral-color.png" width="50" valign="middle" /> &nbsp; <img src="https://echarts.apache.org/en/images/echarts-footer-logo.png" width="40" valign="middle" /> | LangGraph, ECharts and Mistral for orchestration, graphing and inference respectively. |
 
 <br>
 
 ## <img src="Assets\images-green.svg" width="24" height="24" style="vertical-align: middle; filter: invert(1);"> Visuals
 
-|                               **Alert Polygon and Centroid Visualization**                               |                               **Searching Historical Alerts**                               |
-| :-----------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------: |
-| <img src="Assets/Screenshot-Polygon-Centroid.png" width="100%" /> |  <img src="Assets/Screenshot-Searching.png" width="100%" />   |
-|                                  **Filtering By Location**                                  |                                       **User Guide**                                       |
-| <img src="Assets/Screenshot-Filtering-Location.png" width="100%" /> | <img src="Assets/Screenshot-User-Guide.png" width="100%" /> |
+| Alert Details | Analytics/QA Agent |
+| :---: | :---: |
+| <img src="Assets/Screenshot-Alert-Details.png" width="100%"/> | <img src="Assets/Screenshot-Agent.png" width="100%" /> |
+| **User Guide** | **Searching/Filtering** |
+| <img src="Assets/Screenshot-User-Guide.png" width="100%" /> | <img src="Assets/Screenshot-Searching.png" width="100%" /> |
 
 <br>
 
@@ -86,12 +87,13 @@ Our architecture is built for speed, resilience, and geospatial accuracy.
 - [x] **Spatial Engine:** Heuristic geocoder capable of parsing admin regions and directional descriptors into polygons
 - [x] **Web Dashboard:** A responsive React application for searching alerts, filtering by severity/date, and visualizing risk zones on an interactive map
 - [x] **Performance:** Optimizing database and backend for better performance
+- [x] **UX Polish:** Refining the dashboard based on early user feedback
+- [x] **Analytics Agent:** A text-to-SQL agent capable of fetching data for answering questions, analyzing trends and producing charts
 - [ ] **Deduplication:** Logic to merge overlapping reports from different agencies into a single "Source of Truth" event
-- [ ] **UX Polish:** Refining the dashboard based on early user feedback
 - [ ] **Alerts:** Notifications for user apps based on their GPS location
 - [ ] **Mobile Apps:** Apps for Android and iOS to get information to all users conveniently
 - [ ] **Advanced Geocoding:** Improving the heuristic engine to resolve roadways, hydrology (rivers/dams), and bridges
-- [ ] **Data Expansion:** Integrating social media firehose (validated) and international weather APIs
+- [ ] **Data Expansion:** Integrating more agencies, news/social media (validated) and international weather APIs
 
 <br>
 

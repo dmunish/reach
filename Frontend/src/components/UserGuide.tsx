@@ -250,76 +250,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
                 </div>
               </div>
 
-              {/* 3.2 Details Card */}
-              <div className="bg-white/5 p-8 border border-white/5">
-                <h4 className="text-white font-medium text-xl mb-4 flex items-center gap-2">
-                  Details Card -{" "}
-                  <svg
-                    className="w-6 h-6 text-white mb-1"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2M18 20H6V4H13V9H18V20M8 12V14H16V12H8M8 16V18H13V16H8Z" />
-                  </svg>
-                </h4>
-                <p className="text-gray-300 text-base mb-8">
-                  This panel provides a full breakdown of a specific alert:
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-                  <div className="md:col-span-5 md:aspect-auto w-full overflow-hidden border border-white/5">
-                    <img
-                      src="https://github.com/dmunish/reach/blob/main/Assets/Detail-Card.png?raw=true"
-                      alt="Alert Details Panel"
-                      className="max-w-full max-h-full object-contain"
-                    />
-                  </div>
-
-                  <div className="md:col-span-7 flex flex-col gap-4">
-                    <div className="p-4 bg-rich-black/40 border border-white/5">
-                      <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">
-                        Title, Dates and Description
-                      </span>
-                      <span className="text-gray-300 text-base">
-                        A quick summary and the time window for which the alert
-                        is active.
-                      </span>
-                    </div>
-                    <div className="p-4 bg-rich-black/40 border border-white/5">
-                      <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">
-                        Source
-                      </span>
-                      <span className="text-gray-300 text-base">
-                        The official agency that issued the alert. Use the
-                        "Source" button to view the original document.
-                      </span>
-                    </div>
-                    <div className="p-4 bg-rich-black/40 border border-white/5">
-                      <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">
-                        Instructions
-                      </span>
-                      <span className="text-gray-300 text-base">
-                        A list of safety steps for citizens. Note that some
-                        instructions may be AI-generated to provide clarity if
-                        the original source was brief.
-                      </span>
-                    </div>
-                    <div className="p-4 bg-rich-black/40 border border-white/5">
-                      <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">
-                        Affected Areas
-                      </span>
-                      <span className="text-gray-300 text-base">
-                        A list of specific regions mentioned in the alert.
-                        *Note: If a large region like "Punjab" is mentioned,
-                        smaller cities within it may not be listed
-                        individually.*
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 3.3 Filter Panel */}
+              {/* 3.2 Filter Panel */}
               <div className="bg-white/5 p-8 border border-white/5">
                 <h4 className="text-white font-medium text-xl mb-4 flex items-center gap-2">
                   Filter Panel -{" "}
@@ -387,9 +318,124 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
                   </div>
                 </div>
               </div>
+
+              {/* 3.3 Details Card */}
+              <div className="bg-white/5 p-8 border border-white/5">
+                <h4 className="text-white font-medium text-xl mb-4 flex items-center gap-2">
+                  Details Card
+                </h4>
+                <p className="text-gray-300 text-base mb-8">
+                  On selecting an alert either through the map or the Filter panel, the Detail Card pops up. This panel provides a full breakdown of a specific alert:
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+                  <div className="md:col-span-5 md:aspect-auto w-full overflow-hidden border border-white/5">
+                    <img
+                      src="https://github.com/dmunish/reach/blob/main/Assets/Detail-Card.png?raw=true"
+                      alt="Alert Details Panel"
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
+
+                  <div className="md:col-span-7 flex flex-col gap-4">
+                    <div className="p-4 bg-rich-black/40 border border-white/5">
+                      <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">
+                        Title, Dates and Description
+                      </span>
+                      <span className="text-gray-300 text-base">
+                        A quick summary and the time window for which the alert
+                        is active.
+                      </span>
+                    </div>
+                    <div className="p-4 bg-rich-black/40 border border-white/5">
+                      <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">
+                        Source
+                      </span>
+                      <span className="text-gray-300 text-base">
+                        The official agency that issued the alert. Use the
+                        "Source" button to view the original document.
+                      </span>
+                    </div>
+                    <div className="p-4 bg-rich-black/40 border border-white/5">
+                      <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">
+                        Instructions
+                      </span>
+                      <span className="text-gray-300 text-base">
+                        A list of safety steps for citizens. Note that some
+                        instructions may be AI-generated to provide clarity if
+                        the original source was brief.
+                      </span>
+                    </div>
+                    <div className="p-4 bg-rich-black/40 border border-white/5">
+                      <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">
+                        Affected Areas
+                      </span>
+                      <span className="text-gray-300 text-base">
+                        A list of specific regions mentioned in the alert.
+                        *Note: If a large region like "Punjab" is mentioned,
+                        smaller cities within it may not be listed
+                        individually.*
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </section>
 
-            {/* Section 4: CLosing */}
+            {/* Section 4: Analytics Agent */}
+            <section className="space-y-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-base font-bold text-bangladesh-green px-2.5 py-1 bg-bangladesh-green/10 rounded">
+                  04
+                </span>
+                <span className="text-base text-gray-300 font-medium uppercase tracking-wider">
+                  Agent
+                </span>
+              </div>
+
+              <div className="bg-white/5 p-8 border border-white/5">
+                <p className="text-gray-300 text-base mb-6">
+                  Use the AI agent to ask questions, analyze trends, and generate charts from the historical disaster data present on the system.
+                </p>
+
+                <div className="w-full overflow-hidden border border-white/5 mb-8 bg-rich-black/50">
+                  <img
+                    src="https://github.com/dmunish/reach/blob/main/Assets/Agent-Panel.png?raw=true"
+                    alt="Analytics Agent"
+                    className="w-full h-auto object-contain"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-4 bg-rich-black/40 border border-white/5">
+                    <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">
+                      Conversational Exploration
+                    </span>
+                    <span className="text-gray-300 text-base">
+                      Ask questions in plain English. The agent translates your questions into database queries to fetch data and produce answers.
+                    </span>
+                  </div>
+                  <div className="p-4 bg-rich-black/40 border border-white/5">
+                    <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">
+                      Map Navigation
+                    </span>
+                    <span className="text-gray-300 text-base">
+                      When asking about specific regions, the agent can automatically move the map to focus on the areas discussed.
+                    </span>
+                  </div>
+                  <div className="p-4 bg-rich-black/40 border border-white/5 sm:col-span-2">
+                    <span className="text-bangladesh-green font-bold block mb-1 uppercase text-sm tracking-wider">
+                      Data Visualization
+                    </span>
+                    <span className="text-gray-300 text-base">
+                      Request any type of data visualization. The agent will fetch data and generate interactive visual reports. A large variety of highly customizable charts are available.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 5: Closing */}
             <section className="space-y-6">
               <div className="flex items-center justify-center gap-2 mb-4">
                 <span className="text-base text-gray-300 font-medium tracking-wider">

@@ -52,6 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Filter Panel Toggle */}
         <button
           onClick={onToggleFilter}
+          data-testid="navbar-filter-toggle"
           className={`nav-button w-12 h-12 flex items-center justify-center transition-all duration-200 ${
             isFilterOpen
               ? "nav-button-active text-white"

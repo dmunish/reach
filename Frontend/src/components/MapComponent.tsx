@@ -680,7 +680,12 @@ export const MapComponent = forwardRef<MapRef, MapProps>(
     }));
 
     return (
-      <div ref={mapContainer} className={className} key="mapbox-container" />
+      <div
+        ref={mapContainer}
+        data-testid="map-container"
+        className={className}
+        key="mapbox-container"
+      />
     );
   }
 );

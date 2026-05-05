@@ -115,25 +115,21 @@ npm run test:watch
 - Alert detail view
 
 **Prerequisites:**
-Before running E2E tests, start both backend and frontend:
+The Cypress suite mocks the Supabase RPC calls used by the dashboard, so you only need the frontend running. Make sure the frontend environment variables are available (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and the Mapbox token the app expects).
 
 **Terminal 1:**
 ```bash
+cd Frontend
+npm install
 npm run dev
 ```
 
-**Terminal 2:**
-```bash
-cd Backend
-python -m uvicorn app:app --port 8000
-```
-
-**Terminal 3 (Run tests):**
+**Terminal 2 (Run tests):**
 ```bash
 cd Frontend
-npx cypress open  # Interactive mode
+npm run e2e:open   # Interactive mode
 # or
-npx cypress run --e2e --headless  # Headless mode
+npm run e2e        # Headless mode
 ```
 
 #### Performance Tests: Load Testing (k6)
@@ -251,7 +247,7 @@ npm test -- --coverage
 - ✅ No external API calls made (all mocked)
 - ⏱️ Execution time: **~20-30 seconds**
 
-### E2E Tests (Optional - Requires Running Services)
+### E2E Tests (Optional - Requires Frontend Dev Server)
 - ✅ All 6 Cypress tests should **PASS**
 - ✅ API mocking verified
 - ⏱️ Execution time: **~2-3 minutes**

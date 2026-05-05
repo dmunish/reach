@@ -204,7 +204,8 @@ const DateButton: React.FC<{
   value?: Date;
   label: string;
   onChange: (date: Date | null) => void;
-}> = ({ value, label, onChange }) => {
+  inputTestId?: string;
+}> = ({ value, label, onChange, inputTestId }) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleContainerClick = () => {
@@ -236,6 +237,7 @@ const DateButton: React.FC<{
   return (
     <div
       onClick={handleContainerClick}
+      data-testid={inputTestId ? `${inputTestId}-button` : undefined}
       className="relative flex items-center justify-between bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 hover:bg-white/5 transition-all cursor-pointer h-[34px] flex-1 group"
     >
       <span className={value ? "text-white" : "text-gray-500"}>
@@ -260,6 +262,7 @@ const DateButton: React.FC<{
       </svg>
       <input
         ref={inputRef}
+        data-testid={inputTestId}
         type="date"
         value={value ? format(value, "yyyy-MM-dd") : ""}
         onChange={handleInputChange}
@@ -372,6 +375,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
 
   return (
     <div
+      data-testid="alerts-panel"
       className={`fixed 
         bottom-4 left-4 right-4 
         sm:left-22
@@ -435,6 +439,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
             )}
             <button
               onClick={() => setShowFilters(!showFilters)}
+              data-testid="filters-toggle"
               className={`p-2 flex items-center gap-1.5 rounded-md transition-colors text-xs font-medium border border-white/10 cursor-pointer ${
                 showFilters
                   ? "bg-caribbean-green/20 text-caribbean-green border-caribbean-green/30"
@@ -509,6 +514,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
           {/* Row 1: Searchbar */}
           <div className="relative">
             <input
+              data-testid="search-input"
               type="text"
               placeholder="Search titles, descriptions, places..."
               value={filters.searchQuery}
@@ -531,6 +537,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
             {filters.searchQuery && (
               <button
                 onClick={onClearSearch}
+                data-testid="search-clear"
                 className="absolute right-2 top-2.5 p-0.5 hover:text-white text-gray-500 cursor-pointer"
               >
                 <svg
@@ -568,11 +575,13 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                   <DateButton
                     value={filters.startDate}
                     label="From"
+                    inputTestId="date-start"
                     onChange={(date) => onFilterChange("startDate", date)}
                   />
                   <DateButton
                     value={filters.endDate}
                     label="Until"
+                    inputTestId="date-end"
                     onChange={(date) => onFilterChange("endDate", date)}
                   />
                 </div>
@@ -583,6 +592,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                   Status
                 </label>
                 <select
+                  data-testid="filter-status"
                   value={filters.status}
                   onChange={(e) => onFilterChange("status", e.target.value)}
                   className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all cursor-pointer"
@@ -602,6 +612,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                 </label>
                 <div className="flex gap-2">
                   <select
+                    data-testid="filter-sort"
                     value={filters.sortBy}
                     onChange={(e) => onFilterChange("sortBy", e.target.value)}
                     className="flex-1 bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all cursor-pointer"
@@ -632,6 +643,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                     </option>
                   </select>
                   <button
+                    data-testid="filter-sort-order"
                     onClick={() =>
                       onFilterChange(
                         "sortOrder",
@@ -686,6 +698,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                   Category
                 </label>
                 <select
+                  data-testid="filter-category"
                   value={filters.category || ""}
                   onChange={(e) =>
                     onFilterChange("category", e.target.value || undefined)
@@ -712,6 +725,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                   Severity
                 </label>
                 <select
+                  data-testid="filter-severity"
                   value={filters.severity || ""}
                   onChange={(e) =>
                     onFilterChange("severity", e.target.value || undefined)
@@ -738,6 +752,7 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
                   Scope
                 </label>
                 <select
+                  data-testid="filter-scope"
                   value={filters.scope}
                   onChange={(e) => onFilterChange("scope", e.target.value)}
                   className="bg-rich-black/50 backdrop-blur-md text-white text-xs border border-white/10 rounded-md py-1.5 px-3 focus:outline-none focus:border-caribbean-green/50 hover:bg-white/5 transition-all cursor-pointer"
@@ -761,19 +776,29 @@ export const FilterAlertsPanel: React.FC<FilterAlertsPanelProps> = ({
       {/* Alert List */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden dark-scrollbar-large bg-black/40 pr-1">
         {error ? (
-          <div className="flex flex-col items-center justify-center h-full text-center p-4">
+          <div
+            data-testid="error-message"
+            className="flex flex-col items-center justify-center h-full text-center p-4"
+          >
             <p className="text-red-400 mb-2">Error loading alerts</p>
             <p className="text-sm text-gray-400">{error}</p>
           </div>
         ) : alerts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center p-4 text-gray-500">
+          <div
+            data-testid="no-results"
+            className="flex flex-col items-center justify-center h-full text-center p-4 text-gray-500"
+          >
             {loading ? "Loading..." : "No alerts found matching your filters."}
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
+          <div data-testid="alert-list" className="divide-y divide-white/5">
             {alerts.map((alert) => (
               <div
                 key={alert.id}
+                data-testid="alert-item"
+                data-category={alert.category ?? ""}
+                data-location={alert.location ?? ""}
+                data-severity={alert.severity ?? ""}
                 onClick={() => onAlertClick(alert)}
                 onMouseEnter={() => onAlertHover?.(alert)}
                 className="p-3.5 hover:bg-white/10 cursor-pointer transition-all duration-200 group border-l-4 border-transparent hover:border-caribbean-green relative"

@@ -10,6 +10,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
     <>
       <div
         id="user-guide-window"
+        data-testid="user-guide"
         className={`fixed
           inset-4
           sm:left-22 sm:right-4
@@ -45,6 +46,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
           </div>
           <button
             onClick={onClose}
+            data-testid="user-guide-close"
             className="p-2 hover:bg-bangladesh-green rounded-full transition-colors group"
           >
             <svg

@@ -246,11 +246,17 @@ export const DetailCard: React.FC<DetailCardProps> = ({
       <div className="space-y-6">
         {/* Title and Effective Dates - Centered */}
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-bold text-white leading-tight">
+          <h1
+            data-testid="alert-title"
+            className="text-2xl font-bold text-white leading-tight"
+          >
             {data.title || "Alert"}
           </h1>
           {data.date && data.additionalInfo?.effectiveUntil && (
-            <div className="text-sm text-gray-500 font-medium">
+            <div
+              data-testid="alert-date"
+              className="text-sm text-gray-500 font-medium"
+            >
               {data.date.toLocaleDateString("en-US", {
                 year: "numeric",
                 month: "long",
@@ -273,6 +279,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
         {data.source && (
           <div className="flex justify-center">
             <button
+              data-testid="alert-source"
               onClick={() => {
                 if (data.documentUrl) {
                   window.open(
@@ -308,7 +315,10 @@ export const DetailCard: React.FC<DetailCardProps> = ({
             </div>
           )}
           {data.severity && (
-            <div className="px-3 py-1 rounded-md bg-rich-black/50 border border-white/10 text-xs text-gray-300 flex items-center gap-1">
+            <div
+              data-testid="alert-severity"
+              className="px-3 py-1 rounded-md bg-rich-black/50 border border-white/10 text-xs text-gray-300 flex items-center gap-1"
+            >
               <span className="text-gray-500 font-medium">Severity:</span>
               <span
                 className={`font-medium ${getSeverityColor(data.severity)}`}
@@ -346,7 +356,10 @@ export const DetailCard: React.FC<DetailCardProps> = ({
               </svg>
               Description
             </h2>
-            <p className="text-sm text-gray-300 leading-relaxed">
+            <p
+              data-testid="alert-description"
+              className="text-sm text-gray-300 leading-relaxed"
+            >
               {data.description}
             </p>
           </div>
@@ -425,7 +438,10 @@ export const DetailCard: React.FC<DetailCardProps> = ({
               </button>
 
               {isAreasExpanded && (
-                <div className="space-y-3 animate-fadeIn">
+                <div
+                  data-testid="alert-location"
+                  className="space-y-3 animate-fadeIn"
+                >
                   {/* Search Bar */}
                   <div className="relative">
                     <input
@@ -469,6 +485,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
                         return (
                           <span
                             key={idx}
+                            data-testid="affected-area-item"
                             className={`text-sm px-2 py-0.5 rounded transition-colors ${
                               isMatch
                                 ? "bg-caribbean-green/30 text-white font-medium border border-caribbean-green/50"
@@ -492,6 +509,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
     <>
       {/* Detail card */}
       <div
+        data-testid="detail-panel"
         className={`fixed 
           bottom-4 left-4 right-4 
           sm:top-4 sm:bottom-4 sm:h-auto sm:right-4 sm:left-auto
@@ -531,6 +549,7 @@ export const DetailCard: React.FC<DetailCardProps> = ({
           <div className="flex items-center justify-end mb-3">
             <button
               onClick={onClose}
+              data-testid="detail-close"
               className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors cursor-pointer"
               title="Close alert details"
             >

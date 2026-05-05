@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" baseProfile="tiny" version="1.2" viewBox="0 0 500 500">
   <!-- Generator: Adobe Illustrator 29.7.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 8)  -->
-  <path d="M19.1,365.45c0-127.52,103.38-230.9,230.9-230.9s230.9,103.38,230.9,230.9" fill="none" stroke="#047d61" stroke-miterlimit="10" stroke-width="10"/>
-  <path d="M64.53,365.45c0-102.43,83.04-185.47,185.47-185.47s185.47,83.04,185.47,185.47" fill="none" stroke="#099e79" stroke-miterlimit="10" stroke-width="10"/>
-  <path d="M109.97,365.45c0-77.34,62.69-140.03,140.03-140.03s140.03,62.69,140.03,140.03" fill="none" stroke="#0fbe90" stroke-miterlimit="10" stroke-width="10"/>
-  <path d="M155.4,365.45c0-52.25,42.35-94.6,94.6-94.6s94.6,42.35,94.6,94.6" fill="none" stroke="#14dfa8" stroke-miterlimit="10" stroke-width="10"/>
-  <path d="M200.84,365.45c0-27.15,22.01-49.16,49.16-49.16s49.16,22.01,49.16,49.16" fill="#19ffbf"/>
+  <g display="none">
+    <circle cx="250" cy="250" r="238.12" fill="none" stroke="#047d61" stroke-miterlimit="10" stroke-width="10"/>
+    <circle cx="250" cy="250" r="191.27" fill="none" stroke="#099e79" stroke-miterlimit="10" stroke-width="10"/>
+    <circle cx="250" cy="250" r="144.41" transform="translate(-103.55 250) rotate(-45)" fill="none" stroke="#0fbe90" stroke-miterlimit="10" stroke-width="10"/>
+    <circle cx="250" cy="250" r="97.56" transform="translate(-103.55 250) rotate(-45)" fill="none" stroke="#14dfa8" stroke-miterlimit="10" stroke-width="10"/>
+    <circle cx="250" cy="250" r="50.7" transform="translate(-103.55 250) rotate(-45)" fill="#19ffbf"/>
+  </g>
+  <circle cx="250" cy="250" r="238.12" fill="none" stroke="#047d61" stroke-miterlimit="10" stroke-width="18"/>
+  <circle cx="250" cy="250" r="191.27" fill="none" stroke="#099e79" stroke-miterlimit="10" stroke-width="18"/>
+  <circle cx="250" cy="250" r="144.41" transform="translate(-103.55 250) rotate(-45)" fill="none" stroke="#0fbe90" stroke-miterlimit="10" stroke-width="18"/>
+  <circle cx="250" cy="250" r="97.56" transform="translate(-103.55 250) rotate(-45)" fill="none" stroke="#14dfa8" stroke-miterlimit="10" stroke-width="18"/>
+  <circle cx="250" cy="250" r="50.7" transform="translate(-103.55 250) rotate(-45)" fill="#19ffbf"/>
 </svg>

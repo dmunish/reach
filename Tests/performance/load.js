@@ -21,7 +21,7 @@ export const options = {
 
 export default function () {
   // ST-007: Initial load time target
-  const homepage = http.get('http://localhost:3000/');
+  const homepage = http.get('http://localhost:5173/');
   check(homepage, {
     'homepage status is 200': (r) => r.status === 200,
     'homepage load time < 3s': (r) => r.timings.duration < 3000,

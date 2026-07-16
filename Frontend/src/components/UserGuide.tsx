@@ -1,4 +1,8 @@
 import React from "react";
+import { supabase } from "../lib/supabase";
+
+const assetUrl = (path: string) =>
+  supabase.storage.from("assets").getPublicUrl(path).data.publicUrl;
 
 export interface UserGuideProps {
   isVisible: boolean;
@@ -242,7 +246,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
                   </div>
                   <div className="w-full bg-rich-black/50 rounded border border-white/5 overflow-hidden">
                     <img
-                      src="https://github.com/dmunish/reach/blob/main/Assets/Map-Highlighting.png?raw=true"
+                      src={assetUrl("Map-Highlighting.png")}
                       alt="Interactive Map Interface"
                       className="w-full h-auto object-contain block"
                     />
@@ -273,7 +277,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
 
                 <div className="w-full overflow-hidden border border-white/5 mb-8">
                   <img
-                    src="https://github.com/dmunish/reach/blob/main/Assets/Filter-Alerts-Panel.png?raw=true"
+                    src={assetUrl("Filter-Alerts-Panel.png")}
                     alt="Dashboard Filters"
                     className="w-full h-auto object-contain"
                   />
@@ -331,7 +335,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
                   <div className="md:col-span-5 md:aspect-auto w-full overflow-hidden border border-white/5">
                     <img
-                      src="https://github.com/dmunish/reach/blob/main/Assets/Detail-Card.png?raw=true"
+                      src={assetUrl("Detail-Card.png")}
                       alt="Alert Details Panel"
                       className="max-w-full max-h-full object-contain"
                     />
@@ -400,7 +404,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
 
                 <div className="w-full overflow-hidden border border-white/5 mb-8 bg-rich-black/50">
                   <img
-                    src="https://github.com/dmunish/reach/blob/main/Assets/Agent-Panel.png?raw=true"
+                    src={assetUrl("Agent-Panel.png")}
                     alt="Analytics Agent"
                     className="w-full h-auto object-contain"
                   />

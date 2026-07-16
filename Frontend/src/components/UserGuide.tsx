@@ -399,7 +399,7 @@ export const UserGuide: React.FC<UserGuideProps> = ({ isVisible, onClose }) => {
 
               <div className="bg-white/5 p-8 border border-white/5">
                 <p className="text-gray-300 text-base mb-6">
-                  Use the AI agent to ask questions, analyze trends, and generate charts from the historical disaster data present on the system.
+                  Use the AI assistant to ask questions, analyze trends, and generate charts from the historical disaster data present on the system.
                 </p>
 
                 <div className="w-full overflow-hidden border border-white/5 mb-8 bg-rich-black/50">

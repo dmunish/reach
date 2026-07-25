@@ -27,7 +27,8 @@ def create_llm(session_id: str = None):
         base_url=os.environ.get("AGENT_BASE_URL"),
         api_key=os.environ.get("AGENT_API_KEY"),
         temperature=os.environ.get("AGENT_TEMPERATURE"),
-        default_headers={"x-affinity": session_id} if session_id else {}
+        default_headers={"User-Agent": "vscode-code-chat/1.0.0"},
+        extra_body={"thinking": {"type": "disabled"}}
     )
 
 

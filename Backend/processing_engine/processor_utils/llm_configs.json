@@ -1,21 +1,4 @@
 {
-    "qwen3-vl": {
-        "model": "qwen/qwen3-vl-235b-a22b-thinking",
-        "api_key_name": "NOVITA_KEY",
-        "base_url": "https://api.novita.ai/openai",
-        "default_params": {
-            "max_completion_tokens": 32768,
-            "temperature":0.7
-        }
-    },
-    "gemini-3": {
-        "model": "gemini-3-flash-preview",
-        "api_key_name": "GEMINI_KEY",
-        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "default_params": {
-            "reasoning_effort":"high"
-        }
-    },
     "ernie-4.5-vl": {
         "model": "ernie-4.5-turbo-vl",
         "api_key_name": "BAIDU_KEY",
@@ -32,30 +15,42 @@
             "presence_penalty": 0
         }
     },
-    "molmo-2": {
-        "model": "allenai/molmo-2-8b:free",
-        "api_key_name": "OPEN_ROUTER_KEY",
-        "base_url": "https://openrouter.ai/api/v1",
+    "gemini-3.5-flash-lite": {
+        "model": "gemini-3.5-flash-lite",
+        "api_key_name": "GEMINI_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "default_params": {
-            "temperature":0.3
+            "reasoning_effort":"high"
         }
     },
-    "glm-4.6v": {
-        "model": "zai-org/glm-4.6v",
-        "api_key_name": "NOVITA_KEY",
-        "base_url": "https://api.novita.ai/openai",
+    "gemini-3.6": {
+        "model": "gemini-3.6-flash",
+        "api_key_name": "GEMINI_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "default_params": {
-            "max_completion_tokens": 32768,
-            "temperature":0.7
+            "reasoning_effort":"high"
         }
     },
-    "gemma-3": {
-        "model": "google/gemma-3-27b-it",
-        "api_key_name": "NOVITA_KEY",
-        "base_url": "https://api.novita.ai/openai",
+    "qwen-3.7-plus": {
+        "model": "qwen3.7-plus",
+        "api_key_name": "OPENCODE_KEY",
+        "base_url": "https://opencode.ai/zen/go/v1/",
         "default_params": {
-            "max_completion_tokens": 16384,
-            "temperature":0.7
+            "reasoning_effort": "xhigh"
         }
+    },
+    "kimi-k3": {
+        "model": "kimi-k3",
+        "api_key_name": "OPENCODE_KEY",
+        "base_url": "https://opencode.ai/zen/go/v1/",
+        "default_params": {
+            "reasoning_effort": "max"
+        }
+    },
+    "minimax-m3": {
+        "model": "minimax-m3",
+        "api_key_name": "OPENCODE_KEY",
+        "base_url": "https://opencode.ai/zen/go/v1/",
+        "default_params": {}
     }
 }

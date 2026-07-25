@@ -1,3 +1,4 @@
+import json
 import logging
 from uuid import uuid4
 from typing import List
@@ -7,7 +8,7 @@ from processing_engine.processors.pipeline_processor import PipelineProcessor
 from processing_engine.models.schemas import QueueJob
 from processing_engine.processor_utils.pipeline_prompts import _load_examples
 
-LLM = "gemini-3"
+LLM = "gemini-3.6"
 
 class QueueWorker:
     def __init__(self, supabase):
@@ -42,6 +43,7 @@ class QueueWorker:
             # Step 1: Transform document
             alert_id = str(uuid4())
             json_response, alert, alert_areas = await self.processor.transform(job, document_id, alert_id)
+            print(json.dumps(json_response, indent=4))
             
             if not json_response or not alert:
                 self.logger.error(f"Job {msg_id}: Transform returned empty result")

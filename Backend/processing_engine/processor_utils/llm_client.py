@@ -1,15 +1,22 @@
 import os
-from openai import OpenAI, AsyncOpenAI
-from pathlib import Path
-from utils import load_env
+import asyncio
 import json
+from pathlib import Path
+from openai import OpenAI, AsyncOpenAI
+from openai import RateLimitError, APIStatusError, APITimeoutError
+from utils import load_env, get_logger
 
+logger = get_logger(__name__)
 load_env()
 
 CURRENT_DIR = Path(__file__).parent
 config_path = CURRENT_DIR / "llm_configs.json"
 with open(config_path, 'r') as f:
     configs = json.load(f)
+
+RETRYABLE_ERRORS = (RateLimitError, APITimeoutError)
+MAX_RETRIES = 3
+BASE_DELAY = 2.0
 
 class LLMClient:
     def __init__(self, model: str):
@@ -60,12 +67,38 @@ class AsyncLLMClient:
         return AsyncOpenAI(api_key=key, base_url=url)
     
     async def call(self, messages, **kwargs):
-        """Make an async call to the LLM"""
+        """Make an async call to the LLM with retry on transient errors."""
         params = {**self.config["default_params"], **kwargs}
-        
-        response = await self._client.chat.completions.create(
-            model=self.config["model"],
-            messages=messages,
-            **params
-        )
-        return response.choices[0].message.content
+        last_error = None
+
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                response = await self._client.chat.completions.create(
+                    model=self.config["model"],
+                    messages=messages,
+                    **params
+                )
+                return response.choices[0].message.content
+            except RETRYABLE_ERRORS as e:
+                last_error = e
+                if attempt < MAX_RETRIES:
+                    delay = BASE_DELAY ** (attempt + 1)
+                    logger.warning(
+                        f"LLM {self.model}: {type(e).__name__}, "
+                        f"retrying in {delay:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                    )
+                    await asyncio.sleep(delay)
+            except APIStatusError as e:
+                if e.status_code >= 500:
+                    last_error = e
+                    if attempt < MAX_RETRIES:
+                        delay = BASE_DELAY ** (attempt + 1)
+                        logger.warning(
+                            f"LLM {self.model}: HTTP {e.status_code}, "
+                            f"retrying in {delay:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                raise
+
+        raise last_error

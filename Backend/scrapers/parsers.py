@@ -34,23 +34,39 @@ class NdmaParser(BaseParser):
     def parse_entries(self, response) -> list[dict]:
         html = response.text
         parsed_page = BeautifulSoup(html, 'html.parser')
-        advisory_cards = parsed_page.find_all("div", class_="advisory-card")
+        # New BEM-style: <a class="adv-card ..."> is the card itself
+        advisory_cards = parsed_page.find_all(
+            "a", class_=lambda c: c and "adv-card" in c.split()
+        )
         
         structured_entries = []
         for card in advisory_cards:
-            a_tag = card.find_parent("a")
-            if not a_tag or not a_tag.get("href"):
+            url = card.get("href")
+            if not url:
                 continue
             
-            url = convert_secure_url(a_tag["href"])
+            url = convert_secure_url(url)
             
-            date_tag = card.find("p", class_="advisory-date")
+            date_tag = card.select_one(".adv-card__date")
             date_text = date_tag.get_text(strip=True) if date_tag else None
             
-            formatted_date = pd.to_datetime(date_text, dayfirst=True).strftime('%Y-%m-%d')
+            if not date_text:
+                continue
             
-            title_tag = card.find("h4", class_="advisory-title")
-            title_text = title_tag.get_text(strip=True) if title_tag else None
+            try:
+                formatted_date = pd.to_datetime(date_text, dayfirst=True).strftime('%Y-%m-%d')
+            except Exception as e:
+                logger.error(f"Error parsing NDMA date '{date_text}': {e}")
+                continue
+            
+            title_tag = card.select_one(".adv-card__title")
+            if title_tag:
+                # Remove badge spans like <span class="badge-latest">Latest</span>
+                for badge in title_tag.select(".badge-latest"):
+                    badge.decompose()
+                title_text = title_tag.get_text(strip=True)
+            else:
+                title_text = None
             
             try:
                 if "?file=" in url:
@@ -82,16 +98,19 @@ class NeocParser(BaseParser):
     def parse_entries(self, response) -> list[dict]:
         html = response.text
         parsed_page = BeautifulSoup(html, 'html.parser')
-        divs = parsed_page.find_all("div", class_="panel panel-default proj-card")
+        # New BEM-style: div.proj-item
+        items = parsed_page.find_all("div", class_="proj-item")
 
         structured_entries = []
-        for div in divs:
-            # Title
-            title_tag = div.find("h5", class_="proj-title")
+        for item in items:
+            # Title — the <a> is inside .proj-item__title
+            title_tag = item.select_one(".proj-item__title a")
+            if not title_tag:
+                title_tag = item.select_one(".proj-item__title")
             title_text = title_tag.get_text(strip=True) if title_tag else None
 
             # Date
-            date_tag = div.find("span", class_="proj-date")
+            date_tag = item.select_one(".proj-item__date")
             date_text = date_tag.get_text(strip=True) if date_tag else None
             
             if not date_text:
@@ -100,11 +119,11 @@ class NeocParser(BaseParser):
             try:
                 formatted_date = pd.to_datetime(date_text, dayfirst=True).strftime('%Y-%m-%d')
             except Exception as e:
-                logger.error(f"Error parsing date '{date_text}': {e}")
+                logger.error(f"Error parsing NEOC date '{date_text}': {e}")
                 continue
 
-            # URL
-            a_tag = div.find("a", href=True)
+            # URL — prefer the view button, fallback to title link
+            a_tag = item.select_one(".proj-item__btn[href]") or item.select_one("a[href]")
             if not a_tag or not a_tag.get("href"):
                 continue
             

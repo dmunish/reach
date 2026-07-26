@@ -8,7 +8,7 @@ from processing_engine.processors.pipeline_processor import PipelineProcessor
 from processing_engine.models.schemas import QueueJob
 from processing_engine.processor_utils.pipeline_prompts import _load_examples
 
-LLM = "gemini-3.6"
+LLM = "gemini-3.5-flash-lite"
 
 class QueueWorker:
     def __init__(self, supabase):

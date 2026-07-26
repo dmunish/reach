@@ -35,30 +35,27 @@ SCRAPER_CONFIGS = [
 async def run_scrapers():
     logger.info("Starting scraping")
     # Initialize shared clients
-    http_client = AsyncClient(timeout=30.0)
+    http_client = AsyncClient(timeout=45.0)
     db_client = supabase_client()
     
     results = {}
     
-    # Run all scrapers
-    for config in SCRAPER_CONFIGS:
-        logger.info(f"Running scraper: {config['name']}")
-        scraper = BaseScraper(
-            url=config['url'],
-            parser=config['parser'],
-            db_client=db_client,
-            http_client=http_client
-        )        
-        try:
+    try:
+        # Run all scrapers
+        for config in SCRAPER_CONFIGS:
+            logger.info(f"Running scraper: {config['name']}")
+            scraper = BaseScraper(
+                url=config['url'],
+                parser=config['parser'],
+                db_client=db_client,
+                http_client=http_client
+            )        
             count = await scraper.run()
             results[config['name']] = f"Added {count} new entries"
             logger.info(f"Scraper {config['name']} completed successfully. Added {count} entries.")
-        except Exception as e:
-            error_msg = f"Error: {str(e)}"
-            results[config['name']] = error_msg
-            logger.error(f"Scraper {config['name']} failed: {error_msg}", exc_info=True)
+    finally:
+        await http_client.aclose()
     
-    await http_client.aclose()
     logger.info("Scraping completed")
     return results
 

@@ -1,10 +1,12 @@
 from bs4 import BeautifulSoup
+from html import unescape
+import json
 import os
+import re
 from click import style
 import pandas as pd
-from urllib.parse import urlparse, parse_qs, unquote
+from urllib.parse import quote, urlparse, parse_qs, unquote
 from scrapers.base_scraper import BaseParser
-import json
 from utils import get_logger
 
 logger = get_logger(__name__)
@@ -156,57 +158,176 @@ class PmdPRParser(BaseParser):
     def parse_entries(self, response) -> list[dict]:
         html = response.text
         parsed_page = BeautifulSoup(html, 'html.parser')
-        press_releases = parsed_page.find_all("div", class_="col-md-12", style="background-color:#00416A;")
-
         structured_entries = []
-        for press_release in press_releases:
-            # Title
-            title_tag = press_release.find("h4", align="center")
-            title_text = title_tag.get_text(strip=True) if title_tag else None
 
-            # Date
-            date_tag = press_release.find("h5", align="center")
-            date_text = None
-            if date_tag:
-                # Extracts "2 Apr, 2023 01:59 PM" from "Issue Date: 2 Apr, 2023 01:59 PM"
-                date_text = date_tag.get_text(strip=True).replace("Issue Date:", "").strip()
-            
-            try:
-                formatted_date = pd.to_datetime(date_text).strftime('%Y-%m-%d')
-            except Exception as e:
-                logger.error(f"Error parsing date '{date_text}': {e}")
-                formatted_date = None
+        # 1. Parse the main press release entry (if present)
+        main_entry = self._parse_main_entry(parsed_page)
+        if main_entry:
+            structured_entries.append(main_entry)
 
-            # Content
-            content_div = press_release.find("div", class_="PR_English")
-            if content_div:
-                # Convert internal h3 into markdown headings
-                for h3 in content_div.find_all("h3"):
-                    h3.string = f"### {h3.get_text(strip=True)}"
-                content_text = content_div.get_text(separator="\n", strip=True)
+        # 2. Parse the sidebar archive entries
+        archive_entries = self._parse_archive_entries(parsed_page)
+        structured_entries.extend(archive_entries)
+
+        return structured_entries
+
+    def _parse_main_entry(self, parsed_page: BeautifulSoup) -> dict | None:
+        """Parse the main/featured press release from the detail section."""
+        subtitle_row = parsed_page.find("div", class_="subtitlebg_color")
+        if not subtitle_row:
+            return None
+
+        # The subtitle row has two columns: first = date, second = title
+        cols = subtitle_row.find_all("div", class_=lambda c: c and "col-lg-" in c)
+        title_text = None
+        date_text = None
+
+        for col in cols:
+            h5 = col.find("h5", class_="mb-0")
+            if not h5:
+                continue
+            # The date column has a <small> child with the time
+            if h5.find("small"):
+                # Extract date text before the <br> and <small>
+                date_text = h5.get_text(separator=" ", strip=True)
+                # The text is like "24 July 2026 03:18 PM"; extract just the date portion
+                # Use the first text node before <br>
+                for child in h5.children:
+                    if isinstance(child, str) and child.strip():
+                        date_text = child.strip()
+                        break
             else:
-                content_text = ""
+                title_text = h5.get_text(strip=True)
 
-            # Coalesce into raw_text
-            raw_text_parts = []
-            if title_text:
-                raw_text_parts.append(f"# {title_text}")
+        # Parse the date
+        formatted_date = None
+        if date_text:
+            try:
+                formatted_date = pd.to_datetime(date_text, dayfirst=True).strftime('%Y-%m-%d')
+            except Exception as e:
+                logger.error(f"Error parsing main entry date '{date_text}': {e}")
+
+        # PDF URL from the file-container section
+        pdf_url = ""
+        file_container = parsed_page.find("div", class_="file-container")
+        if file_container:
+            pdf_link = file_container.find("a", href=True)
+            if pdf_link:
+                pdf_url = self._ensure_safe_url(pdf_link["href"])
+
+        if not title_text:
+            return None
+
+        return {
+            "source": "PMD",
+            "posted_date": formatted_date,
+            "title": title_text,
+            "url": pdf_url,
+            "filetype": "pdf",
+            "content_hash": self.generate_hash(title_text, formatted_date, pdf_url)
+        }
+
+    def _parse_archive_entries(self, parsed_page: BeautifulSoup) -> list[dict]:
+        """Parse archive press releases from the sidebar.
+
+        Each archive item is an <a> tag with a mangled PDF URL in the <img src>
+        that needs special cleaning.
+        """
+        entries = []
+
+        # Find the sidebar column
+        sidebar = parsed_page.find("div", class_="col-xl-4")
+        if not sidebar:
+            return entries
+
+        # Archive items are <a> tags with d-flex mb-3 classes
+        archive_links = sidebar.find_all(
+            "a",
+            class_=lambda c: c and "d-flex" in c.split() and "mb-3" in c.split()
+        )
+
+        for link in archive_links:
+            # Title from h6.mb-1
+            title_tag = link.find("h6", class_="mb-1")
+            if not title_tag:
+                continue
+            title_text = title_tag.get_text(strip=True)
+
+            # Date from small.text-muted
+            date_tag = link.find("small", class_="text-muted")
+            date_text = date_tag.get_text(strip=True) if date_tag else None
+
+            formatted_date = None
             if date_text:
-                raw_text_parts.append(f"**Issue Date:** {date_text}")
-            if content_text:
-                raw_text_parts.append(content_text)
-            
-            raw_text = "\n\n".join(raw_text_parts)
+                try:
+                    formatted_date = pd.to_datetime(date_text, dayfirst=True).strftime('%Y-%m-%d')
+                except Exception as e:
+                    logger.error(f"Error parsing archive date '{date_text}': {e}")
 
-            structured_entries.append({
+            # PDF URL from the mangled img src
+            pdf_url = ""
+            img_tag = link.find("img")
+            if img_tag and img_tag.get("src"):
+                pdf_url = self._clean_archive_pdf_url(img_tag["src"])
+
+            # Fallback: use the page link href if no PDF extracted
+            page_url = link.get("href", "")
+
+            entries.append({
                 "source": "PMD",
                 "posted_date": formatted_date,
                 "title": title_text,
-                "url": str(response.url),
-                "filetype": "txt",
-                "raw_text": raw_text,
-                "content_hash": self.generate_hash(title_text, formatted_date ,raw_text)
-                
+                "url": pdf_url or page_url,
+                "filetype": "pdf",
+                "content_hash": self.generate_hash(title_text, formatted_date, pdf_url or page_url)
             })
-        
-        return structured_entries
+
+        return entries
+
+    @staticmethod
+    def _clean_archive_pdf_url(raw_src: str) -> str:
+        """Clean the mangled PDF URL from an archive entry's image src.
+
+        The src looks like:
+        https://weather.gov.pk/[&quot;\\/storage\\/uploads\\/nwfc\\/press_release\\/image\\/1784888310-Press Release 24-07-2026.pdf&quot;]
+
+        It's a JSON-encoded array (HTML-escaped) appended to the base domain.
+        We extract the JSON array, unescape HTML entities, parse as JSON,
+        and reconstruct the full URL.
+        """
+        base_url = "https://weather.gov.pk"
+
+        # Find the JSON array [...] after the domain
+        match = re.search(r'\[(.*?)\]', raw_src)
+        if not match:
+            return ""
+
+        json_part = match.group(0)  # e.g. [&quot;\/storage\/...pdf&quot;]
+
+        # HTML-decode: &quot; → ", etc.
+        decoded = unescape(json_part)
+
+        # Parse as JSON array
+        try:
+            paths = json.loads(decoded)
+            if isinstance(paths, list) and len(paths) > 0:
+                raw_url = base_url + paths[0]
+                return PmdPRParser._ensure_safe_url(raw_url)
+        except json.JSONDecodeError as e:
+            logger.error(f"Error decoding archive PDF URL JSON '{decoded}': {e}")
+
+        return ""
+
+    @staticmethod
+    def _ensure_safe_url(url: str) -> str:
+        """Percent-encode spaces and other unsafe characters in the URL path.
+
+        Spaces in filenames like 'Press Release 29-06-2026.pdf' are not valid
+        in URLs and will fail when httpx/requests tries to GET them downstream.
+        Decode-then-encode to avoid double-encoding already-safe URLs.
+        """
+        parsed = urlparse(url)
+        # Decode first so already-encoded %20 doesn't become %2520
+        decoded_path = unquote(parsed.path)
+        safe_path = quote(decoded_path, safe="/:")
+        return parsed._replace(path=safe_path).geturl()

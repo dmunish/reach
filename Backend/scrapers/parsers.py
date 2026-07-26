@@ -177,74 +177,7 @@ class PmdPRParser(BaseParser):
     def parse_entries(self, response) -> list[dict]:
         html = response.text
         parsed_page = BeautifulSoup(html, 'html.parser')
-        structured_entries = []
-
-        # 1. Parse the main press release entry (if present)
-        main_entry = self._parse_main_entry(parsed_page)
-        if main_entry:
-            structured_entries.append(main_entry)
-
-        # 2. Parse the sidebar archive entries
-        archive_entries = self._parse_archive_entries(parsed_page)
-        structured_entries.extend(archive_entries)
-
-        return structured_entries
-
-    def _parse_main_entry(self, parsed_page: BeautifulSoup) -> dict | None:
-        """Parse the main/featured press release from the detail section."""
-        subtitle_row = parsed_page.find("div", class_="subtitlebg_color")
-        if not subtitle_row:
-            return None
-
-        # The subtitle row has two columns: first = date, second = title
-        cols = subtitle_row.find_all("div", class_=lambda c: c and "col-lg-" in c)
-        title_text = None
-        date_text = None
-
-        for col in cols:
-            h5 = col.find("h5", class_="mb-0")
-            if not h5:
-                continue
-            # The date column has a <small> child with the time
-            if h5.find("small"):
-                # Extract date text before the <br> and <small>
-                date_text = h5.get_text(separator=" ", strip=True)
-                # The text is like "24 July 2026 03:18 PM"; extract just the date portion
-                # Use the first text node before <br>
-                for child in h5.children:
-                    if isinstance(child, str) and child.strip():
-                        date_text = child.strip()
-                        break
-            else:
-                title_text = h5.get_text(strip=True)
-
-        # Parse the date
-        formatted_date = None
-        if date_text:
-            try:
-                formatted_date = pd.to_datetime(date_text, dayfirst=True).strftime('%Y-%m-%d')
-            except Exception as e:
-                logger.error(f"Error parsing main entry date '{date_text}': {e}")
-
-        # PDF URL from the file-container section
-        pdf_url = ""
-        file_container = parsed_page.find("div", class_="file-container")
-        if file_container:
-            pdf_link = file_container.find("a", href=True)
-            if pdf_link:
-                pdf_url = self._ensure_safe_url(pdf_link["href"])
-
-        if not title_text:
-            return None
-
-        return {
-            "source": "PMD",
-            "posted_date": formatted_date,
-            "title": title_text,
-            "url": pdf_url,
-            "filetype": "pdf",
-            "content_hash": self.generate_hash(title_text, formatted_date, pdf_url)
-        }
+        return self._parse_archive_entries(parsed_page)
 
     def _parse_archive_entries(self, parsed_page: BeautifulSoup) -> list[dict]:
         """Parse archive press releases from the sidebar.

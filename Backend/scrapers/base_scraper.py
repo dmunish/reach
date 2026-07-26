@@ -1,5 +1,6 @@
 import hashlib
 import json
+import httpx
 from utils import get_logger
 
 logger = get_logger(__name__)
@@ -32,20 +33,49 @@ class BaseScraper:
             entries = self.parser.parse_entries(response)
             self.logger.info(f"Parsed {len(entries)} entries from {self.url}")
             
+            # Deduplicate by content_hash before upsert
+            entries = self._deduplicate_by_hash(entries)
+            
             new_entries = self.filter_new(entries)
             self.logger.info(f"Found {len(new_entries)} new entries")
-            
+
             if new_entries:
                 count = self.upsert(new_entries)
                 self.logger.info(f"Upserted {count} entries")
                 return count
             
             return 0
-            
+
+        except httpx.ConnectError:
+            self.logger.warning(f"Connection failed for {self.url} — host may be unreachable")
+            return 0
+        except httpx.TimeoutException:
+            self.logger.warning(f"Request timed out for {self.url}")
+            return 0
+        except httpx.HTTPStatusError as e:
+            self.logger.warning(f"HTTP {e.response.status_code} for {self.url}")
+            return 0
+        except httpx.RequestError as e:
+            self.logger.warning(f"Request error for {self.url}: {e}")
+            return 0
         except Exception as e:
-            self.logger.error(f"Error running scraper for {self.url}: {str(e)}", exc_info=True)
-            raise e
+            self.logger.error(f"Unexpected error scraping {self.url}: {e}", exc_info=True)
+            return 0
     
+    def _deduplicate_by_hash(self, entries: list[dict]) -> list[dict]:
+        """Remove entries with duplicate content_hash, keeping first occurrence."""
+        seen = set()
+        deduped = []
+        for entry in entries:
+            h = entry.get("content_hash")
+            if h and h not in seen:
+                seen.add(h)
+                deduped.append(entry)
+        dupes = len(entries) - len(deduped)
+        if dupes:
+            self.logger.info(f"Deduplicated {dupes} duplicate entries")
+        return deduped
+
     def filter_new(self, entries):
         if not entries:
             return []

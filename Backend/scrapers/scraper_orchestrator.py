@@ -27,7 +27,7 @@ SCRAPER_CONFIGS = [
     },
     {
         'name': 'pmd-press-releases',
-        'url': 'https://nwfc.pmd.gov.pk/new/press-releases.php',
+        'url': 'https://weather.gov.pk/nwfc/all-press-releases',
         'parser': PmdPRParser()
     }
 ]

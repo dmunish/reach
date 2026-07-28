@@ -1,13 +1,20 @@
 import asyncio
+import os
 from typing import List
 import logging
 from processing_engine.processor_utils.doc_utils import url_to_b64_strings
 
-_EXAMPLE_URLS = [
-    "https://www.ndma.gov.pk/storage/advisories/August2025/WMpJfGUze00GwXezWekr.pdf", 
-    "https://www.ndma.gov.pk/storage/advisories/January2026/s192iGRrLKbNUURRYmIy.pdf", 
-    "https://www.ndma.gov.pk/storage/projection-impact-langs/August2024/S1I2t0WfnuuE6fmYyK3D.pdf"
+_EXAMPLE_FILENAMES = [
+    "WMpJfGUze00GwXezWekr.pdf",
+    "s192iGRrLKbNUURRYmIy.pdf",
+    "S1I2t0WfnuuE6fmYyK3D.pdf",
 ]
+
+def _get_example_urls() -> List[str]:
+    """Build Supabase storage URLs for the example PDFs from secrets."""
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    bucket = "assets"
+    return [f"{supabase_url}/storage/v1/object/public/{bucket}/{name}" for name in _EXAMPLE_FILENAMES]
 
 # Cache for base64-encoded example files
 _cached_b64_files = None
@@ -34,7 +41,8 @@ async def _load_examples() -> List[List[str]]:
     print("Initializing example files cache...")  # Debug log
     
     try:
-      tasks = [url_to_b64_strings(url) for url in _EXAMPLE_URLS]
+      example_urls = _get_example_urls()
+      tasks = [url_to_b64_strings(url) for url in example_urls]
       b64_files = await asyncio.gather(*tasks)
       _cached_b64_files = b64_files
       logger.info(f"Cache initialized with {len(_cached_b64_files)} example files")
